@@ -6,6 +6,7 @@ import { useToast } from '../ToastProvider';
 import { apiService } from '../../services/apiService';
 import { Document, DocumentAuthor, DocumentType, DocumentTopic, Tag, User, ModelType, DocumentConfig, Space } from '../../types';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { MediaPickerModal } from './MediaPickerModal';
 
 // Translations
 const translations = {
@@ -813,6 +814,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
     // Global Config State
     const [documentConfig, setDocumentConfig] = useState<DocumentConfig | null>(null);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+    const [isThumbnailPickerOpen, setIsThumbnailPickerOpen] = useState(false);
 
     // State for translation and extraction
     const [translatingField, setTranslatingField] = useState<string | null>(null);
@@ -1314,7 +1316,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
                                         )}
                                     </div>
                                     <input type="file" ref={fileInputRefs.thumbnail} onChange={(e) => handleFileChange(e, 'thumbnailUrl')} className="hidden" accept="image/*" />
-                                    <button type="button" onClick={() => fileInputRefs.thumbnail.current?.click()} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md w-full">{isSaving ? t.saving : t.changeImage}</button>
+                                    <button type="button" onClick={() => setIsThumbnailPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md w-full">{isSaving ? t.saving : t.changeImage}</button>
                                 </div>
                                 <div className="space-y-4">
                                     <div><label className="block text-sm font-medium">{t.author}</label><div className="flex items-center gap-1 mt-1"><select name="authorId" value={editingDocument.authorId || ''} onChange={handleFormChange} className="flex-grow p-2 border rounded-md"><option value="">{t.selectPlaceholder}</option>{documentAuthors.map(item => <option key={item.id} value={item.id}>{language === 'en' && item.nameEn ? item.nameEn : item.name}</option>)}</select></div></div>
@@ -1385,6 +1387,17 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
                 onSaveSuccess={(newConfig) => setDocumentConfig(newConfig)}
                 language={language}
                 user={user}
+            />
+            <MediaPickerModal
+                isOpen={isThumbnailPickerOpen}
+                onClose={() => setIsThumbnailPickerOpen(false)}
+                onSelect={(url) => {
+                    setEditingDocument(prev => prev ? { ...prev, thumbnailUrl: url } : null);
+                    setThumbnailFile(null); // Using URL from media library, no file to upload
+                    setIsThumbnailPickerOpen(false);
+                }}
+                space={manageableSpaces.find(s => String(s.id) === String(editingDocument?.spaceId)) ?? null}
+                language={language}
             />
         </div>
     );

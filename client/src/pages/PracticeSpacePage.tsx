@@ -1,4 +1,4 @@
-﻿// client/src/pages/PracticeSpacePage.tsx
+// client/src/pages/PracticeSpacePage.tsx
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
@@ -275,14 +275,7 @@ export const PracticeSpacePage: React.FC<{
             } catch { /* ignore */ }
         }
     };
-    const closeUserProfile = () => {
-        setViewingUser(null);
-        setSearchParams(prev => {
-            prev.delete('profile');
-            prev.delete('profileName');
-            return prev;
-        }, { replace: true });
-    };
+
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [notifLoading, setNotifLoading] = useState(false);

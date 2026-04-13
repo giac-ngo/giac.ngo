@@ -25,20 +25,31 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
     const { showToast } = useToast();
     const [files, setFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
     const [isUploading, setIsUploading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
     const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
     const [activeFile, setActiveFile] = useState<MediaFile | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    const PAGE_LIMIT = 60;
 
     const spaceId = space?.id || 'global';
 
+    // Initial load — resets list
     const fetchMedia = useCallback(async () => {
         setIsLoading(true);
+        setFiles([]);
+        setCurrentPage(1);
+        setHasMore(true);
         try {
-            const data = await apiService.getMediaLibrary(spaceId);
-            setFiles(data);
+            const data = await apiService.getMediaLibrary(spaceId, 1, PAGE_LIMIT);
+            setFiles(data?.files ?? []);
+            setHasMore(data?.hasMore ?? false);
+            setCurrentPage(1);
         } catch (error: any) {
             showToast(error.message || 'Failed to load media files.', 'error');
         } finally {
@@ -46,7 +57,44 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
         }
     }, [spaceId, showToast]);
 
+    // Load next page — appends to list
+    const loadMore = useCallback(async (page: number) => {
+        if (isLoadingMore) return;
+        setIsLoadingMore(true);
+        try {
+            const data = await apiService.getMediaLibrary(spaceId, page, PAGE_LIMIT);
+            const incoming: MediaFile[] = data?.files ?? [];
+            setFiles(prev => {
+                const existingUrls = new Set((prev ?? []).map(f => f.url));
+                const newFiles = incoming.filter((f: MediaFile) => !existingUrls.has(f.url));
+                return [...(prev ?? []), ...newFiles];
+            });
+            setHasMore(data?.hasMore ?? false);
+            setCurrentPage(page);
+        } catch (error: any) {
+            showToast(error.message || 'Failed to load more.', 'error');
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [spaceId, showToast, isLoadingMore]);
+
     useEffect(() => { fetchMedia(); }, [fetchMedia]);
+
+    // IntersectionObserver for scroll sentinel
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
+                    loadMore(currentPage + 1);
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, isLoading, isLoadingMore, currentPage, loadMore]);
 
     const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -68,7 +116,12 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
     };
 
     const handleDelete = async () => {
-        const toDelete = activeFile ? [activeFile.url] : Array.from(selectedFiles);
+        // selectedFiles has priority (multi-select via Ctrl+click);
+        // fall back to activeFile for single-file panel selection
+        const toDelete = selectedFiles.size > 0
+            ? Array.from(selectedFiles)
+            : activeFile ? [activeFile.url] : [];
+
         if (toDelete.length === 0) return;
         if (!window.confirm(`Bạn có chắc muốn xóa ${toDelete.length} file đã chọn?`)) return;
         try {
@@ -82,13 +135,68 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
         }
     };
 
-    const handleThumbnailClick = (file: MediaFile) => {
+    const handleThumbnailClick = (file: MediaFile, e: React.MouseEvent) => {
         if (selectable) {
             onSelect?.(file.url);
             return;
         }
-        setActiveFile(prev => prev?.url === file.url ? null : file);
+        if (e.ctrlKey || e.metaKey) {
+            // Ctrl/Cmd+click → toggle multi-select
+            setSelectedFiles(prev => {
+                const next = new Set(prev);
+                if (next.has(file.url)) { next.delete(file.url); }
+                else { next.add(file.url); }
+                return next;
+            });
+            // If this is the first selection, also show detail panel
+            if (!selectedFiles.has(file.url)) setActiveFile(file);
+        } else {
+            // Normal click → single active + clear multi-select
+            setSelectedFiles(new Set());
+            setActiveFile(prev => prev?.url === file.url ? null : file);
+        }
     };
+
+    // Colorful icon by file extension
+    const FileTypeIcon = ({ ext, size = 'w-8 h-8' }: { ext: string; size?: string }) => {
+        const e = ext.toLowerCase();
+        if (e === '.pdf') return (
+            <div className={`${size} flex flex-col items-center justify-center rounded`} style={{ background: '#fee2e2', color: '#dc2626' }}>
+                <span style={{ fontSize: '0.55em', fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 }}>PDF</span>
+                <DocumentTextIcon className="w-4 h-4" />
+            </div>
+        );
+        if (e === '.xlsx' || e === '.xls' || e === '.csv') return (
+            <div className={`${size} flex flex-col items-center justify-center rounded`} style={{ background: '#dcfce7', color: '#16a34a' }}>
+                <span style={{ fontSize: '0.55em', fontWeight: 800, lineHeight: 1 }}>XLS</span>
+                <DocumentTextIcon className="w-4 h-4" />
+            </div>
+        );
+        if (e === '.docx' || e === '.doc') return (
+            <div className={`${size} flex flex-col items-center justify-center rounded`} style={{ background: '#dbeafe', color: '#2563eb' }}>
+                <span style={{ fontSize: '0.55em', fontWeight: 800, lineHeight: 1 }}>DOC</span>
+                <DocumentTextIcon className="w-4 h-4" />
+            </div>
+        );
+        if (e === '.pptx' || e === '.ppt') return (
+            <div className={`${size} flex flex-col items-center justify-center rounded`} style={{ background: '#ffedd5', color: '#ea580c' }}>
+                <span style={{ fontSize: '0.55em', fontWeight: 800, lineHeight: 1 }}>PPT</span>
+                <DocumentTextIcon className="w-4 h-4" />
+            </div>
+        );
+        if (['.mp3', '.wav', '.ogg', '.m4a', '.aac'].includes(e)) return (
+            <div className={`${size} flex items-center justify-center rounded`} style={{ background: '#ede9fe', color: '#7c3aed' }}>
+                <MusicalNoteIcon className="w-6 h-6" />
+            </div>
+        );
+        if (['.mp4', '.webm', '.mov', '.avi'].includes(e)) return (
+            <div className={`${size} flex items-center justify-center rounded`} style={{ background: '#fef3c7', color: '#d97706' }}>
+                <FilmIcon className="w-6 h-6" />
+            </div>
+        );
+        return <DocumentTextIcon className={`${size} text-gray-400`} />;
+    };
+
 
     const formatBytes = (bytes: number, decimals = 2) => {
         if (!+bytes) return '0 Bytes';
@@ -106,7 +214,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
         navigator.clipboard.writeText(text).then(() => showToast('Đã sao chép link!', 'success'));
     };
 
-    const filteredFiles = files.filter(f => {
+    const filteredFiles = (files ?? []).filter(f => {
         if (filterType !== 'all' && f.type !== filterType) return false;
         if (searchTerm && !f.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
         return true;
@@ -158,7 +266,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                         />
                     </div>
                     <div className="flex bg-background-light p-0.5 rounded-lg border border-border-color shadow-sm shrink-0">
-                        {['all', 'image', 'video', 'audio'].map((type) => (
+                        {['all', 'image', 'video', 'audio', 'document'].map((type) => (
                             <button
                                 key={type}
                                 onClick={() => setFilterType(type)}
@@ -170,6 +278,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                                 {type === 'image' && (language === 'vi' ? 'Hình ảnh' : 'Images')}
                                 {type === 'video' && 'Video'}
                                 {type === 'audio' && (language === 'vi' ? 'Âm thanh' : 'Audio')}
+                                {type === 'document' && (language === 'vi' ? 'Tài liệu' : 'Docs')}
                             </button>
                         ))}
                     </div>
@@ -202,15 +311,15 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                                 return (
                                     <div
                                         key={file.url}
-                                        onClick={() => handleThumbnailClick(file)}
+                                        onClick={(e) => handleThumbnailClick(file, e)}
                                         title={file.name}
                                         className={`
                                             group relative rounded-lg border overflow-hidden cursor-pointer aspect-square
-                                            transition-all duration-150
+                                            transition-all duration-150 select-none
                                             ${isActive
                                                 ? 'border-primary ring-2 ring-primary shadow-md'
                                                 : isSelected
-                                                    ? 'border-primary/60 ring-1 ring-primary/40'
+                                                    ? 'border-blue-400 ring-2 ring-blue-400 shadow-sm'
                                                     : 'border-border-color hover:border-primary/50 hover:shadow-sm'
                                             }
                                         `}
@@ -218,23 +327,50 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                                         <div className="w-full h-full bg-gray-100 flex items-center justify-center overflow-hidden">
                                             {file.type === 'image' ? (
                                                 <img src={file.url} alt={file.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                                            ) : file.type === 'video' ? (
-                                                <FilmIcon className="w-8 h-8 text-gray-400" />
-                                            ) : file.type === 'audio' ? (
-                                                <MusicalNoteIcon className="w-8 h-8 text-gray-400" />
                                             ) : (
-                                                <DocumentTextIcon className="w-8 h-8 text-gray-400" />
+                                                <FileTypeIcon ext={file.ext} size="w-10 h-10" />
                                             )}
+                                        </div>
+                                        {/* File name label at bottom */}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-1 py-0.5 text-white text-[9px] truncate leading-tight opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {file.name}
                                         </div>
                                         {/* Active indicator */}
                                         {isActive && (
-                                            <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
+                                            <div style={{
+                                                position: 'absolute', top: 4, right: 4,
+                                                width: 18, height: 18, borderRadius: '50%',
+                                                background: 'hsl(0, 55%, 42%)', border: '2px solid #fff',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: 10, color: '#fff', fontWeight: 700,
+                                                pointerEvents: 'none',
+                                            }}>✓</div>
+                                        )}
+                                        {/* Multi-select badge */}
+                                        {isSelected && !isActive && (
+                                            <div style={{
+                                                position: 'absolute', top: 4, right: 4,
+                                                width: 18, height: 18, borderRadius: '50%',
+                                                background: '#3b82f6', border: '2px solid #fff',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: 10, color: '#fff', fontWeight: 700,
+                                                pointerEvents: 'none',
+                                            }}>✓</div>
                                         )}
                                     </div>
                                 );
                             })}
                         </div>
                     )}
+
+                    {/* Infinite scroll sentinel */}
+                    <div ref={sentinelRef} style={{ height: 16, marginTop: 8 }}>
+                        {isLoadingMore && (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+                                <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Detail Panel */}

@@ -13,9 +13,12 @@ const uploadsDir = path.join(__dirname, 'uploads');
 
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    // The spaceId can be a number string, an empty string, or undefined.
-    const spaceId = req.body.spaceId || 'global';
-    const finalDir = path.join(uploadsDir, String(spaceId), 'dharmatalks');
+    const rawSpaceId = req.body.spaceId;
+    // Use space-{id} convention; fall back to space-1 if no spaceId (no global folder)
+    const spaceDir = rawSpaceId && rawSpaceId !== '' && rawSpaceId !== 'null'
+        ? `space-${String(rawSpaceId).replace(/[^a-zA-Z0-9_-]/g, '_')}`
+        : 'space-1';
+    const finalDir = path.join(uploadsDir, spaceDir, 'dharmatalks');
 
     try {
       await fs.mkdir(finalDir, { recursive: true });

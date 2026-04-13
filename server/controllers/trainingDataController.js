@@ -29,15 +29,8 @@ const uploadsDir = path.join(projectRoot, 'uploads');
     }
 })();
 
-const trainingDataStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-        // Sanitize filename to prevent issues
-        const utf8OriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        const safeName = utf8OriginalName.replace(/[^\w\s.\-\p{L}]/gu, '_');
-        cb(null, safeName);
-    },
-});
+// Use memory storage; we'll write to correct space folder after resolving spaceId
+const trainingDataStorage = multer.memoryStorage();
 
 export const trainingDataController = {
     upload: multer({
@@ -78,10 +71,22 @@ export const trainingDataController = {
             if (type === 'file') {
                 if (!req.file) return res.status(400).json({ message: 'File is required.' });
 
-                // Treat ALL uploaded files as 'file' type sources, 
-                // regardless of extension (Excel, JSONL, PDF, etc.)
-                newSourceData.fileUrl = `/uploads/${req.file.filename}`;
-                newSourceData.fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                // Determine correct space folder
+                const safeSpaceId = aiConfig.spaceId
+                    ? String(aiConfig.spaceId).replace(/[^a-zA-Z0-9_-]/g, '_')
+                    : 'global';
+                const spaceDir = path.join(uploadsDir, `space-${safeSpaceId}`, 'training');
+                await fs.mkdir(spaceDir, { recursive: true });
+
+                // Sanitize filename
+                const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                const safeName = path.basename(utf8Name).replace(/[^\w\s.\-\p{L}]/gu, '_');
+                const destPath = path.join(spaceDir, safeName);
+                await fs.writeFile(destPath, req.file.buffer);
+                uploadedFilePath = destPath;
+
+                newSourceData.fileUrl = `/uploads/space-${safeSpaceId}/training/${safeName}`;
+                newSourceData.fileName = utf8Name;
 
             } else if (type === 'qa') {
                 if (!question || !answer) return res.status(400).json({ message: 'Question and Answer are required.' });

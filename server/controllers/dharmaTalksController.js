@@ -7,21 +7,25 @@ import { pool } from '../db.js';
 const parseAndProcessTalkData = (req) => {
     const data = { ...req.body };
     const files = req.files;
-    const spaceIdSubDir = data.spaceId || 'global';
+    // Use space-{id} convention
+    const rawSpaceId = data.spaceId;
+    const spaceDir = rawSpaceId && rawSpaceId !== '' && rawSpaceId !== 'null'
+        ? `space-${String(rawSpaceId).replace(/[^a-zA-Z0-9_-]/g, '_')}`
+        : 'space-1'; // No global folder — default to space-1
 
     if (files) {
         if (files.avatarFile) {
-            data.speakerAvatarUrl = `/uploads/${spaceIdSubDir}/dharmatalks/${files.avatarFile[0].filename}`;
+            data.speakerAvatarUrl = `/uploads/${spaceDir}/dharmatalks/${files.avatarFile[0].filename}`;
         }
         if (files.audioFileVi) {
-            data.url = `/uploads/${spaceIdSubDir}/dharmatalks/${files.audioFileVi[0].filename}`;
+            data.url = `/uploads/${spaceDir}/dharmatalks/${files.audioFileVi[0].filename}`;
         }
         if (files.audioFileEn) {
-            data.urlEn = `/uploads/${spaceIdSubDir}/dharmatalks/${files.audioFileEn[0].filename}`;
+            data.urlEn = `/uploads/${spaceDir}/dharmatalks/${files.audioFileEn[0].filename}`;
         }
         // Legacy support: if audioFile is used (old field name), treat it as Vietnamese
         if (files.audioFile && !files.audioFileVi) {
-            data.url = `/uploads/${spaceIdSubDir}/dharmatalks/${files.audioFile[0].filename}`;
+            data.url = `/uploads/${spaceDir}/dharmatalks/${files.audioFile[0].filename}`;
         }
     }
 

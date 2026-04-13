@@ -6,7 +6,7 @@ import { apiService } from '../services/apiService';
 import { useToast } from './ToastProvider';
 import { LanguageIcon, CryptoIcon, LogoutIcon, PencilIcon, TrashIcon, HelmetIcon, LoginIcon, SpinnerIcon } from './Icons';
 import { LibraryMenu } from './LibraryMenu';
-
+import UserAvatar from './UserAvatar';
 
 interface ConversationSidebarProps {
     user: User | null;
@@ -417,7 +417,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                         <div className="flex flex-col items-center gap-y-2 py-2">
                             <div className="flex flex-col items-center gap-y-2">
                                 <button onClick={() => setIsSidebarCollapsed(false)} className="p-0 border-0 bg-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-panel focus:ring-primary">
-                                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full cursor-pointer" title={user.name} />
+                                    <UserAvatar name={user.name} url={user.avatarUrl} size={40} className="cursor-pointer" />
                                 </button>
                                 <button onClick={toggleColorMode} title={colorMode === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {colorMode === 'dark'
@@ -434,7 +434,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                         <div ref={userMenuRef}>
                             <div className="user-info-card-new">
                                 <div className="user-info-header">
-                                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full" />
+                                    <UserAvatar name={user.name} url={user.avatarUrl} size={40} />
                                     <div className="user-info-details overflow-hidden">
                                         <p className="font-semibold truncate">{user.name}</p>
                                         <p className="text-xs text-text-light truncate">{user.email}</p>

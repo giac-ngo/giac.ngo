@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { ChevronLeftIcon } from "../components/Icons";
 
-const newLogoUrl = "/uploads/trainingFiles-1760925528911-497608075.png";
+const newLogoUrl = "/themes/giacngo/images/logo_giacngo.png";
 
 export default function PrivacyPage() {
    const language: 'vi' | 'en' = (localStorage.getItem('language') as 'vi' | 'en') || 'vi';

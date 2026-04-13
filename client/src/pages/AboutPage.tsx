@@ -86,7 +86,7 @@ const translations = {
     }
 };
 
-const newLogoUrl = "/uploads/trainingFiles-1760925528911-497608075.png";
+const newLogoUrl = "/themes/giacngo/images/logo_giacngo.png";
 
 interface AboutPageProps {
   language: 'vi' | 'en';

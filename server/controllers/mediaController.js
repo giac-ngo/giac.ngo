@@ -12,8 +12,9 @@ const uploadsDir = path.join(projectRoot, 'uploads');
 // Helper to get space media directory
 const getSpaceMediaDir = (spaceId) => {
     const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Global/root admin uploads → uploads/global/
     if (safeSpaceId === 'global' || safeSpaceId === 'system') {
-        return path.join(uploadsDir, 'media-library', safeSpaceId);
+        return path.join(uploadsDir, 'global');
     }
     return path.join(uploadsDir, `space-${safeSpaceId}`, 'media-library');
 };
@@ -30,51 +31,79 @@ export const mediaController = {
         const { spaceId } = req.params;
         if (!spaceId) return res.status(400).json({ message: 'Space ID is required.' });
 
-        const dir = getSpaceMediaDir(spaceId);
+        const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+        // Always scan the full uploads/ tree so files are never missed due to
+        // spaceId mismatches between local dev and production databases.
+        // Then filter the results to only files that belong to the requested scope.
+        const baseDir = uploadsDir;
+        const scopePrefix = (safeSpaceId === 'global' || safeSpaceId === 'system')
+            ? path.join(uploadsDir, 'global') + path.sep
+            : path.join(uploadsDir, `space-${safeSpaceId}`) + path.sep;
+
+
+        const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg']);
+        const VIDEO_EXT = new Set(['.mp4', '.webm', '.mov']);
+        const AUDIO_EXT = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
+
+        // Recursively collect ALL files (no extension filter)
+        async function walkDir(dir, results = []) {
+            if (!fs.existsSync(dir)) return results;
+            let entries;
+            try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
+            catch { return results; }
+            for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    await walkDir(full, results);
+                } else {
+                    results.push(full); // include every file
+                }
+            }
+            return results;
+        }
 
         try {
-            if (!fs.existsSync(dir)) {
-                return res.json([]);
-            }
+            const allFiles = await walkDir(baseDir);
+            // Filter to only paths that belong to this space/admin scope
+            const scopedFiles = allFiles.filter(f => f.startsWith(scopePrefix));
 
-            const files = await fs.promises.readdir(dir);
             const mediaFiles = [];
 
-            for (const file of files) {
-                const filePath = path.join(dir, file);
+            for (const filePath of scopedFiles) {
+
                 const stats = await fs.promises.stat(filePath);
+                const ext = path.extname(filePath).toLowerCase();
+                let type = 'document';
+                if (IMAGE_EXT.has(ext)) type = 'image';
+                else if (VIDEO_EXT.has(ext)) type = 'video';
+                else if (AUDIO_EXT.has(ext)) type = 'audio';
 
-                if (stats.isFile()) {
-                    let type = 'document';
-                    const ext = path.extname(file).toLowerCase();
-                    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'].includes(ext)) {
-                        type = 'image';
-                    } else if (['.mp4', '.webm', '.ogg', '.mov'].includes(ext)) {
-                        type = 'video';
-                    } else if (['.mp3', '.wav', '.ogg', '.m4a'].includes(ext)) {
-                        type = 'audio';
-                    }
+                const relativePath = path.relative(uploadsDir, filePath).replace(/\\/g, '/');
+                const url = `/uploads/${relativePath}`;
 
-                    // Convert absolute path to route path for client
-                    const relativePath = path.relative(uploadsDir, filePath).replace(/\\/g, '/');
-                    const url = `/uploads/${relativePath}`;
-
-                    mediaFiles.push({
-                        name: file,
-                        url,
-                        size: stats.size,
-                        createdAt: stats.birthtime,
-                        modifiedAt: stats.mtime,
-                        type,
-                        ext
-                    });
-                }
+                mediaFiles.push({
+                    name: path.basename(filePath),
+                    url,
+                    size: stats.size,
+                    createdAt: stats.birthtime,
+                    modifiedAt: stats.mtime,
+                    type,
+                    ext
+                });
             }
 
             // Sort by newest first
             mediaFiles.sort((a, b) => b.modifiedAt - a.modifiedAt);
 
-            res.json(mediaFiles);
+            // Pagination
+            const page = Math.max(1, parseInt(req.query.page) || 1);
+            const limit = Math.max(1, parseInt(req.query.limit) || 60);
+            const total = mediaFiles.length;
+            const start = (page - 1) * limit;
+            const paged = mediaFiles.slice(start, start + limit);
+
+            res.json({ files: paged, total, page, limit, hasMore: start + limit < total });
         } catch (error) {
             console.error('Error reading media directory:', error);
             res.status(500).json({ message: 'Error fetching media files', error: error.message });
@@ -151,18 +180,20 @@ export const mediaController = {
         }
 
         const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
-        const expectedPrefix = (safeSpaceId === 'global' || safeSpaceId === 'system') 
-            ? `media-library/${safeSpaceId}/`
-            : `space-${safeSpaceId}/media-library/`;
+        // Global admin can delete from uploads/global/, space admins from uploads/space-{id}/
+        const allowedPrefix = (safeSpaceId === 'global' || safeSpaceId === 'system')
+            ? 'global/'
+            : `space-${safeSpaceId}/`;
+
 
         try {
             const results = [];
             for (const url of urls) {
                 const relativePath = url.replace(/^\/uploads\//, '');
-                
-                // SECURITY CHECK: Path traversal AND Space Isolation
-                if (!relativePath.startsWith(expectedPrefix) || relativePath.includes('..')) {
-                    results.push({ url, status: 'error', error: 'Unauthorized or invalid path traversal detected.' });
+
+                // SECURITY: must belong to this space + no path traversal
+                if (!relativePath.startsWith(allowedPrefix) || relativePath.includes('..')) {
+                    results.push({ url, status: 'error', error: 'Unauthorized or invalid path.' });
                     continue;
                 }
 

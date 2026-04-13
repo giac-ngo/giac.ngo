@@ -2533,7 +2533,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                     setSelectedAi(prev => prev ? { ...prev, avatarUrl: url } : null);
                     setIsMediaPickerOpen(false);
                 }}
-                space={null}
+                space={manageableSpaces.find(s => String(s.id) === String(selectedAi?.spaceId)) ?? null}
                 language={language}
             />
         </div>

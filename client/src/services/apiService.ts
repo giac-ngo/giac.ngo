@@ -874,7 +874,8 @@ export const apiService = {
             body: formData,
         }).then(handleResponse);
     },
-    getMediaLibrary: (spaceId: number | string): Promise<any[]> => authedFetch(`/api/media/${spaceId}`).then(handleResponse),
+    getMediaLibrary: (spaceId: number | string, page = 1, limit = 60): Promise<{ files: any[]; total: number; page: number; limit: number; hasMore: boolean }> =>
+        authedFetch(`/api/media/${spaceId}?page=${page}&limit=${limit}`).then(handleResponse),
     uploadMedia: (spaceId: number | string, formData: FormData): Promise<{ success: boolean; urls: string[] }> => {
         return authedFetch(`/api/media/${spaceId}/upload`, {
             method: 'POST',

@@ -7,6 +7,7 @@ import { useToast } from '../ToastProvider';
 import { PlusIcon, PencilIcon, TrashIcon } from '../Icons';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { MediaPickerModal } from './MediaPickerModal';
+import UserAvatar from '../UserAvatar';
 
 const translations = {
     vi: {
@@ -365,7 +366,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                         {isLoading ? (<tr><td colSpan={6} className="text-center p-4">{t.feedback.loading}</td></tr>) : paginatedUsers.length === 0 ? (<tr><td colSpan={6} className="text-center p-4">{t.feedback.noUsers}</td></tr>) : (
                             paginatedUsers.map((u: User) => (
                                 <tr key={u.id} className="hover:bg-background-light">
-                                    <td className="px-4 py-3 flex items-center gap-3"><img src={u.avatarUrl} alt={u.name} className="w-10 h-10 rounded-full object-cover" />{u.name}</td>
+                                    <td className="px-4 py-3 flex items-center gap-3"><UserAvatar name={u.name} url={u.avatarUrl} size={40} />{u.name}</td>
                                     <td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td><td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>
                                     <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{u.isActive ? t.active : t.inactive}</span></td>
                                     <td className="px-4 py-3 text-right space-x-2"><button onClick={() => openModal(u)} className="p-2 rounded-full hover:bg-gray-200"><PencilIcon className="w-5 h-5" /></button><button onClick={() => handleDelete(u)} className="p-2 rounded-full hover:bg-gray-200"><TrashIcon className="w-5 h-5 text-red-600" /></button></td>

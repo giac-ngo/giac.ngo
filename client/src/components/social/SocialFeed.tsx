@@ -32,20 +32,33 @@ function timeAgo(dateStr: string): string {
 }
 
 function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
-    const initials = name?.charAt(0)?.toUpperCase() || '?';
-    const colors = ['#1877f2', '#42b883', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c'];
-    const color = colors[name.charCodeAt(0) % colors.length];
-    return url ? (
+    const [imgError, setImgError] = React.useState(false);
+    const initial = (name ?? '?').trim().charAt(0).toUpperCase() || '?';
+    const palette = [
+        { bg: 'hsl(0,  55%, 38%)', fg: 'hsl(44, 55%, 92%)' },
+        { bg: 'hsl(28, 50%, 32%)', fg: 'hsl(44, 55%, 90%)' },
+        { bg: 'hsl(35, 65%, 35%)', fg: 'hsl(44, 60%, 92%)' },
+        { bg: 'hsl(170, 35%, 28%)', fg: 'hsl(170, 40%, 85%)' },
+        { bg: 'hsl(220, 35%, 38%)', fg: 'hsl(220, 60%, 90%)' },
+        { bg: 'hsl(290, 30%, 38%)', fg: 'hsl(290, 40%, 90%)' },
+        { bg: 'hsl(130, 30%, 30%)', fg: 'hsl(130, 40%, 88%)' },
+        { bg: 'hsl(195, 40%, 30%)', fg: 'hsl(195, 50%, 88%)' },
+    ];
+    const { bg, fg } = palette[Math.abs((name ?? '').charCodeAt(0)) % palette.length];
+    const validUrl = url && url.trim() !== '' && url !== 'null' && url !== 'undefined' && !imgError;
+    return validUrl ? (
         <img
-            src={url} alt={name}
+            src={url!} alt={name}
             style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+            onError={() => setImgError(true)}
         />
     ) : (
         <div style={{
-            width: size, height: size, borderRadius: '50%', background: color,
+            width: size, height: size, borderRadius: '50%', background: bg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: size * 0.4, flexShrink: 0
-        }}>{initials}</div>
+            color: fg, fontWeight: 700, fontSize: size * 0.42, flexShrink: 0,
+            userSelect: 'none', letterSpacing: '-0.5px',
+        }}>{initial}</div>
     );
 }
 
@@ -85,17 +98,22 @@ function PhotoGrid({ urls }: { urls: string[] }) {
 // ─── Comment Item ──────────────────────────────────────────────────────────────
 
 function CommentItem({
-    comment, currentUser, spaceId, postId,
+    comment, currentUser, spaceId, postId, postUserId,
     onDelete, onReply
 }: {
     comment: SocialComment;
     currentUser: User | null;
     spaceId: number;
     postId: number;
+    postUserId: number;
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
 }) {
-    const canDelete = currentUser && (currentUser.id === comment.userId || (currentUser.roleIds && currentUser.roleIds.length > 0));
+    const canDelete = currentUser && (
+        currentUser.id === comment.userId ||
+        currentUser.id === postUserId ||
+        (currentUser.roleIds && currentUser.roleIds.length > 0)
+    );
 
     return (
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -611,6 +629,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                                     <CommentItem
                                         comment={c} currentUser={currentUser}
                                         spaceId={spaceId} postId={post.id}
+                                        postUserId={post.userId}
                                         onDelete={handleDeleteComment} onReply={handleReply}
                                     />
                                     {getReplies(c.id).map(reply => (
@@ -618,6 +637,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                                             <CommentItem
                                                 comment={reply} currentUser={currentUser}
                                                 spaceId={spaceId} postId={post.id}
+                                                postUserId={post.userId}
                                                 onDelete={handleDeleteComment} onReply={handleReply}
                                             />
                                         </div>

@@ -254,7 +254,7 @@ const DharmaTalkModal: React.FC<{
                 isOpen={isMediaPickerOpen}
                 onClose={() => setIsMediaPickerOpen(false)}
                 onSelect={handleAvatarSelect}
-                space={null}
+                space={spaces.find(s => s.id === formData.spaceId) ?? null}
                 language={language}
             />
         </>

@@ -107,17 +107,11 @@ app.use('/api/forgot-password', authLimiter);
 app.use('/api/conversations/chat/stream', chatLimiter);
 app.use('/api', generalLimiter);
 
-// ── Static uploads với bảo vệ token cho thư mục space/ ───────────────────────
-// File upload của space chỉ admin/member mới xem được; ảnh public vẫn mở
-app.use('/uploads/space', authenticateToken, (req, res, next) => {
-    if (!req.user) {
-        return res.status(401).json({ message: 'Cần đăng nhập để xem file này.' });
-    }
-    next();
-}, express.static(uploadsDir));
-
-// Các uploads khác (ảnh public, tài liệu, ...) vẫn mở
+// ── Static uploads ────────────────────────────────────────────────────────────
+// Media files in space dirs are served publicly so <img>/<audio> tags work.
+// Access control is handled at the API level, not the static file level.
 app.use('/uploads', express.static(uploadsDir));
+
 
 
 // --- Custom Domain Middleware ---
@@ -176,7 +170,31 @@ app.use('/api', apiRoutes);
 const distPath = path.join(projectRoot, 'dist');
 const publicPath = existsSync(path.join(distPath, 'index.html')) ? distPath : projectRoot;
 console.log(`[Static] Serving SPA from: ${publicPath}`);
-app.use(express.static(publicPath));
+
+// Hashed assets (JS/CSS/images with content hash in filename) → cache 1 year
+app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+}));
+
+// Themes & uploads → cache 1 day, must revalidate
+app.use('/themes', express.static(path.join(projectRoot, 'client', 'public', 'themes'), {
+    maxAge: '1d',
+}));
+
+// HTML & everything else → no cache (forces browser to always check for updates)
+app.use(express.static(publicPath, {
+    etag: true,
+    lastModified: true,
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    },
+}));
+
 
 app.get('*', (req, res, next) => {
     // If the request is for an API route, let it pass to the 404 handler

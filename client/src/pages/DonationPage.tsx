@@ -7,7 +7,7 @@ import { apiService } from '../services/apiService';
 import { User } from '../types';
 
 
-const newLogoUrl = "/uploads/trainingFiles-1760925528911-497608075.png";
+const newLogoUrl = "/themes/giacngo/images/logo_giacngo.png";
 
 const translations = {
   vi: {

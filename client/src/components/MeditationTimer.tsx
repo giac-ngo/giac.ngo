@@ -140,20 +140,40 @@ export const MeditationTimer: React.FC<{ language?: 'vi' | 'en', spaceId?: numbe
             audioRef.current.currentTime = 0;
         }
 
-        let endUrl = '/uploads/Ring.mp3';
-        if (meditationData) {
-            const prioritizedEndUrl = language === 'en' && meditationData.endAudioUrlEn ? meditationData.endAudioUrlEn : meditationData.endAudioUrl;
-            if (prioritizedEndUrl) {
-                endUrl = prioritizedEndUrl;
-            }
-        }
+        // Each space configures its own end sound via meditationData.endAudioUrl
+        const endUrl = meditationData
+            ? (language === 'en' && meditationData.endAudioUrlEn
+                ? meditationData.endAudioUrlEn
+                : meditationData.endAudioUrl)
+            : null;
 
-        const ringAudio = new Audio(endUrl);
-        ringAudio.play().catch(e => console.error("Error playing end sound:", e));
+        if (endUrl) {
+            const ringAudio = new Audio(endUrl);
+            ringAudio.play().catch(() => {
+                // File missing — fallback to generated tone
+                playBellTone();
+            });
+        } else {
+            playBellTone();
+        }
 
         setTimeLeft(0);
         setTimerState('stopped');
     };
+
+    const playBellTone = () => {
+        try {
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(528, ctx.currentTime);
+            gain.gain.setValueAtTime(0.4, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
+            osc.start(); osc.stop(ctx.currentTime + 2);
+        } catch (_) {}
+    };
+
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);

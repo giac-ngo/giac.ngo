@@ -342,3 +342,249 @@ html[data-theme="giacngo"] .chat-send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ============================================================ */
+/*  DARK MODE — Temple Wood by Night                            */
+/*  Triggered by data-color-mode="dark" on .admin-page-container */
+/* ============================================================ */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] {
+    /* Override all admin palette variables */
+    --admin-bg-sidebar:      hsl(28, 22%, 7%);
+    --admin-bg-list:         hsl(28, 18%, 14%);
+    --admin-bg-content:      hsl(28, 20%, 13%);
+    --admin-bg-chat:         hsl(28, 20%, 11%);
+    --admin-bg-input:        hsl(28, 15%, 20%);
+    --admin-bg-training-qa:  hsl(28, 18%, 16%);
+    --admin-bg-active:       hsl(0, 40%, 20%);
+    --admin-border-color:    hsl(28, 15%, 22%);
+
+    /* Override theme color variables */
+    --color-background-main:      hsl(28, 22%, 9%);
+    --color-background-panel:     hsl(28, 20%, 13%);
+    --color-background-light:     hsl(28, 18%, 18%);
+    --color-border-color:         hsl(28, 15%, 22%);
+    --color-text-main:            hsl(44, 45%, 82%);
+    --color-text-light:           hsl(38, 20%, 58%);
+    --color-primary-light:        hsl(0, 40%, 20%);
+    --color-background-ai-bubble: hsl(28, 20%, 16%);
+
+    background-color: hsl(28, 22%, 9%);
+    color: hsl(44, 45%, 82%);
+}
+
+/* Sidebar */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside {
+    background-color: hsl(28, 22%, 7%) !important;
+    border-color: hsl(28, 15%, 16%) !important;
+}
+
+/* Sidebar top border */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside .border-b {
+    border-color: hsl(28, 15%, 16%) !important;
+}
+
+/* Sidebar nav buttons */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside nav button {
+    color: hsl(44, 45%, 78%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside nav button:hover {
+    background-color: hsl(28, 18%, 14%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside nav button.bg-primary-light {
+    background-color: hsl(0, 40%, 20%) !important;
+    color: hsl(0, 65%, 70%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .admin-page-container nav button.bg-primary-light svg,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside nav button.bg-primary-light svg {
+    color: hsl(0, 65%, 70%) !important;
+}
+
+/* Sidebar footer */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside .border-t {
+    border-color: hsl(28, 15%, 16%) !important;
+    background-color: hsl(28, 22%, 7%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside .hover\:bg-background-light:hover {
+    background-color: hsl(28, 18%, 14%) !important;
+}
+
+/* Main content area */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > main {
+    background-color: hsl(28, 20%, 13%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > main > div {
+    background-color: hsl(28, 22%, 9%) !important;
+}
+
+/* All surfaces inside main */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-white,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="bg-gray-50"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="bg-gray-100"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="bg-stone-50"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-background-panel,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-background-light {
+    background-color: hsl(28, 20%, 15%) !important;
+}
+
+/* Cards / rounded panels */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="rounded-xl"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="rounded-lg"] {
+    background-color: hsl(28, 20%, 16%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+
+/* All borders */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="border"] {
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="divide-"] > * {
+    border-color: hsl(28, 15%, 22%) !important;
+}
+
+/* Text */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] h1,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] h2,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] h3,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] h4,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] p,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] label,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] td,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] th {
+    color: hsl(44, 45%, 82%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="text-gray-5"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="text-gray-4"] {
+    color: hsl(38, 20%, 55%) !important;
+}
+
+/* Tables */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] table {
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] thead,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] thead tr,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] thead th {
+    background-color: hsl(28, 18%, 16%) !important;
+    color: hsl(38, 20%, 58%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] tbody tr:hover {
+    background-color: hsl(28, 18%, 18%) !important;
+}
+
+/* Inputs */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] input:not([class~="border-0"]),
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] select,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] textarea {
+    background-color: hsl(28, 15%, 20%) !important;
+    color: hsl(44, 45%, 82%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] input::placeholder,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] textarea::placeholder {
+    color: hsl(38, 20%, 45%) !important;
+}
+
+/* Chat input inside admin */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .chat-input-wrapper {
+    background-color: hsl(28, 20%, 16%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .chat-input-area {
+    background-color: hsl(28, 20%, 13%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+
+/* AI Management flex layout */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .flex.h-full {
+    background-color: hsl(28, 22%, 9%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .flex.h-full > .w-64 {
+    background-color: hsl(28, 18%, 14%) !important;
+    border-color: hsl(28, 15%, 22%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .flex-col.bg-background-light {
+    background-color: hsl(28, 20%, 11%) !important;
+}
+
+/* AI thought block */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .ai-thought-block > div {
+    background-color: hsl(35, 30%, 16%) !important;
+    border-color: hsl(35, 25%, 22%) !important;
+    color: hsl(44, 35%, 65%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .ai-thought-block p {
+    color: hsl(44, 35%, 65%) !important;
+}
+
+/* User info card / profile box */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside .border.border-border-color {
+    background-color: hsl(28, 18%, 14%) !important;
+    border-color: hsl(28, 15%, 16%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside p,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside span {
+    color: hsl(44, 45%, 78%) !important;
+}
+
+/* Active nav item text */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] > aside .text-primary {
+    color: hsl(0, 65%, 65%) !important;
+}
+
+/* ── Fix: Red/primary text too dark in dark mode ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .text-primary,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="text-primary"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .text-accent-red,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="text-red-"] {
+    color: hsl(0, 65%, 65%) !important;
+}
+
+/* ── Fix: Active/selected tab buttons (red bg) — exclude Tailwind opacity variants like bg-primary/10 ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-primary:not([class*="bg-primary/"]),
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-accent-red {
+    background-color: hsl(0, 55%, 38%) !important;
+    color: hsl(44, 55%, 92%) !important;
+}
+
+/* ── Fix: Active tab-like button (border-primary, ring styles) ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="border-primary"] {
+    border-color: hsl(0, 55%, 45%) !important;
+}
+
+/* ── Fix: Select dropdown option text ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] select option {
+    background-color: hsl(28, 20%, 16%) !important;
+    color: hsl(44, 45%, 82%) !important;
+}
+
+/* ── Fix: Inline red/link text inside tables ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] td .text-primary,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] td a,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] td [class*="text-red"] {
+    color: hsl(0, 60%, 65%) !important;
+}
+
+/* ── Fix: Active/selected state in tab navigation rows ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] button[class*="border-b-2"] {
+    border-color: hsl(0, 55%, 50%) !important;
+    color: hsl(0, 65%, 65%) !important;
+}
+
+/* ── Fix: Invisible select / user select (combo) ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] select,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [role="combobox"],
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [role="listbox"] {
+    background-color: hsl(28, 15%, 20%) !important;
+    color: hsl(44, 45%, 82%) !important;
+    border-color: hsl(28, 15%, 28%) !important;
+}
+
+/* ── Fix: Badge / pill (Active status badge) keep green readable ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="bg-green"] {
+    background-color: hsl(140, 40%, 22%) !important;
+    color: hsl(140, 50%, 70%) !important;
+}
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] [class*="text-green"] {
+    color: hsl(140, 50%, 65%) !important;
+}

@@ -30,6 +30,7 @@ import { WithdrawalManagement } from '../components/admin/WithdrawalManagement';
 import { NotificationManagement } from '../components/admin/NotificationManagement';
 import { PricingPlansAdmin } from '../components/admin/PricingPlansAdmin';
 import { MediaLibrary } from '../components/admin/MediaLibrary';
+import UserAvatar from '../components/UserAvatar';
 
 
 
@@ -150,12 +151,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [currentSpace, setCurrentSpace] = useState<Space | null>(null);
-  const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('spaceColorMode_v3') as 'light' | 'dark') || 'light');
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('spaceColorMode_v4') as 'light' | 'dark') || 'dark');
+
   const toggleColorMode = () => setColorMode(prev => {
     const next = prev === 'light' ? 'dark' : 'light';
-    localStorage.setItem('spaceColorMode_v3', next);
+    localStorage.setItem('spaceColorMode_v4', next);
     return next;
   });
+
 
   // Inject dark mode style tag for admin page
   useEffect(() => {
@@ -421,14 +424,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
           {isSidebarCollapsed ? (
             <div className="flex justify-center">
               <button onClick={() => setIsSidebarCollapsed(false)} title={user.name}>
-                <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full" />
+                <UserAvatar name={user.name} url={user.avatarUrl} size={40} />
               </button>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="w-full p-2 text-sm font-medium text-text-main border border-border-color rounded-md">
                 <div className="flex items-center">
-                  <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full mr-3" />
+                  <UserAvatar name={user.name} url={user.avatarUrl} size={40} style={{ marginRight: 12 }} />
                   <div className="overflow-hidden">
                     <p className="font-semibold truncate text-sm">{user.name}</p>
                     <p className="text-xs text-text-light truncate">{user.email}</p>
