@@ -167,6 +167,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         document.head.appendChild(styleEl);
       }
       styleEl.textContent = `
+        /* ── CSS Variable overrides (for components using var(--color-*)) ── */
+        .admin-page-container {
+            --color-background-main:      hsl(28, 22%, 9%) !important;
+            --color-background-panel:     hsl(28, 20%, 13%) !important;
+            --color-background-light:     hsl(28, 18%, 18%) !important;
+            --color-border-color:         hsl(28, 15%, 22%) !important;
+            --color-text-main:            hsl(44, 45%, 82%) !important;
+            --color-text-light:           hsl(38, 20%, 58%) !important;
+            --color-background-ai-bubble: hsl(28, 20%, 16%) !important;
+            --color-primary-light:        hsl(0, 40%, 20%) !important;
+        }
         /* ── Base container ── */
         .admin-page-container,
         .admin-page-container aside,
