@@ -1,0 +1,3611 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/themes/giacngo/logo.svg" />
+  <title>Giác Ngộ — Awakening Agentic Social Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ===== RESET & BASE ===== */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      color-scheme: light;
+      --primary: #991b1b;
+      --primary-hover: #7f1d1d;
+      --text-on-primary: #fefce8;
+      --bg-main: #f5efdc;
+      --bg-panel: #efe0bd;
+      --bg-card: #f4ebdb;
+      --border: #dcd5bc;
+      --text-main: #4B3226;
+      --text-muted: #8c7b75;
+      --font-serif: 'Lora', Georgia, serif;
+      --font-sans: 'Be Vietnam Pro', sans-serif;
+    }
+
+    html {
+      min-height: 100%;
+    }
+
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-serif);
+      line-height: 1.6;
+      padding-top: 73px;
+      /* offset for fixed header */
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ===== CONTAINER ===== */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* ===== HEADER ===== */
+    .main-header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid rgba(220, 213, 188, 0.5);
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: transform 0.3s ease;
+    }
+
+    .main-header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      position: relative;
+    }
+
+    /* Logo container — relative for dropdown */
+    .logo-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-img {
+      height: 40px;
+      width: auto;
+      opacity: 0.9;
+    }
+
+    .logo-toggle-button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--primary);
+      padding: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-toggle-button:hover {
+      color: var(--primary-hover);
+    }
+
+    /* Dropdown */
+    .logo-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      left: 0;
+      background: var(--bg-panel);
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      padding: 0.75rem;
+      width: 200px;
+      z-index: 200;
+      display: none;
+    }
+
+    .logo-dropdown.open {
+      display: block;
+    }
+
+    .logo-dropdown-title {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logo-dropdown ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .logo-dropdown li a,
+    .logo-dropdown li button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      color: rgba(139, 69, 19, 0.8);
+      border-radius: 0.375rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      text-decoration: none;
+      transition: color 0.2s, background-color 0.2s;
+    }
+
+    .logo-dropdown li a:hover,
+    .logo-dropdown li button:hover {
+      color: #90201d;
+      background: #e3c7ab;
+    }
+
+    .logo-dropdown hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.5rem 0;
+    }
+
+    .logo-dropdown-socials {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .logo-dropdown-socials a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #dfcaa7;
+      color: rgba(139, 69, 19, 1);
+      transition: all 0.2s;
+    }
+
+    .logo-dropdown-socials a:hover {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    /* Nav — absolutely centered in header */
+    .main-nav {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 2rem;
+      font-family: var(--font-serif);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .main-nav a {
+      color: rgba(139, 69, 19, 0.7);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .main-nav a:hover {
+      color: var(--primary);
+    }
+
+    /* Header Actions (right side) */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Language switcher pill */
+    .lang-sw {
+      display: flex;
+      border: 1px solid var(--primary);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .lang-sw button {
+      padding: 0.25rem 0.7rem;
+      border: none;
+      background: #fefcf5;
+      color: var(--primary);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      font-family: var(--font-sans);
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .lang-sw button.active {
+      background: var(--primary);
+      color: var(--text-on-primary);
+    }
+
+    /* Login icon button (not logged in) */
+    .login-icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      border-radius: 9999px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .login-icon-btn:hover {
+      background: var(--bg-panel);
+      color: var(--primary);
+    }
+
+    .login-icon-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    /* User avatar + dropdown */
+    .user-avatar-wrap {
+      position: relative;
+    }
+
+    .user-avatar-img {
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .user-avatar-img:hover {
+      border-color: var(--primary);
+    }
+
+    .user-menu-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: var(--bg-panel);
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      min-width: 200px;
+      z-index: 200;
+      overflow: hidden;
+    }
+
+    .user-menu-header {
+      padding: 1rem 1.25rem;
+    }
+
+    .user-menu-name-text {
+      font-weight: 700;
+      font-size: 0.95rem;
+      font-family: var(--font-serif);
+      color: rgba(139, 69, 19, 0.9);
+    }
+
+    .user-menu-email-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+
+    .user-menu-hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    .user-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 0.75rem 1.25rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: rgba(139, 69, 19, 0.8);
+      text-align: left;
+      text-decoration: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .user-menu-item:hover {
+      background: #e3c7ab;
+      color: #90201d;
+    }
+
+    .user-menu-item.logout {
+      color: var(--primary);
+    }
+
+    .user-menu-item svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    /* Hamburger (mobile) */
+    .hamburger-btn {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      color: var(--primary);
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--primary);
+      border-radius: 2px;
+      transition: all 0.2s;
+    }
+
+    /* Mobile nav panel */
+    .mobile-nav-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 85%;
+      max-width: 320px;
+      height: 100vh;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.12);
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+
+    .mobile-nav-panel.is-open {
+      transform: translateX(0);
+    }
+
+    .mobile-nav-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 299;
+      display: none;
+    }
+
+    .mobile-nav-overlay.is-open {
+      display: block;
+    }
+
+    .mobile-nav-close-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-main);
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mobile-nav-close-btn:hover {
+      color: var(--primary);
+    }
+
+    .mobile-nav-close-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .mobile-nav-user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1.25rem;
+    }
+
+    .mobile-nav-user-info img {
+      width: 44px;
+      height: 44px;
+      border-radius: 9999px;
+      object-fit: cover;
+    }
+
+    .mobile-nav-section-divider {
+      border-top: 1px solid var(--border);
+      margin: 0.25rem 0;
+    }
+
+    .mobile-nav-section {
+      display: flex;
+      flex-direction: column;
+      padding: 0.25rem 1rem;
+    }
+
+    .mobile-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: rgba(139, 69, 19, 0.85);
+      text-decoration: none;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      border-radius: 0.5rem;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .mobile-nav-link:hover {
+      color: var(--primary);
+      background: #e3c7ab;
+    }
+
+    .mobile-nav-link svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .mobile-nav-sublink {
+      display: block;
+      padding: 0.5rem 0.75rem;
+      color: rgba(139, 69, 19, 0.75);
+      font-size: 0.95rem;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .mobile-nav-sublink:hover {
+      color: var(--primary);
+      background: #e3c7ab;
+    }
+
+    /* Legacy compat - keep lang-sw working on mobile too */
+    .login-btn {
+      padding: 0.4rem 1.2rem;
+      border: 1.5px solid var(--primary);
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: all .2s;
+    }
+
+    .login-btn:hover {
+      background: var(--primary);
+      color: var(--text-on-primary);
+    }
+
+
+    /* ===== HERO ===== */
+    .hero-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem 1rem 2rem;
+      min-height: calc(100vh - 73px);
+      background: radial-gradient(circle, rgba(245, 239, 220, 1) 0%, rgba(232, 214, 164, 1) 100%);
+      position: relative;
+    }
+
+    .hero-content {
+      max-width: 780px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .hero-title {
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.1;
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .search-wrapper {
+      width: 100%;
+      display: flex;
+      background: #fff;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .search-wrapper input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 1rem 1rem 1rem 3.5rem;
+      font-size: 1rem;
+      outline: none;
+      font-family: var(--font-serif);
+    }
+
+    .search-icon-wrap {
+      position: absolute;
+      left: 1.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaa;
+    }
+
+    .search-wrap-inner {
+      position: relative;
+      flex: 1;
+      display: flex;
+    }
+
+    .chat-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #fff;
+      border-radius: 9999px;
+      padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+      margin: 0.4rem;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-family: var(--font-serif);
+      white-space: nowrap;
+    }
+
+    .chat-btn span:first-child {
+      color: #ef4444;
+    }
+
+    .chat-btn .arrow-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 1.4rem;
+      transition: transform .2s;
+    }
+
+    .chat-btn:hover .arrow-circle {
+      transform: translateX(3px);
+    }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .suggestions button {
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 0.45rem 1.1rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      color: var(--text-main);
+      transition: all .2s;
+    }
+
+    .suggestions button:hover {
+      background: #fff;
+      border-color: #c4a984;
+      color: var(--primary);
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      white-space: nowrap;
+      padding-top: 0.5rem;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-item .val {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-item .lbl {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* ===== SECTIONS ===== */
+    .homepage-section {
+      padding: 5rem 0;
+    }
+
+    .section-title {
+      font-family: var(--font-serif);
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--primary);
+      margin-bottom: 0.4rem;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* ===== AGENTS GRID ===== */
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .agent-card {
+      background: #f4ebdb;
+      border-radius: 1rem;
+      border: 1px solid #dcd5bc;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+      transition: all .3s;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      text-align: center;
+      max-width: 340px;
+      width: 100%;
+    }
+
+    .agent-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 20px rgba(0, 0, 0, 0.07);
+    }
+
+    .card-image-top {
+      margin: 1.5rem auto 0;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 4px solid #fefcf5;
+      box-shadow: 0 0 0 1px #dcd5bc;
+      flex-shrink: 0;
+    }
+
+    .card-image-top img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-body {
+      padding: 1.5rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      gap: 0.25rem;
+    }
+
+    .agent-name {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #5c524d;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Red bold italic subtitle = ai.description */
+    .agent-subtitle {
+      color: #991b1b;
+      font-weight: 700;
+      font-style: italic;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    /* Gray smaller text = ai.descriptionEn */
+    .agent-description {
+      font-size: 0.875rem;
+      color: #8c7b75;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: calc(1.5em * 3);
+    }
+
+    .agent-divider {
+      width: 100%;
+      border: none;
+      border-top: 1px solid #dcd5bc;
+      margin: 0 0 1rem;
+    }
+
+    .agent-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .model-tag {
+      background: #e0e7d4;
+      color: #3f6212;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .space-name {
+      color: #8c7b75;
+    }
+
+    .agent-stats {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.875rem;
+      color: #8c7b75;
+      margin-bottom: 1rem;
+      width: 100%;
+    }
+
+    .agent-stats>div {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .agent-price {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #4B3226;
+      margin-bottom: 1.5rem;
+      min-height: 24px;
+      width: 100%;
+    }
+
+    .explore-btn {
+      margin-top: auto;
+      width: 100%;
+      padding: 0.75rem;
+      background: #991b1b;
+      color: #fefce8;
+      border: none;
+      border-radius: 1.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all .2s;
+    }
+
+    .explore-btn:hover {
+      background: #7f1d1d;
+    }
+
+    /* ===== SKELETON ===== */
+    .skeleton {
+      background: linear-gradient(90deg, #e8d9b9 25%, #f0e6d0 50%, #e8d9b9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0;
+      }
+
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    .sk-card {
+      background: var(--bg-card);
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+    }
+
+    .sk-circle {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      margin: 0 auto 1rem;
+    }
+
+    .sk-line {
+      height: 14px;
+      margin-bottom: 10px;
+    }
+
+    .sk-line.lg {
+      height: 22px;
+      width: 60%;
+    }
+
+    .sk-line.sm {
+      width: 40%;
+    }
+
+    .sk-btn {
+      height: 40px;
+      border-radius: 8px;
+      margin-top: auto;
+    }
+
+    /* ===== LOAD MORE ===== */
+    .view-more {
+      text-align: center;
+      margin-top: 2.5rem;
+    }
+
+    .view-more button {
+      padding: 0.7rem 2.5rem;
+      border: 2px solid var(--primary);
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--primary);
+      font-weight: 700;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      font-size: 1rem;
+      transition: all .2s;
+    }
+
+    .view-more button:hover {
+      background: var(--primary);
+      color: var(--text-on-primary);
+    }
+
+    /* ===== COMMUNITY CTA ===== */
+    .community-cta-section {
+      padding: 5rem 0;
+      background: linear-gradient(135deg, #fdf8f0 0%, #f5e6c8 50%, #efe0bd 100%);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .community-cta-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 30% 50%, rgba(153, 27, 27, 0.06) 0%, transparent 60%),
+        radial-gradient(circle at 70% 50%, rgba(153, 27, 27, 0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .community-cta-inner {
+      position: relative;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    .community-cta-lotus {
+      display: block;
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 1.25rem;
+      animation: lotus-float 3s ease-in-out infinite;
+    }
+
+    .community-cta-lotus img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    @keyframes lotus-float {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    .community-cta-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      color: #7f1d1d;
+      margin-bottom: 0.6rem;
+      line-height: 1.2;
+    }
+
+    .community-cta-sub {
+      font-size: 1.05rem;
+      color: #8c7b75;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .community-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 1rem 2.5rem;
+      background: #7f1d1d;
+      color: #fefce8;
+      border: none;
+      border-radius: 9999px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: var(--font-serif);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 6px 24px rgba(127, 29, 29, 0.3);
+      text-decoration: none;
+    }
+
+    .community-cta-btn:hover {
+      background: #991b1b;
+      transform: translateY(-3px);
+      box-shadow: 0 12px 36px rgba(127, 29, 29, 0.4);
+    }
+
+    .community-cta-btn:active {
+      transform: translateY(0);
+    }
+
+    .community-cta-btn svg {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .community-cta-note {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #a39e8c;
+      font-style: italic;
+    }
+
+    /* ===== PRICING ===== */
+    .pricing-section {
+      background: var(--bg-panel);
+    }
+
+    /* ===== NEW PRICING (matching HomePage.tsx) ===== */
+    .new-pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 48px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .new-pricing-grid {
+        grid-template-columns: 1fr;
+        max-width: 420px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+    }
+
+    .new-pricing-card {
+      background: #fdf8f0;
+      border: 1px solid #e8d9b9;
+      border-radius: 16px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .new-pricing-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .new-pricing-card.featured {
+      background: #7f1d1d;
+      border: none;
+      box-shadow: 0 8px 32px rgba(127, 29, 29, 0.25);
+    }
+
+    .new-pricing-card.featured:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 40px rgba(127, 29, 29, 0.4);
+    }
+
+    .npc-top-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #f5c842;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .npc-name {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #3b2a1a;
+      text-align: center;
+      margin-bottom: 2px;
+      font-family: var(--font-serif);
+    }
+
+    .npc-name.featured {
+      font-size: 1.9rem;
+      color: #fff;
+    }
+
+    .npc-subtitle {
+      font-size: 1rem;
+      color: #8c7b75;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .npc-subtitle.featured {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .npc-img {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      margin-bottom: 20px;
+    }
+
+    .npc-price {
+      font-size: 2.8rem;
+      font-weight: 700;
+      color: #991b1b;
+      text-align: center;
+      margin-bottom: 4px;
+      font-family: var(--font-serif);
+    }
+
+    .npc-price.featured {
+      color: #fff;
+    }
+
+    .npc-price-hint {
+      font-size: 0.9rem;
+      color: #a39e8c;
+      font-style: italic;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .npc-price-hint.featured {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .npc-features {
+      list-style: none;
+      padding: 0;
+      width: 100%;
+      margin-bottom: 28px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .npc-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 1rem;
+      color: #4B3226;
+    }
+
+    .new-pricing-card.featured .npc-features li {
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+    }
+
+    .npc-heart {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      color: #991b1b;
+    }
+
+    .npc-heart.featured {
+      color: #f5c842;
+    }
+
+    .npc-btn {
+      width: 100%;
+      background: #7f1d1d;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 13px 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .npc-btn:hover {
+      background: #991b1b;
+      transform: translateY(-1px);
+    }
+
+    .npc-btn.featured {
+      background: #fff;
+      color: #7f1d1d;
+    }
+
+    .npc-btn.featured:hover {
+      background: #fdf8f0;
+    }
+
+    .pricing-header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .pricing-header p {
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .pricing-header .desc {
+      font-style: italic;
+      font-size: 0.95rem;
+      margin-top: 0.75rem;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pricing-card {
+      background: #fefcf5;
+      border-radius: 1.25rem;
+      border: 1px solid var(--border);
+      padding: 2rem 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      position: relative;
+      transition: transform .2s, box-shadow .2s;
+      align-items: center;
+      text-align: center;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .pricing-card.popular {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 8px 32px rgba(153, 27, 27, 0.35);
+    }
+
+    .pricing-card.popular:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 40px rgba(153, 27, 27, 0.45);
+    }
+
+    .pricing-card.popular .plan-name {
+      color: #fefce8;
+    }
+
+    .pricing-card.popular .plan-sub-name {
+      color: rgba(254, 252, 232, 0.7);
+    }
+
+    .pricing-card.popular .plan-price {
+      color: #fefce8;
+    }
+
+    .pricing-card.popular .plan-hint {
+      color: rgba(254, 252, 232, 0.7);
+    }
+
+    .pricing-card.popular .plan-features li {
+      color: rgba(254, 252, 232, 0.85);
+    }
+
+    .pricing-card.popular .plan-features li::before {
+      color: #fde68a;
+    }
+
+    .pricing-card.popular .pricing-footer {
+      color: rgba(254, 252, 232, 0.6);
+    }
+
+    .popular-badge {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fde68a;
+      color: var(--primary);
+      padding: 4px 18px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+
+    .plan-icon {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0.25rem auto 0.5rem;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .plan-icon img {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .pricing-card.popular .plan-icon img {
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) brightness(1.15);
+    }
+
+    .plan-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary);
+      font-family: var(--font-serif);
+    }
+
+    .plan-sub-name {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-top: -0.4rem;
+    }
+
+    .plan-price {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.1;
+    }
+
+    .plan-hint {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .plan-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      flex: 1;
+      width: fit-content;
+      margin: 0 auto;
+      align-items: flex-start;
+    }
+
+    .plan-features li {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: flex-start;
+      text-align: left;
+      gap: 0.5rem;
+    }
+
+    .plan-features li::before {
+      content: '♡';
+      color: var(--primary);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .donate-btn {
+      padding: 0.85rem;
+      border-radius: 9999px;
+      background: var(--primary);
+      color: var(--text-on-primary);
+      border: 2px solid transparent;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: all .2s;
+      width: 100%;
+    }
+
+    .donate-btn:hover {
+      background: var(--primary-hover);
+      transform: scale(1.02);
+    }
+
+    .pricing-card.popular .donate-btn {
+      background: #fefce8;
+      color: var(--primary);
+      border-color: #fefce8;
+    }
+
+    .pricing-card.popular .donate-btn:hover {
+      background: #fde68a;
+      border-color: #fde68a;
+    }
+
+    .custom-amount-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    .custom-amount-wrap input {
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: 9999px;
+      font-size: 0.95rem;
+      font-family: var(--font-serif);
+      outline: none;
+      text-align: center;
+      background: #fefcf5;
+    }
+
+    .custom-amount-wrap input:focus {
+      border-color: var(--primary);
+    }
+
+    .pricing-footer {
+      text-align: center;
+      margin-top: 2rem;
+      font-style: italic;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ===== DONATION OVERLAY ===== */
+    .donation-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(75, 50, 38, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      backdrop-filter: blur(4px);
+    }
+
+    .donation-overlay.open {
+      display: flex;
+    }
+
+    .donation-loading-card {
+      background: #fefcf5;
+      border-radius: 1.5rem;
+      padding: 2.5rem 3rem;
+      text-align: center;
+      max-width: 380px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    }
+
+    .donation-spinner {
+      width: 52px;
+      height: 52px;
+      border: 4px solid #f3d5b5;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1.25rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .donation-toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: var(--text-on-primary);
+      padding: 1rem 2.5rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 1rem;
+      z-index: 9999;
+      display: none;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(153, 27, 27, 0.4);
+      animation: slideUp 0.4s ease;
+    }
+
+    .donation-toast.show {
+      display: block;
+    }
+
+    .donation-toast.cancel {
+      background: #6b7280;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+
+    /* ===== DONATION MODAL ===== */
+    .donation-modal {
+      background: #fefcf5;
+      border-radius: 1.25rem;
+      padding: 2rem 1.75rem 1.5rem;
+      max-width: 440px;
+      width: 94%;
+      position: relative;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: popIn 0.22s ease;
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: scale(0.92);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .chooser-close {
+      position: absolute;
+      top: 1rem;
+      right: 1.25rem;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+      transition: color .15s;
+      z-index: 2;
+    }
+
+    .chooser-close:hover {
+      color: var(--primary);
+    }
+
+    .donation-modal-title {
+      font-family: var(--font-serif);
+      text-align: center;
+      color: var(--primary);
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .donation-modal-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: center;
+      font-style: italic;
+      margin-bottom: 1.25rem;
+      line-height: 1.65;
+    }
+
+    /* Tabs */
+    .payment-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.25rem;
+      background: var(--bg-panel);
+      border-radius: 9999px;
+      padding: 0.25rem;
+    }
+
+    .payment-tab {
+      flex: 1;
+      padding: 0.45rem 0.5rem;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: none;
+      color: var(--text-muted);
+      transition: all .2s;
+      font-family: var(--font-serif);
+      white-space: nowrap;
+    }
+
+    .payment-tab.active {
+      background: var(--primary);
+      color: #fefce8;
+    }
+
+    /* Plan cards */
+    .donation-plans {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .donation-plan-card {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: 0.85rem;
+      padding: 0.65rem 0.4rem;
+      text-align: center;
+      cursor: pointer;
+      background: #fefce8;
+      transition: all .2s;
+    }
+
+    .donation-plan-card:hover {
+      border-color: var(--primary);
+    }
+
+    .donation-plan-card.selected {
+      border-color: var(--primary);
+      background: #fff;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .donation-plan-card img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      margin: 0 auto 0.25rem;
+      display: block;
+    }
+
+    .dp-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .dp-merit {
+      font-size: 0.7rem;
+      color: var(--primary);
+      font-weight: 600;
+      margin-top: 0.1rem;
+    }
+
+    /* Amount input */
+    .donation-amount-wrap {
+      display: flex;
+      align-items: center;
+      border: 1.5px solid var(--border);
+      border-radius: 0.75rem;
+      margin-bottom: 1rem;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .donation-amount-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 1rem;
+      padding: 0.8rem 1rem;
+      background: transparent;
+      font-family: var(--font-serif);
+      color: var(--text-muted);
+    }
+
+    .donation-amount-input::placeholder {
+      color: #bbb;
+    }
+
+    .donation-currency {
+      padding: 0.8rem 1.1rem 0.8rem 0;
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 0.95rem;
+    }
+
+    /* Message */
+    .donation-msg-wrap {
+      margin-bottom: 1.1rem;
+    }
+
+    .donation-msg-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+
+    .donation-msg-wrap textarea {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.65rem 0.9rem;
+      font-family: var(--font-serif);
+      font-size: 0.87rem;
+      color: var(--text-main);
+      resize: vertical;
+      min-height: 65px;
+      background: #fefce8;
+      outline: none;
+    }
+
+    .donation-msg-wrap textarea:focus {
+      border-color: var(--primary);
+    }
+
+    /* Submit */
+    .donation-submit-btn {
+      width: 100%;
+      padding: 0.95rem;
+      border: none;
+      border-radius: 9999px;
+      background: var(--primary);
+      color: #fefce8;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: background .2s;
+      margin-bottom: 1rem;
+    }
+
+    .donation-submit-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .donation-modal-footer {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.55;
+      margin-bottom: 0.35rem;
+    }
+
+    .donation-modal-contact {
+      font-size: 0.76rem;
+      text-align: center;
+    }
+
+    .donation-modal-contact a {
+      color: var(--primary);
+    }
+
+    /* Loading card (kept) */
+    .donation-card {
+      background: #fefcf5;
+      border-radius: 1.75rem;
+      padding: 2.5rem 2rem;
+      max-width: 360px;
+      width: 92%;
+      position: relative;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+      text-align: center;
+    }
+
+
+
+    /* ===== USER MENU (header) ===== */
+    .user-avatar-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .user-avatar-img {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      object-fit: cover;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .user-avatar-img:hover {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.15);
+    }
+
+    .user-menu-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+      min-width: 210px;
+      z-index: 500;
+      padding: 0.4rem;
+      animation: popIn 0.18s ease;
+    }
+
+    .user-menu-header {
+      padding: 0.6rem 0.85rem 0.4rem;
+    }
+
+    .user-menu-name-text {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text-main);
+    }
+
+    .user-menu-email-text {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+
+    .user-menu-hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.35rem 0;
+    }
+
+    .user-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.55rem 0.85rem;
+      text-align: left;
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 0.55rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: rgba(139, 69, 19, 0.8);
+      font-family: var(--font-serif);
+      transition: background .15s, color .15s;
+      text-decoration: none;
+    }
+
+    .user-menu-item:hover {
+      background: #e3c7ab;
+      color: #90201d;
+    }
+
+    .user-menu-item.logout {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .user-menu-item.logout:hover {
+      background: #fde8e8;
+    }
+
+    .user-menu-name-text {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: rgba(139, 69, 19, 0.9);
+      font-family: var(--font-serif);
+    }
+
+    /* ===== HAMBURGER (mobile only) ===== */
+    .hamburger-btn {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      width: 38px;
+      height: 38px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 8px;
+      transition: background .2s;
+    }
+
+    .hamburger-btn:hover {
+      background: rgba(139, 69, 19, 0.08);
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 22px;
+      height: 2.2px;
+      background: rgba(139, 69, 19, 0.75);
+      border-radius: 2px;
+      transition: all .25s ease;
+    }
+
+    .hamburger-btn.open span:nth-child(1) {
+      transform: translateY(7.2px) rotate(45deg);
+    }
+
+    .hamburger-btn.open span:nth-child(2) {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+
+    .hamburger-btn.open span:nth-child(3) {
+      transform: translateY(-7.2px) rotate(-45deg);
+    }
+
+    /* ===== MOBILE DRAWER ===== */
+    .mobile-drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(75, 50, 38, 0.45);
+      z-index: 998;
+      backdrop-filter: blur(3px);
+    }
+
+    .mobile-drawer-overlay.open {
+      display: block;
+    }
+
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(320px, 85vw);
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.14);
+      z-index: 999;
+      transform: translateX(100%);
+      transition: transform .28s cubic-bezier(.4, 0, .2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .mobile-drawer.open {
+      transform: translateX(0);
+    }
+
+    .mobile-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mobile-drawer-header img {
+      height: 28px;
+    }
+
+    .drawer-close-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 6px;
+      border-radius: 6px;
+      transition: background .15s;
+    }
+
+    .drawer-close-btn:hover {
+      background: rgba(153, 27, 27, 0.08);
+      color: var(--primary);
+    }
+
+    .mobile-drawer-nav {
+      display: flex;
+      flex-direction: column;
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .drawer-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.85rem;
+      border-radius: 0.6rem;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      font-family: var(--font-serif);
+      font-weight: 500;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: background .15s, color .15s;
+      text-decoration: none;
+    }
+
+    .drawer-nav-item:hover {
+      background: rgba(153, 27, 27, 0.07);
+      color: var(--primary);
+    }
+
+    .drawer-nav-item svg {
+      flex-shrink: 0;
+    }
+
+    /* Login button in drawer */
+    .drawer-login-btn {
+      margin: 0.5rem 1rem;
+      padding: 0.65rem;
+      border: 2px solid var(--primary);
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: all .2s;
+    }
+
+    .drawer-login-btn:hover {
+      background: var(--primary);
+      color: var(--text-on-primary);
+    }
+
+    /* User section in drawer */
+    .drawer-user-section {
+      padding: 0.5rem 1rem;
+    }
+
+    .drawer-user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.35rem 0 0.5rem;
+    }
+
+    .drawer-user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .drawer-user-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text-main);
+    }
+
+    .drawer-user-email {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 1023px) {
+      .hamburger-btn {
+        display: flex;
+      }
+
+      /* Hide desktop nav on mobile */
+      .main-nav {
+        display: none;
+      }
+
+      .user-avatar-wrap {
+        display: none !important;
+      }
+
+      .login-btn-wrap,
+      #login-btn-wrap {
+        display: none;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .hamburger-btn {
+        display: none !important;
+      }
+    }
+
+    @media (min-width: 769px) {
+      .hero-stats {
+        position: absolute;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: auto;
+        margin-top: 0;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero-stats {
+        gap: 1.75rem;
+      }
+
+      .stat-item .val {
+        font-size: 1.4rem;
+      }
+
+      .stat-item .lbl {
+        font-size: 0.75rem;
+      }
+    }
+
+    /* ===== FOOTER ===== */
+
+    .main-footer {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+    }
+
+    .main-footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    .footer-brand {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 1.15rem;
+    }
+
+    .footer-nav {
+      display: flex;
+      gap: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .footer-nav a {
+      color: rgba(139, 69, 19, 0.7);
+      transition: color .2s;
+    }
+
+    .footer-nav a:hover {
+      color: var(--primary);
+    }
+
+    .footer-copy {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 3.25rem;
+      }
+
+      .main-nav {
+        display: none;
+      }
+
+      .agent-name {
+        font-size: 1.3rem;
+      }
+
+      .main-footer .container {
+        flex-direction: column;
+        gap: 0.75rem;
+        text-align: center;
+      }
+
+      .agents-grid {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+
+      .agent-card {
+        max-width: 420px;
+        margin: 0 auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="main-header">
+    <div class="container">
+      <!-- Desktop: LEFT logo + dropdown -->
+      <div class="logo-container" id="logo-container" onmouseenter="handleLogoEnter()" onmouseleave="handleLogoLeave()">
+        <a href="/" class="logo-link" onclick="navTo(event,'/')">
+          <img src="/themes/giacngo/giac-ngo-logo-6.png" alt="Giác Ngộ" class="logo-img"
+            onerror="this.style.display='none'">
+        </a>
+        <button class="logo-toggle-button" aria-label="Menu" tabindex="-1">
+          <!-- ChevronDownIcon -->
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div class="logo-dropdown" id="logo-dropdown">
+          <h3 class="logo-dropdown-title" id="menu-org-title">Tổ chức</h3>
+          <ul>
+            <li><a href="/about" onclick="navTo(event,'/about')" id="menu-about">Giới thiệu</a></li>
+            <li><a href="/contact" onclick="navTo(event,'/contact')" id="menu-contact">Liên hệ</a></li>
+            <li><a href="/career" onclick="navTo(event,'/career')" id="menu-career">Tuyển dụng</a></li>
+            <li><a href="/terms" onclick="navTo(event,'/terms')" id="menu-terms">Điều khoản</a></li>
+            <li><a href="/privacy" onclick="navTo(event,'/privacy')" id="menu-privacy">Bảo mật</a></li>
+            <li><a href="javascript:void(0)" onclick="openDonation(); closeLogoDropdown()" id="menu-donation">Quyên
+                góp</a></li>
+            <li><a href="https://docs.giac.ngo/docs/manifesto" target="_blank" id="menu-docs">Tài liệu</a></li>
+          </ul>
+          <hr>
+          <div class="logo-dropdown-socials">
+            <a href="https://www.facebook.com/people/Giac-Ngo/61579805139150/" target="_blank" rel="noopener">
+              <!-- FacebookIcon -->
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17,2V2H17V6H15C14.31,6 14,6.81 14,7.5V10H17L16,14H14V22H10V14H7V10H10V6A4,4 0 0,1 14,2H17Z" />
+              </svg>
+            </a>
+            <a href="https://www.instagram.com/giacngo000/" target="_blank" rel="noopener">
+              <!-- InstagramIcon -->
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M7.8,2H16.2C19.4,2 22,4.6 22,7.8V16.2A5.8,5.8 0 0,1 16.2,22H7.8C4.6,22 2,19.4 2,16.2V7.8A5.8,5.8 0 0,1 7.8,2M7.6,4A3.6,3.6 0 0,0 4,7.6V16.4C4,18.39 5.61,20 7.6,20H16.4A3.6,3.6 0 0,0 20,16.4V7.6C20,5.61 18.39,4 16.4,4H7.6M17.25,5.5A1.25,1.25 0 0,1 18.5,6.75A1.25,1.25 0 0,1 17.25,8A1.25,1.25 0 0,1 16,6.75A1.25,1.25 0 0,1 17.25,5.5M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9Z" />
+              </svg>
+            </a>
+            <a href="https://www.threads.com/@giacngo000" target="_blank" rel="noopener">
+              <!-- ThreadsIcon -->
+              <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path
+                  d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: Nav (absolute) -->
+      <nav class="main-nav">
+        <a href="/" onclick="navTo(event,'/')" id="nav-home">Trang chủ</a>
+        <a href="#agents-section" id="nav-agents">AI</a>
+        <a href="#pricing-section" id="nav-pricing">Đóng góp</a>
+      </nav>
+
+      <!-- RIGHT: Lang + Login / User -->
+      <div class="header-actions">
+        <div class="lang-sw">
+          <button class="active" id="lang-vi-btn" onclick="setLang('vi')">VIE</button>
+          <button id="lang-en-btn" onclick="setLang('en')">ENG</button>
+        </div>
+
+        <!-- Not logged in: LoginIcon button -->
+        <div id="login-btn-wrap">
+          <a href="javascript:void(0)" class="login-icon-btn" onclick="navigateToLogin()" title="Đăng nhập"
+            id="nav-login-link">
+            <!-- LoginIcon -->
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+            </svg>
+          </a>
+        </div>
+
+        <!-- Logged in: avatar + dropdown (desktop) -->
+        <div class="user-avatar-wrap" id="user-menu" style="display:none" onmouseenter="handleUserMenuEnter()"
+          onmouseleave="handleUserMenuLeave()">
+          <img id="user-avatar-img" src="" alt="" class="user-avatar-img">
+          <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
+            <div class="user-menu-header">
+              <p id="user-menu-name" class="user-menu-name-text"></p>
+              <p id="user-menu-email" class="user-menu-email-text"></p>
+            </div>
+            <hr class="user-menu-hr">
+            <button class="user-menu-item" id="user-practice-btn"
+              onclick="navigateTo('/giac-ngo/chat'); closeUserMenuDD()">
+              <!-- vongtay icon -->
+              <img src="/themes/giacngo/vongtay.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+              <span>Không gian thực hành</span>
+            </button>
+            <button class="user-menu-item" id="admin-user-menu-item"
+              onclick="navigateTo('/' + SPACE_SLUG + '/admin'); closeUserMenuDD()">
+              <!-- chua icon -->
+              <img src="/themes/giacngo/chua.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+              <span>Bảng quản trị</span>
+            </button>
+            <button class="user-menu-item logout" id="user-logout-btn" onclick="handleLogout()">
+              <!-- senhong icon -->
+              <img src="/themes/giacngo/senhong.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hamburger (mobile) -->
+        <button class="hamburger-btn" id="hamburger-btn" onclick="openMobileNav()" aria-label="Menu">
+          <!-- MenuIcon -->
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MOBILE NAV OVERLAY + PANEL -->
+  <div class="mobile-nav-overlay" id="mobile-nav-overlay" onclick="closeMobileNav()"></div>
+  <div class="mobile-nav-panel" id="mobile-nav-panel">
+    <!-- Close button -->
+    <div
+      style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; border-bottom:1px solid var(--border);">
+      <img src="/themes/giacngo/giac-ngo-logo-6.png" alt="Giác Ngộ" style="height:28px;"
+        onerror="this.style.display='none'">
+      <button class="mobile-nav-close-btn" onclick="closeMobileNav()">
+        <!-- XIcon -->
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div style="flex:1; overflow-y:auto; padding: 0 0 0.75rem;">
+
+      <!-- Logged in: user info -->
+      <div id="mobile-user-info" style="display:none">
+        <div class="mobile-nav-user-info">
+          <img id="mobile-user-avatar" src="" alt="">
+          <div>
+            <p id="mobile-user-name" style="font-weight:700; font-size:1.1rem;"></p>
+            <p id="mobile-user-email" style="font-size:0.8rem; color:var(--text-muted);"></p>
+          </div>
+        </div>
+        <div class="mobile-nav-section-divider"></div>
+        <div class="mobile-nav-section">
+          <button class="mobile-nav-link" onclick="navigateTo('/giac-ngo/chat'); closeMobileNav()">
+            <!-- vongtay icon -->
+            <img src="/themes/giacngo/vongtay.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+            <span>Không gian thực hành</span>
+          </button>
+          <button class="mobile-nav-link" id="mobile-admin-btn"
+            onclick="navigateTo('/' + SPACE_SLUG + '/admin'); closeMobileNav()">
+            <!-- chua icon -->
+            <img src="/themes/giacngo/chua.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+            <span>Bảng quản trị</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Not logged in: login link -->
+      <div id="mobile-guest-info" class="mobile-nav-section">
+        <a class="mobile-nav-link" href="javascript:void(0)" onclick="navigateToLogin(); closeMobileNav()">
+          <!-- LoginIcon -->
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+          <span>Đăng nhập</span>
+        </a>
+      </div>
+
+      <div class="mobile-nav-section-divider"></div>
+
+      <!-- Nav links -->
+      <nav class="mobile-nav-section">
+        <a class="mobile-nav-link" href="/" onclick="navTo(event,'/');">Trang chủ</a>
+        <a class="mobile-nav-link" href="#agents-section"
+          onclick="closeMobileNav(); document.getElementById('agents-section').scrollIntoView({behavior:'smooth'});">AI</a>
+        <a class="mobile-nav-link" href="#pricing-section"
+          onclick="closeMobileNav(); document.getElementById('pricing-section').scrollIntoView({behavior:'smooth'});">Đóng
+          góp</a>
+      </nav>
+
+      <div class="mobile-nav-section-divider"></div>
+
+      <!-- Logout (signed in) -->
+      <div id="mobile-logout-section" class="mobile-nav-section" style="display:none;">
+        <button class="mobile-nav-link" style="color:var(--primary);" onclick="handleLogout(); closeMobileNav()">
+          <!-- senhong icon -->
+          <img src="/themes/giacngo/senhong.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;">
+          <span>Đăng xuất</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ===== HERO ===== -->
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title" id="hero-title">Giác Ngộ</h1>
+      <p class="hero-subtitle" id="hero-subtitle">Awakening Agentic Social Network</p>
+
+      <div class="search-wrapper">
+        <div class="search-wrap-inner">
+          <div class="search-icon-wrap">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
+          <input type="text" id="search-input" placeholder="Hỏi về Phật pháp, tu tập, và con đường giác ngộ..." />
+        </div>
+        <button class="chat-btn" onclick="goToChat()">
+          <span>AI</span>
+          <span>+ Chat</span>
+          <div class="arrow-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+          </div>
+        </button>
+      </div>
+
+      <div class="suggestions" id="suggestions">
+        <button onclick="setSuggestion(this)">Giác Ngộ nghĩa là gì?</button>
+        <button onclick="setSuggestion(this)">Làm sao để thành Phật?</button>
+        <button onclick="setSuggestion(this)">Làm sao để thoát mọi khổ đau?</button>
+        <button onclick="setSuggestion(this)">Làm sao để tìm thấy hạnh phúc?</button>
+      </div>
+    </div>
+
+    <div class="hero-stats" style="margin-top: 0.75rem; width: 100%;">
+      <div class="stat-item">
+        <div class="val" id="stat-agents">...</div>
+        <div class="lbl" id="stat-agents-lbl">Buddhist AI Agents</div>
+      </div>
+      <div class="stat-item">
+        <div class="val" id="stat-convs">11K+</div>
+        <div class="lbl" id="stat-convs-lbl">Conversations</div>
+      </div>
+      <div class="stat-item">
+        <div class="val">24/7</div>
+        <div class="lbl" id="stat-avail-lbl">Available</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+  <!-- ===== AGENTS SECTION ===== -->
+  <section id="agents-section" class="homepage-section agents-section">
+    <div class="container">
+      <h2 class="section-title" id="agents-title">Agents từ Cộng Đồng</h2>
+      <p class="section-subtitle" id="agents-subtitle">Khám phá các AI Agent được phát triển bởi các chùa chiền, thiền
+        viện và trung tâm tu tập khắp nơi</p>
+      <div id="agents-grid" class="agents-grid">
+        <!-- Skeleton -->
+        <div class="sk-card">
+          <div class="skeleton sk-circle"></div>
+          <div class="skeleton sk-line lg"></div>
+          <div class="skeleton sk-line"></div>
+          <div class="skeleton sk-line sm"></div>
+          <div class="skeleton sk-btn"></div>
+        </div>
+        <div class="sk-card">
+          <div class="skeleton sk-circle"></div>
+          <div class="skeleton sk-line lg"></div>
+          <div class="skeleton sk-line"></div>
+          <div class="skeleton sk-line sm"></div>
+          <div class="skeleton sk-btn"></div>
+        </div>
+        <div class="sk-card">
+          <div class="skeleton sk-circle"></div>
+          <div class="skeleton sk-line lg"></div>
+          <div class="skeleton sk-line"></div>
+          <div class="skeleton sk-line sm"></div>
+          <div class="skeleton sk-btn"></div>
+        </div>
+      </div>
+      <div id="view-more" class="view-more" style="display:none">
+        <button onclick="loadMoreAgents()">Xem thêm</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== COMMUNITY CTA SECTION ===== -->
+  <section class="community-cta-section">
+    <div class="community-cta-inner">
+      <span class="community-cta-lotus">
+        <img src="/themes/giacngo/Social.png" alt="Cộng đồng Giác Ngộ" />
+      </span>
+      <h2 class="community-cta-title" id="community-cta-title">Tham Gia Cộng Đồng Giác Ngộ</h2>
+      <p class="community-cta-sub" id="community-cta-sub">Kết nối với hàng nghìn hành giả, chia sẻ hành trình tu tập và
+        khơi nguồn trí tuệ cùng nhau</p>
+      <button class="community-cta-btn" onclick="goToCommunity()" id="community-cta-btn">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+        <span id="community-cta-btn-text">Tham gia Cộng Đồng</span>
+      </button>
+      <p class="community-cta-note" id="community-cta-note">Miễn phí · Đăng nhập để tham gia</p>
+    </div>
+  </section>
+
+  <!-- ===== PRICING SECTION ===== -->
+  <section id="pricing-section" class="homepage-section pricing-section">
+    <div style="max-width:1100px; margin:0 auto; padding:60px 24px;">
+
+      <!-- Title -->
+      <div style="text-align:center; margin-bottom:12px;">
+        <h2
+          style="font-size:2.4rem; font-weight:700; color:#7f1d1d; display:flex; align-items:center; justify-content:center; gap:12px; font-family:var(--font-serif);">
+          <img src="/themes/giacngo/chaptay.png" alt="chắp tay" style="width:48px; height:48px; object-fit:contain;"
+            onerror="this.style.display='none'">
+          <span id="pricing-title">Đóng Góp</span>
+        </h2>
+        <p style="font-size:1.1rem; color:#5d4a3a; margin-top:8px;" id="pricing-subtitle">Hộ Pháp — Nuôi dưỡng ứng dụng,
+          dựng xây Ngôi Nhà Giác Ngộ</p>
+        <p style="font-size:0.95rem; color:#8c7b75; font-style:italic; max-width:600px; margin:12px auto 0;"
+          id="pricing-desc">100% quyên góp của bạn trực tiếp hỗ trợ chi phí máy chủ và huấn luyện AI để duy trì không
+          gian. Bằng việc đóng góp, bạn đang giúp hàng ngàn người khác được tiếp tục đặt câu hỏi miễn phí mỗi ngày. ($1
+          = 25 câu hỏi)</p>
+      </div>
+
+      <!-- Cards -->
+      <div class="new-pricing-grid">
+
+        <!-- Card 1: Gieo Duyên -->
+        <div class="new-pricing-card">
+          <p class="npc-name" id="plan1-name">Gieo Duyên</p>
+          <p class="npc-subtitle" id="plan1-sub">Planting the Seed</p>
+          <img src="/themes/giacngo/nhang.png" alt="nhang" class="npc-img">
+          <p class="npc-price" id="plan1-price">$2</p>
+          <p class="npc-price-hint" id="plan1-hint">50 câu hỏi</p>
+          <ul class="npc-features">
+            <li id="plan1-f1">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Hỗ trợ nuôi dưỡng Tăng Đoàn</span>
+            </li>
+            <li id="plan1-f2">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Gieo duyên với Chánh Pháp</span>
+            </li>
+            <li id="plan1-f3">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Hồi hướng công đức cho chúng sinh</span>
+            </li>
+          </ul>
+          <button class="npc-btn" onclick="openDonation('Gieo Duyên', 2)">Cúng dường</button>
+        </div>
+
+        <!-- Card 2: Phật Sự (Featured - dark red) -->
+        <div class="new-pricing-card featured">
+          <p class="npc-top-label" id="popular-badge">Hoằng Pháp Lợi Sinh</p>
+          <p class="npc-name featured" id="plan2-name">Phật Sự</p>
+          <p class="npc-subtitle featured" id="plan2-sub">The Work of Awakening</p>
+          <img src="/themes/giacngo/sach.png" alt="sách" class="npc-img"
+            style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5)) brightness(1.3);">
+          <p class="npc-price featured" id="plan2-price">$8</p>
+          <p class="npc-price-hint featured" id="plan2-hint">250 câu hỏi (tặng 50 câu)</p>
+          <ul class="npc-features">
+            <li id="plan2-f1">
+              <svg class="npc-heart featured" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Hoằng truyền Chánh Pháp</span>
+            </li>
+            <li id="plan2-f2">
+              <svg class="npc-heart featured" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Phát triển tài liệu &amp; giáo lý</span>
+            </li>
+            <li id="plan2-f3">
+              <svg class="npc-heart featured" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Duy trì không gian tu tập</span>
+            </li>
+            <li id="plan2-f4">
+              <svg class="npc-heart featured" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Hướng dẫn người tìm đường</span>
+            </li>
+          </ul>
+          <button class="npc-btn featured" onclick="openDonation('Phật Sự', 8)">Cúng dường</button>
+        </div>
+
+        <!-- Card 3: Từ Bi Hạnh -->
+        <div class="new-pricing-card">
+          <p class="npc-name" id="plan3-name">Từ Bi Hạnh</p>
+          <p class="npc-subtitle" id="plan3-sub">Acts of True Compassion</p>
+          <img src="/themes/giacngo/senhong.png" alt="hoa sen" class="npc-img">
+          <p class="npc-price" id="plan3-price">Tuỳ Tâm</p>
+          <p class="npc-price-hint" id="plan3-hint">25 câu hỏi mỗi $1</p>
+          <ul class="npc-features">
+            <li id="plan3-f1">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Cứu giúp người khổ nạn</span>
+            </li>
+            <li id="plan3-f2">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Hỗ trợ người tu tập</span>
+            </li>
+            <li id="plan3-f3">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Dẫn dắt chúng sinh thoát khổ</span>
+            </li>
+            <li id="plan3-f4">
+              <svg class="npc-heart" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <span>Lan toả ánh sáng giác ngộ</span>
+            </li>
+          </ul>
+          <button class="npc-btn" onclick="openDonation('Từ Bi Hạnh', null)">Cúng dường</button>
+        </div>
+
+      </div>
+
+      <p style="text-align:center; font-style:italic; font-size:0.95rem; color:#8c7b75; margin-top:32px;"
+        id="pricing-footer">Cúng dường tuỳ tâm — Đây không chỉ là quyên góp. Đây là thực hành cúng dường vô ngã.</p>
+    </div>
+  </section>
+
+  <!-- ===== DONATION OVERLAY ===== -->
+  <div class="donation-overlay" id="donation-overlay" onclick="if(event.target===this)closeDonationChooser()">
+
+    <!-- Main Donation Modal -->
+    <div class="donation-modal" id="chooser-panel">
+      <button class="chooser-close" onclick="closeDonationChooser()">&times;</button>
+
+      <h3 class="donation-modal-title">Cúng Dường Tuỳ Tâm</h3>
+      <p class="donation-modal-desc">Nếu những chia sẻ trên đã gieo vào lòng bạn một hạt mầm an lạc, và bạn mong muốn
+        lan toả những giá trị này để chạm đến nhiều cuộc đời hơn, bạn có thể hoàn hỷ tuỳ tâm cúng dường tại:</p>
+
+      <!-- Payment method tabs -->
+      <div class="payment-tabs">
+        <button id="tab-payos" class="payment-tab active" onclick="selectPaymentTab('payos')">🇻🇳 QR Code VN</button>
+        <button id="tab-stripe" class="payment-tab" onclick="selectPaymentTab('stripe')">● Stripe</button>
+        <button id="tab-venmo" class="payment-tab" style="display:none" onclick="selectPaymentTab('venmo')">💵
+          Venmo</button>
+      </div>
+
+      <!-- Plan preset cards -->
+      <div class="donation-plans">
+        <div class="donation-plan-card" id="donation-plan-0" onclick="selectPlan(0)">
+          <img src="/themes/giacngo/nhang.png" alt="Bổ nhang" loading="lazy">
+          <div class="dp-label">Bổ nhang</div>
+          <div class="dp-merit">+2 MERIT</div>
+        </div>
+        <div class="donation-plan-card" id="donation-plan-1" onclick="selectPlan(1)">
+          <img src="/themes/giacngo/sach.png" alt="Cuốn Kinh" loading="lazy">
+          <div class="dp-label">Cuốn Kinh</div>
+          <div class="dp-merit">+8 MERIT</div>
+        </div>
+        <div class="donation-plan-card selected" id="donation-plan-2" onclick="selectPlan(2)">
+          <img src="/themes/giacngo/senhong.png" alt="Tuỳ tâm" loading="lazy">
+          <div class="dp-label">Tuỳ tâm</div>
+          <div class="dp-merit">&nbsp;</div>
+        </div>
+      </div>
+
+      <!-- Amount input -->
+      <div class="donation-amount-wrap">
+        <input type="number" id="donation-amount-input" class="donation-amount-input" placeholder="Nhập số tiền (VNĐ)"
+          min="1">
+        <span class="donation-currency" id="donation-currency">VNĐ</span>
+      </div>
+
+      <!-- Message -->
+      <div class="donation-msg-wrap">
+        <label class="donation-msg-label">LỜI NHẮN (TUỲ CHỌN)</label>
+        <textarea id="donation-message-input" placeholder="Gửi lời chúc, hồi hướng công đức,..."></textarea>
+      </div>
+
+      <!-- Submit -->
+      <button class="donation-submit-btn" onclick="submitDonation()">Hoàn tất cúng dường</button>
+
+      <!-- Footer -->
+      <p class="donation-modal-footer">♡ Tiền cúng dường được dùng để duy trì hệ thống và hỗ trợ các hoạt động thiện
+        nguyện của cộng đồng Phật giáo.</p>
+      <p class="donation-modal-contact"><a href="mailto:info@giac.ngo">Liên hệ chúng tôi tại info@giac.ngo</a></p>
+    </div>
+
+    <!-- Loading panel -->
+    <div class="donation-card" id="loading-panel" style="display:none">
+      <div class="donation-spinner"></div>
+      <h3 style="color:var(--primary);font-family:var(--font-serif);margin-bottom:0.5rem;">Đang kết nối...</h3>
+      <p id="donation-loading-text" style="color:var(--text-muted);font-size:0.9rem;">Vui lòng chờ</p>
+    </div>
+  </div>
+  <div class="donation-toast" id="donation-toast">🙏 Cúng dường thành công! Tâm lành gieo phước.</div>
+
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="main-footer">
+    <div class="container">
+      <div class="footer-brand">Giác Ngộ Initiative</div>
+      <nav class="footer-nav">
+        <a href="/" onclick="navTo(event,'/')" id="footer-home">Trang chủ</a>
+        <a href="#agents-section" id="footer-agents">AI</a>
+        <a href="#pricing-section" id="footer-pricing">Đóng góp</a>
+      </nav>
+      <div class="footer-copy">© 2025 Giác Ngộ</div>
+    </div>
+  </footer>
+
+  <script>
+    // ===== CONFIG =====
+    // Detect if in iframe (space page) or standalone
+    // In srcDoc iframe with sandbox="allow-same-origin", relative URLs work correctly.
+    // But when opening as file://, we need the actual server URL.
+    const BASE_URL = (() => {
+      const proto = window.location.protocol;
+      if (proto === 'file:') return 'http://localhost:3002'; // Dev fallback (backend port)
+      return ''; // Relative URL works in http/https context
+    })();
+
+    const SPACE_SLUG = 'giac-ngo';
+    const AGENT_IDS = [1, 7, 3]; // Specific agent IDs to feature
+    const INITIAL_COUNT = 3;
+    const PER_PAGE = 3;
+
+    // ===== STATE =====
+    let allAgents = [];
+    let displayedCount = INITIAL_COUNT;
+    let currentLang = 'vi';
+    let currentSpaceId = null;   // Set after fetchAgents()
+    let currentSpaceData = null; // Full space data including venmoHandle
+    let pendingDonation = null;  // { planTitle, amountUsd } while chooser is open
+
+    const T = {
+      vi: {
+        searchPlaceholder: 'Hỏi về Phật pháp, tu tập, và con đường giác ngộ...',
+        agentsTitle: 'Agents từ Cộng Đồng',
+        agentsSubtitle: 'Khám phá các AI Agent được phát triển bởi các chùa chiền, thiền viện và trung tâm tu tập khắp nơi',
+        exploreAgent: 'Khám phá Agent',
+        free: 'Miễn phí',
+        merits: 'merits',
+        perRequest: '/yêu cầu',
+        contact: 'Liên hệ',
+        statsAgents: 'Buddhist AI Agents',
+        statsConvs: 'Conversations',
+        statsAvail: 'Available',
+        viewMore: 'Xem thêm',
+        loginBtn: 'Đăng nhập',
+        suggestions: ['Giác Ngộ nghĩa là gì?', 'Làm sao để thành Phật?', 'Làm sao để thoát mọi khổ đau?', 'Làm sao để tìm thấy hạnh phúc?'],
+
+        menuOrgTitle: 'Tổ chức',
+        menuAbout: 'Giới thiệu',
+        menuContact: 'Liên hệ',
+        menuTerms: 'Điều khoản',
+        menuPrivacy: 'Bảo mật',
+        menuDocs: 'Tài liệu',
+        navHome: 'Trang chủ',
+        navAgents: 'AI Agents',
+        navPricing: 'Đóng góp',
+        userPracticeBtn: '🧘 Không gian thực hành',
+        adminUserMenu: '🛡️ Bảng quản trị',
+        userLogoutBtn: '🚪 Đăng xuất',
+
+        pricingTitle: 'Đóng Góp',
+        pricingSubtitle: 'Hộ Pháp — Nuôi dưỡng ứng dụng, dựng xây Ngôi Nhà Giác Ngộ',
+        pricingDesc: '100% quyên góp của bạn trực tiếp hỗ trợ chi phí máy chủ và huấn luyện AI để duy trì không gian. Bằng việc đóng góp, bạn đang giúp hàng ngàn người khác được tiếp tục đặt câu hỏi miễn phí mỗi ngày. ($1 = 25 câu hỏi)',
+        plan1Name: 'Gieo Duyên',
+        plan1Sub: 'Planting the Seed',
+        plan1Hint: '50 câu hỏi',
+        plan1F1: 'Hỗ trợ nuôi dưỡng Tăng Đoàn',
+        plan1F2: 'Gieo duyên với Chánh Pháp',
+        plan1F3: 'Hồi hướng công đức cho chúng sinh',
+
+        popularBadge: 'Hoằng Pháp Lợi Sinh',
+        plan2Name: 'Phật Sự',
+        plan2Sub: 'The Work of Awakening',
+        plan2Hint: '250 câu hỏi (tặng 50 câu)',
+        plan2F1: 'Hoằng truyền Chánh Pháp',
+        plan2F2: 'Phát triển tài liệu & giáo lý',
+        plan2F3: 'Duy trì không gian tu tập',
+        plan2F4: 'Hướng dẫn người tìm đường',
+
+        plan3Name: 'Từ Bi Hạnh',
+        plan3Sub: 'Acts of True Compassion',
+        plan3Price: 'Tuỳ Tâm',
+        plan3Hint: '25 câu hỏi mỗi $1',
+        plan3F1: 'Cứu giúp người khổ nạn',
+        plan3F2: 'Hỗ trợ người tu tập',
+        plan3F3: 'Dẫn dắt chúng sinh thoát khổ',
+        plan3F4: 'Lan toả ánh sáng giác ngộ',
+
+        donateBtn: 'Cúng dường',
+        pricingFooter: 'Cúng dường tuỳ tâm — Đây không chỉ là quyên góp. Đây là thực hành cúng dường vô ngã.',
+        footerAgents: 'AI Agents',
+        footerPricing: 'Cúng dường tùy tâm',
+      },
+      en: {
+        searchPlaceholder: 'Ask about Dharma, practice, and the path to enlightenment...',
+        agentsTitle: 'Agents from the Community',
+        agentsSubtitle: 'Discover AI Agents developed by pagodas, monasteries, and practice centers everywhere',
+        exploreAgent: 'Explore Agent',
+        free: 'Free',
+        merits: 'merits',
+        perRequest: '/request',
+        contact: 'Contact',
+        statsAgents: 'Buddhist AI Agents',
+        statsConvs: 'Conversations',
+        statsAvail: 'Available',
+        viewMore: 'View More',
+        loginBtn: 'Login',
+        suggestions: ['What is Enlightenment?', 'How to become a Buddha?', 'How to escape all suffering?', 'How to find eternal happiness?'],
+
+        menuOrgTitle: 'Organization',
+        menuAbout: 'About Us',
+        menuContact: 'Contact',
+        menuTerms: 'Terms of Service',
+        menuPrivacy: 'Privacy Policy',
+        menuDocs: 'Documentation',
+        navHome: 'Home',
+        navAgents: 'AI Agents',
+        navPricing: 'Pricing',
+        userPracticeBtn: '🧘 Practice Space',
+        adminUserMenu: '🛡️ Admin Dashboard',
+        userLogoutBtn: '🚪 Logout',
+
+        pricingTitle: 'Donation',
+        pricingSubtitle: 'Dharma Protector — Nurture the app, build the Home of Awakening',
+        pricingDesc: '100% of your donation directly supports server costs and AI training to maintain this space. By contributing, you help thousands of others continue to ask questions for free every day. ($1 = 25 questions)',
+        plan1Name: 'Planting the Seed',
+        plan1Sub: 'Gieo Duyên',
+        plan1Hint: '50 questions',
+        plan1F1: 'Support the monastic community',
+        plan1F2: 'Connect with the Dharma',
+        plan1F3: 'Dedicate merits to all beings',
+
+        popularBadge: 'Benefiting Beings',
+        plan2Name: 'The Work of Awakening',
+        plan2Sub: 'Phật Sự',
+        plan2Hint: '250 questions (bonus 50 questions)',
+        plan2F1: 'Propagate the right Dharma',
+        plan2F2: 'Develop materials & teachings',
+        plan2F3: 'Maintain practice space',
+        plan2F4: 'Guide those seeking the path',
+
+        plan3Name: 'Acts of Compassion',
+        plan3Sub: 'Từ Bi Hạnh',
+        plan3Price: 'Custom',
+        plan3Hint: '25 questions per $1',
+        plan3F1: 'Help those in distress',
+        plan3F2: 'Support practitioners',
+        plan3F3: 'Lead beings out of suffering',
+        plan3F4: 'Spread the light of awakening',
+
+        donateBtn: 'Make an Offering',
+        pricingFooter: 'Custom offering — This is not just a donation. This is the practice of selfless giving.',
+        footerAgents: 'AI Agents',
+        footerPricing: 'Custom Offering',
+      }
+    };
+
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', async () => {
+      setupNav();
+      initUserMenu();
+      await fetchAgents();
+      checkPaymentReturn();
+    });
+
+    // ===== PAYMENT RETURN CHECK =====
+    async function checkPaymentReturn() {
+      try {
+        const parentUrl = window.parent.location.href;
+        const url = new URL(parentUrl);
+        const payment = url.searchParams.get('payment');
+        const provider = url.searchParams.get('provider');
+        const sessionId = url.searchParams.get('session_id');
+        if (payment === 'success') {
+          // For Stripe: verify session first
+          if (provider === 'stripe' && sessionId) {
+            let token = null;
+            try { const u = JSON.parse(localStorage.getItem('user') || '{}'); token = u.apiToken; } catch (e) { }
+            if (token) {
+              try {
+                await fetch(`${BASE_URL}/api/billing/stripe/verify-checkout-session`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ sessionId })
+                });
+              } catch (e) { console.warn('Stripe verify error', e); }
+            }
+          }
+          showDonationToast('🙏 Cúng dường thành công! Tâm lành gieo phước.', false);
+          // Clean URL
+          const cleanUrl = url.pathname;
+          window.parent.history.replaceState({}, '', cleanUrl);
+        } else if (payment === 'cancel') {
+          showDonationToast('Thanh toán đã bị huỷ.', true);
+          window.parent.history.replaceState({}, '', url.pathname);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // ===== NAVIGATION =====
+    function setupNav() {
+      document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', e => {
+          const id = a.getAttribute('href').substring(1);
+          const el = document.getElementById(id);
+          if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
+        });
+      });
+      // Close logo dropdown when clicking outside
+      document.addEventListener('click', e => {
+        const logoC = document.getElementById('logo-container');
+        if (logoC && !logoC.contains(e.target)) closeLogoDropdown();
+      });
+    }
+
+    // ===== USER MENU =====
+    let logoTimeout = null;
+    let userMenuTimeout = null;
+
+    function handleLogoEnter() {
+      if (logoTimeout) clearTimeout(logoTimeout);
+      document.getElementById('logo-dropdown').classList.add('open');
+    }
+    function handleLogoLeave() {
+      logoTimeout = setTimeout(() => {
+        closeLogoDropdown();
+      }, 300);
+    }
+    function closeLogoDropdown() {
+      const dd = document.getElementById('logo-dropdown');
+      if (dd) dd.classList.remove('open');
+    }
+
+    function handleUserMenuEnter() {
+      if (userMenuTimeout) clearTimeout(userMenuTimeout);
+      const dd = document.getElementById('user-menu-dropdown');
+      if (dd) dd.style.display = 'block';
+    }
+    function handleUserMenuLeave() {
+      userMenuTimeout = setTimeout(() => {
+        closeUserMenuDD();
+      }, 300);
+    }
+    function closeUserMenuDD() {
+      const dd = document.getElementById('user-menu-dropdown');
+      if (dd) dd.style.display = 'none';
+    }
+
+    function initUserMenu() {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
+        if (!user || !user.apiToken) return;
+
+        const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'U')}&background=991b1b&color=fefce8&size=64&rounded=true`;
+
+        // Desktop: hide login btn, show avatar
+        const loginWrap = document.getElementById('login-btn-wrap');
+        if (loginWrap) loginWrap.style.display = 'none';
+        document.getElementById('user-menu').style.display = 'inline-flex';
+
+        // Set avatar
+        const avatarEl = document.getElementById('user-avatar-img');
+        avatarEl.src = user.avatarUrl || fallback;
+        avatarEl.alt = user.name || '';
+        avatarEl.onerror = function () { this.src = fallback; };
+
+        // Set name / email (desktop dropdown)
+        document.getElementById('user-menu-name').textContent = user.name || '';
+        document.getElementById('user-menu-email').textContent = user.email || '';
+
+        // Bảng quản trị luôn hiện cho mọi user đã đăng nhập
+        const adminMenu = document.getElementById('admin-user-menu-item');
+        if (adminMenu) adminMenu.style.display = 'flex';
+        const mobileAdmin = document.getElementById('mobile-admin-btn');
+        if (mobileAdmin) mobileAdmin.style.display = 'flex';
+
+        // Mobile nav panel: show user info, hide guest
+        const mobileGuest = document.getElementById('mobile-guest-info');
+        const mobileUserInfo = document.getElementById('mobile-user-info');
+        const mobileLogout = document.getElementById('mobile-logout-section');
+        if (mobileGuest) mobileGuest.style.display = 'none';
+        if (mobileUserInfo) mobileUserInfo.style.display = 'block';
+        if (mobileLogout) mobileLogout.style.display = 'block';
+
+        const mAvatar = document.getElementById('mobile-user-avatar');
+        if (mAvatar) {
+          mAvatar.src = user.avatarUrl || fallback;
+          mAvatar.onerror = function () { this.src = fallback; };
+        }
+        const mName = document.getElementById('mobile-user-name');
+        const mEmail = document.getElementById('mobile-user-email');
+        if (mName) mName.textContent = user.name || '';
+        if (mEmail) mEmail.textContent = user.email || '';
+
+      } catch (e) { /* ignore */ }
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('user');
+      closeUserMenuDD();
+      // Desktop: restore login btn
+      const loginWrap = document.getElementById('login-btn-wrap');
+      if (loginWrap) loginWrap.style.display = '';
+      const userMenu = document.getElementById('user-menu');
+      if (userMenu) userMenu.style.display = 'none';
+      // Mobile nav panel: restore guest state
+      const mobileGuest = document.getElementById('mobile-guest-info');
+      const mobileUserInfo = document.getElementById('mobile-user-info');
+      const mobileLogout = document.getElementById('mobile-logout-section');
+      if (mobileGuest) mobileGuest.style.display = '';
+      if (mobileUserInfo) mobileUserInfo.style.display = 'none';
+      if (mobileLogout) mobileLogout.style.display = 'none';
+      navigateTo('/');
+    }
+
+    // ===== MOBILE NAV PANEL =====
+    function openMobileNav() {
+      document.getElementById('mobile-nav-panel').classList.add('is-open');
+      document.getElementById('mobile-nav-overlay').classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeMobileNav() {
+      document.getElementById('mobile-nav-panel').classList.remove('is-open');
+      document.getElementById('mobile-nav-overlay').classList.remove('is-open');
+      document.body.style.overflow = '';
+    }
+
+    let mobileOrgOpen = false;
+    function toggleMobileOrgMenu() {
+      mobileOrgOpen = !mobileOrgOpen;
+      const sub = document.getElementById('mobile-org-submenu');
+      const chevron = document.getElementById('mobile-org-chevron');
+      if (sub) sub.style.display = mobileOrgOpen ? 'block' : 'none';
+      if (chevron) chevron.style.transform = mobileOrgOpen ? 'rotate(180deg)' : '';
+    }
+
+    // Close panel on Escape
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeMobileNav();
+    });
+
+    function navTo(e, path) {
+      if (e && e.preventDefault) e.preventDefault();
+      closeLogoDropdown();
+      // postMessage to parent React app (SpaceCustomPageResolver handles NAVIGATE)
+      window.parent.postMessage({ type: 'NAVIGATE', path }, '*');
+      // Fallback: direct navigation if standalone (not in iframe)
+      try { if (window.self === window.top) window.location.href = path; } catch (e) { }
+    }
+
+    function navigateTo(path, aiId) {
+      // Set AI selection if provided
+      if (aiId) localStorage.setItem('lastSelectedAiId', String(aiId));
+      // postMessage to parent React app (SpaceCustomPageResolver handles NAVIGATE)
+      window.parent.postMessage({ type: 'NAVIGATE', path, aiId }, '*');
+      // Fallback: direct navigation if standalone (not in iframe)
+      try { if (window.self === window.top) window.location.href = path; } catch (e) { }
+    }
+
+    function navigateToLogin() {
+      // Pass current path so LoginPage can redirect back here after login
+      const from = encodeURIComponent(window.location.pathname || '/');
+      navigateTo(`/${SPACE_SLUG}/login?from=${from}`);
+    }
+
+    function goToChat() {
+      const query = document.getElementById('search-input').value.trim();
+      if (query) localStorage.setItem('initialQuery', query);
+      else localStorage.removeItem('initialQuery');
+      localStorage.setItem('lastSelectedAiId', '7');
+      navigateTo(`/${SPACE_SLUG}/chat`, 7);
+    }
+
+    function goToCommunity() {
+      let token = null;
+      try { const u = localStorage.getItem('user'); if (u) token = JSON.parse(u).apiToken || null; } catch (e) { }
+      if (!token) {
+        navigateToLogin();
+      } else {
+        navigateTo(`/${SPACE_SLUG}/community`);
+      }
+    }
+
+    function goToChatWithAgent(agentId, spaceSlug) {
+      localStorage.removeItem('initialQuery');
+      const targetSlug = spaceSlug || SPACE_SLUG;
+      navigateTo(`/${targetSlug}/chat`, agentId);
+    }
+
+
+    function setSuggestion(btn) {
+      document.getElementById('search-input').value = btn.textContent;
+    }
+
+    // ===== LANGUAGE =====
+    function setLang(lang) {
+      currentLang = lang;
+      const t = T[lang];
+      document.querySelectorAll('.lang-sw button').forEach(b => b.classList.remove('active'));
+      document.querySelector(`.lang-sw button[onclick="setLang('${lang}')"]`).classList.add('active');
+      document.getElementById('search-input').placeholder = t.searchPlaceholder;
+      document.getElementById('agents-title').textContent = t.agentsTitle;
+      document.getElementById('agents-subtitle').textContent = t.agentsSubtitle;
+      document.getElementById('stat-agents-lbl').textContent = t.statsAgents;
+      document.getElementById('stat-convs-lbl').textContent = t.statsConvs;
+      document.getElementById('stat-avail-lbl').textContent = t.statsAvail;
+
+      // Header translations
+      document.getElementById('menu-org-title').textContent = t.menuOrgTitle;
+      document.getElementById('menu-about').textContent = t.menuAbout;
+      document.getElementById('menu-contact').textContent = t.menuContact;
+      document.getElementById('menu-terms').textContent = t.menuTerms;
+      document.getElementById('menu-privacy').textContent = t.menuPrivacy;
+      document.getElementById('menu-docs').textContent = t.menuDocs;
+
+      document.getElementById('nav-home').textContent = t.navHome;
+      document.getElementById('nav-agents').textContent = t.navAgents;
+      document.getElementById('nav-pricing').textContent = t.navPricing;
+
+      const userPracticeBtn = document.getElementById('user-practice-btn');
+      if (userPracticeBtn) userPracticeBtn.textContent = t.userPracticeBtn;
+      const adminUserMenu = document.getElementById('admin-user-menu-item');
+      if (adminUserMenu) adminUserMenu.textContent = t.adminUserMenu;
+      const userLogoutBtn = document.getElementById('user-logout-btn');
+      if (userLogoutBtn) userLogoutBtn.textContent = t.userLogoutBtn;
+
+      // Pricing translations
+      document.getElementById('pricing-title').textContent = t.pricingTitle;
+      document.getElementById('pricing-subtitle').textContent = t.pricingSubtitle;
+      document.getElementById('pricing-desc').textContent = t.pricingDesc;
+
+      document.getElementById('plan1-name').textContent = t.plan1Name;
+      document.getElementById('plan1-sub').textContent = t.plan1Sub;
+      document.getElementById('plan1-hint').textContent = t.plan1Hint;
+      document.getElementById('plan1-f1').textContent = t.plan1F1;
+      document.getElementById('plan1-f2').textContent = t.plan1F2;
+      document.getElementById('plan1-f3').textContent = t.plan1F3;
+
+      document.getElementById('popular-badge').textContent = t.popularBadge;
+      document.getElementById('plan2-name').textContent = t.plan2Name;
+      document.getElementById('plan2-sub').textContent = t.plan2Sub;
+      document.getElementById('plan2-hint').textContent = t.plan2Hint;
+      document.getElementById('plan2-f1').textContent = t.plan2F1;
+      document.getElementById('plan2-f2').textContent = t.plan2F2;
+      document.getElementById('plan2-f3').textContent = t.plan2F3;
+      document.getElementById('plan2-f4').textContent = t.plan2F4;
+
+      document.getElementById('plan3-name').textContent = t.plan3Name;
+      document.getElementById('plan3-sub').textContent = t.plan3Sub;
+      document.getElementById('plan3-price').textContent = t.plan3Price;
+      document.getElementById('plan3-hint').textContent = t.plan3Hint;
+      document.getElementById('plan3-f1').textContent = t.plan3F1;
+      document.getElementById('plan3-f2').textContent = t.plan3F2;
+      document.getElementById('plan3-f3').textContent = t.plan3F3;
+      document.getElementById('plan3-f4').textContent = t.plan3F4;
+
+      document.querySelectorAll('.donate-btn-text').forEach(btn => btn.textContent = t.donateBtn);
+
+      document.getElementById('pricing-footer').textContent = t.pricingFooter;
+      document.getElementById('footer-agents').textContent = t.footerAgents;
+      document.getElementById('footer-pricing').textContent = t.footerPricing;
+
+      // Update suggestions
+      const suggDiv = document.getElementById('suggestions');
+      suggDiv.innerHTML = t.suggestions.map(s =>
+        `<button onclick="setSuggestion(this)">${s}</button>`
+      ).join('');
+
+      // Re-render agents with current lang
+      renderAgents();
+    }
+
+    // ===== FETCH AGENTS =====
+    // spaceSlugMap: spaceId -> slug, built from /api/spaces
+    let spaceSlugMap = {};
+
+    async function fetchAgents() {
+      try {
+        // Fetch space info + all spaces for slug mapping
+        const [spaceRes, spacesRes] = await Promise.all([
+          fetch(`${BASE_URL}/api/spaces/${SPACE_SLUG}`),
+          fetch(`${BASE_URL}/api/spaces`)
+        ]);
+        const space = await spaceRes.json();
+        const spacesData = await spacesRes.json();
+        const spaceId = space.id;
+        currentSpaceId = spaceId;     // Store globally for donation flow
+        currentSpaceData = space;     // Store all space data (venmoHandle, etc.)
+
+        // Build spaceId -> slug map
+        const list = Array.isArray(spacesData) ? spacesData : (spacesData.spaces || []);
+        list.forEach(s => { spaceSlugMap[s.id] = s.slug; });
+        // Ensure current space is mapped
+        spaceSlugMap[spaceId] = SPACE_SLUG;
+
+        const res = await fetch(`${BASE_URL}/api/spaces/${spaceId}/ai-configs`);
+        const data = await res.json();
+
+        // Attach spaceSlug to each agent
+        data.forEach(ai => { ai.spaceSlug = spaceSlugMap[ai.spaceId] || SPACE_SLUG; });
+
+        // Featured IDs first (in order), then rest
+        const featured = AGENT_IDS
+          .map(id => data.find(a => a.id === id))
+          .filter(Boolean);
+        const rest = data.filter(a => !AGENT_IDS.includes(a.id) && a.isPublic);
+        allAgents = [...featured, ...rest];
+
+        // Update stats
+        document.getElementById('stat-agents').textContent = (allAgents.length || data.length) + '+';
+
+        // Load suggested questions from AI ID=7 (Giác Ngộ)
+        const giacNgoAi = data.find(a => a.id === 7);
+        if (giacNgoAi && giacNgoAi.suggestedQuestions && giacNgoAi.suggestedQuestions.length > 0) {
+          T.vi.suggestions = giacNgoAi.suggestedQuestions.slice(0, 6);
+          if (giacNgoAi.suggestedQuestionsEn && giacNgoAi.suggestedQuestionsEn.length > 0) {
+            T.en.suggestions = giacNgoAi.suggestedQuestionsEn.slice(0, 6);
+          }
+          // Re-render suggestions
+          const suggDiv = document.getElementById('suggestions');
+          if (suggDiv) {
+            suggDiv.innerHTML = T[currentLang].suggestions.map(s =>
+              `<button onclick="setSuggestion(this)">${s}</button>`
+            ).join('');
+          }
+        }
+
+        renderAgents();
+      } catch (err) {
+        console.error('Failed to fetch agents:', err);
+        document.getElementById('agents-grid').innerHTML =
+          '<p style="text-align:center;color:#8c7b75;grid-column:1/-1;">Không thể tải dữ liệu. Vui lòng thử lại.</p>';
+      }
+    }
+
+    // ===== RENDER AGENTS =====
+    function renderAgents() {
+      const t = T[currentLang];
+      const grid = document.getElementById('agents-grid');
+      const shown = allAgents.slice(0, displayedCount);
+
+      if (!shown.length) {
+        grid.innerHTML = '<p style="text-align:center;color:#8c7b75;grid-column:1/-1;">Chưa có AI Agent nào.</p>';
+        return;
+      }
+
+      grid.innerHTML = shown.map(ai => {
+        const name = (currentLang === 'en' && ai.nameEn) ? ai.nameEn : ai.name;
+        const subtitle = ai.description || '';
+        const descEn = ai.descriptionEn || '';
+        const img = ai.avatarUrl || '/themes/giacngo/giac-ngo-logo-6.png';
+        const spaceName = ai.spaceName || 'Không gian Giác Ngộ';
+
+        let priceText;
+        if (ai.isContactForAccess) {
+          priceText = `<span style="font-weight:700">${t.contact}</span>`;
+        } else if (ai.purchaseCost > 0) {
+          priceText = `<span style="font-weight:700">${ai.purchaseCost} ${t.merits}</span>`;
+        } else if (ai.meritCost > 0) {
+          priceText = `<span style="font-weight:700">${ai.meritCost} ${t.merits}${t.perRequest}</span>`;
+        } else {
+          priceText = `<span style="font-weight:700">${t.free}</span>`;
+        }
+
+        const views = formatNum(ai.views || 0);
+        const likes = formatNum(ai.likes || 0);
+        const btnText = ai.isContactForAccess ? t.contact : t.exploreAgent;
+
+        return `
+    <div class="agent-card">
+      <div class="card-image-top">
+        <img src="${escHtml(img)}" alt="${escHtml(name)}" onerror="this.src='/themes/giacngo/giac-ngo-logo-6.png'">
+      </div>
+      <div class="card-body">
+        <h3 class="agent-name">${escHtml(name)}</h3>
+        <p class="agent-subtitle">${escHtml(subtitle)}</p>
+        <p class="agent-description">${escHtml(descEn)}</p>
+        <hr class="agent-divider">
+        <div class="agent-meta">
+          <span class="model-tag">${escHtml(ai.modelName || 'AI')}</span>
+          <span class="space-name">${escHtml(spaceName)}</span>
+        </div>
+        <div class="agent-stats">
+          <div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>${views}</span>
+          </div>
+          <span>·</span>
+          <div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span>${likes}</span>
+          </div>
+        </div>
+        <div class="agent-price">${priceText}</div>
+        <button class="explore-btn" onclick="goToChatWithAgent(${ai.id}, '${ai.spaceSlug || SPACE_SLUG}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          <span>${btnText}</span>
+        </button>
+      </div>
+    </div>`;
+      }).join('');
+
+      // View more button
+      const vmBtn = document.getElementById('view-more');
+      vmBtn.style.display = displayedCount < allAgents.length ? 'block' : 'none';
+      if (vmBtn.querySelector('button')) {
+        vmBtn.querySelector('button').textContent = t.viewMore;
+      }
+    }
+
+    function loadMoreAgents() {
+      displayedCount += PER_PAGE;
+      renderAgents();
+    }
+
+    // ===== DONATION =====
+    const DONATION_PLANS = [
+      { label: 'Bổ nhang', merit: '+2 MERIT', usd: 2, vnd: 50000 },
+      { label: 'Cuốn Kinh', merit: '+8 MERIT', usd: 8, vnd: 200000 },
+      { label: 'Tuỳ tâm', merit: null, usd: null, vnd: null }
+    ];
+    let activePayTab = 'payos';
+    let selectedPlanIdx = 2;
+
+    function openDonation(planTitle, amountUsd) {
+      let token = null;
+      try { const u = localStorage.getItem('user'); if (u) token = JSON.parse(u).apiToken || null; } catch (e) { }
+      if (!token) { navigateToLogin(); return; }
+      if (!currentSpaceId) { alert('Không tìm thấy thông tin space. Vui lòng tải lại trang.'); return; }
+
+      // Figure out plan preset from amount
+      let planIdx = 2;
+      if (amountUsd === 2) planIdx = 0;
+      else if (amountUsd === 8) planIdx = 1;
+
+      pendingDonation = { planTitle, amountUsd, token };
+
+      // Reset modal state
+      selectPaymentTab('payos', false);
+      selectPlan(planIdx, false);
+      updateModalForPlan(planIdx);
+
+      // Venmo tab
+      const venmoHandle = currentSpaceData && currentSpaceData.venmoHandle;
+      const venmoTab = document.getElementById('tab-venmo');
+      if (venmoTab) venmoTab.style.display = venmoHandle ? '' : 'none';
+
+      // Clear message
+      const msgEl = document.getElementById('donation-message-input');
+      if (msgEl) msgEl.value = '';
+
+      // Show overlay
+      document.getElementById('chooser-panel').style.display = '';
+      document.getElementById('loading-panel').style.display = 'none';
+      document.getElementById('donation-overlay').classList.add('open');
+    }
+
+    function selectPaymentTab(tabId, doUpdate = true) {
+      activePayTab = tabId;
+      ['payos', 'stripe', 'venmo'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        if (btn) btn.classList.toggle('active', t === tabId);
+      });
+      const currLabel = document.getElementById('donation-currency');
+      const amtInput = document.getElementById('donation-amount-input');
+      if (tabId === 'payos') {
+        if (currLabel) currLabel.textContent = 'VNĐ';
+        if (amtInput) amtInput.placeholder = 'Nhập số tiền (VNĐ)';
+      } else {
+        if (currLabel) currLabel.textContent = 'USD';
+        if (amtInput) amtInput.placeholder = 'Nhập số tiền (USD)';
+      }
+      if (doUpdate) updateModalForPlan(selectedPlanIdx);
+    }
+
+    function selectPlan(idx, doUpdate = true) {
+      selectedPlanIdx = idx;
+      for (let i = 0; i < DONATION_PLANS.length; i++) {
+        const card = document.getElementById(`donation-plan-${i}`);
+        if (card) card.classList.toggle('selected', i === idx);
+      }
+      if (doUpdate) updateModalForPlan(idx);
+    }
+
+    function updateModalForPlan(idx) {
+      const plan = DONATION_PLANS[idx];
+      const amtInput = document.getElementById('donation-amount-input');
+      if (!amtInput) return;
+      if (plan.usd === null) {
+        amtInput.value = '';
+      } else {
+        amtInput.value = activePayTab === 'payos' ? plan.vnd : plan.usd;
+      }
+    }
+
+    async function submitDonation() {
+      const amtRaw = parseFloat(document.getElementById('donation-amount-input').value);
+      const msg = (document.getElementById('donation-message-input').value || '').trim();
+      if (!amtRaw || amtRaw <= 0) { alert('Vui lòng nhập số tiền hợp lệ'); return; }
+
+      let token = null;
+      try { token = JSON.parse(localStorage.getItem('user') || '{}').apiToken || null; } catch (e) { }
+      if (!token) { navigateToLogin(); return; }
+
+      const planLabel = DONATION_PLANS[selectedPlanIdx].label;
+      if (activePayTab === 'payos') {
+        pendingDonation = { planTitle: planLabel, amountVnd: Math.round(amtRaw), amountUsd: amtRaw / 25000, token, message: msg };
+        await payWithPayOS();
+      } else if (activePayTab === 'stripe') {
+        pendingDonation = { planTitle: planLabel, amountUsd: amtRaw, token, message: msg };
+        await payWithStripe();
+      } else {
+        pendingDonation = { planTitle: planLabel, amountUsd: amtRaw, token, message: msg };
+        payWithVenmo();
+      }
+    }
+
+
+    function closeDonationChooser() {
+      document.getElementById('donation-overlay').classList.remove('open');
+      pendingDonation = null;
+    }
+
+    function showDonationLoading(msg) {
+      document.getElementById('donation-loading-text').textContent = msg || 'Vui lòng chờ...';
+      document.getElementById('chooser-panel').style.display = 'none';
+      document.getElementById('loading-panel').style.display = 'block';
+    }
+
+    async function payWithPayOS() {
+      if (!pendingDonation) return;
+      const { planTitle, amountVnd, amountUsd, token } = pendingDonation;
+      const amount = amountVnd || Math.round((amountUsd || 0) * 25000);
+      showDonationLoading(`${planTitle} — ${amount.toLocaleString()} VNĐ — PayOS`);
+      try {
+        const returnPath = `/${SPACE_SLUG}`;
+        const res = await fetch(`${BASE_URL}/api/payos/create-donation-link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ amount, message: planTitle, spaceId: currentSpaceId, returnPath })
+        });
+        document.getElementById('donation-overlay').classList.remove('open');
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || `HTTP ${res.status}`); }
+        const data = await res.json();
+        if (data.checkoutUrl) {
+          try { window.top.location.href = data.checkoutUrl; } catch (e) { window.location.href = data.checkoutUrl; }
+        } else throw new Error(data.message || 'Không thể tạo link thanh toán');
+      } catch (e) {
+        document.getElementById('donation-overlay').classList.remove('open');
+        alert('Lỗi PayOS: ' + e.message);
+      }
+    }
+
+    async function payWithStripe() {
+      if (!pendingDonation) return;
+      const { planTitle, amountUsd, token } = pendingDonation;
+      showDonationLoading(`${planTitle} — $${amountUsd} USD — Stripe`);
+      try {
+        let userId = null;
+        try { userId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (e) { }
+        if (!userId) throw new Error('Không tìm thấy thông tin người dùng');
+        const returnPath = `/${SPACE_SLUG}`;
+        const res = await fetch(`${BASE_URL}/api/billing/stripe/create-checkout-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ amount: amountUsd, userId, message: planTitle, spaceId: currentSpaceId, type: 'offering', returnPath })
+        });
+        document.getElementById('donation-overlay').classList.remove('open');
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || `HTTP ${res.status}`); }
+        const data = await res.json();
+        if (data.url) {
+          try { window.top.location.href = data.url; } catch (e) { window.location.href = data.url; }
+        } else throw new Error(data.message || 'Không thể tạo link thanh toán Stripe');
+      } catch (e) {
+        document.getElementById('donation-overlay').classList.remove('open');
+        alert('Lỗi Stripe: ' + e.message);
+      }
+    }
+
+    function payWithVenmo() {
+      if (!pendingDonation) return;
+      const { planTitle, amountUsd } = pendingDonation;
+      const handle = currentSpaceData && currentSpaceData.venmoHandle;
+      if (!handle) { alert('Venmo chưa được cấu hình'); return; }
+      const note = encodeURIComponent(`Cúng dường ${planTitle} - Giác Ngộ`);
+      const url = `https://venmo.com/u/${encodeURIComponent(handle)}?txn=pay&amount=${amountUsd}&note=${note}`;
+      document.getElementById('donation-overlay').classList.remove('open');
+      try { window.top.open(url, '_blank'); } catch (e) { window.open(url, '_blank'); }
+      // Show success-ish toast after a moment
+      setTimeout(() => showDonationToast('📲 Mở Venmo để hoàn tất cúng dường.', false), 400);
+    }
+
+    function showDonationToast(msg, isCancel) {
+      const t = document.getElementById('donation-toast');
+      t.textContent = msg;
+      t.className = 'donation-toast show' + (isCancel ? ' cancel' : '');
+      setTimeout(() => { t.className = 'donation-toast'; }, 7000);
+    }
+
+    // ===== UTILS =====
+    function formatNum(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n;
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ===== SMART HEADER =====
+    // Header luôn hiển thị cố định, không ẩn khi scroll
+    // (closeMobileNav đã được gọi từ các event riêng)
+    (function () {
+      const header = document.querySelector('.main-header');
+      if (!header) return;
+      // Chỉ close mobile panel khi scroll, KHÔNG ẩn header
+      window.addEventListener('scroll', function () {
+        const panel = document.getElementById('mobile-nav-panel');
+        if (panel && panel.classList.contains('is-open')) {
+          closeMobileNav();
+        }
+      }, { passive: true });
+    })();
+
+    // ===== LISTEN for parent messages =====
+    window.addEventListener('message', e => {
+      if (e.data && e.data.type === 'SET_LANG') setLang(e.data.lang);
+    });
+  </script>
+</body>
+
+</html>

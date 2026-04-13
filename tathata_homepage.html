@@ -1,0 +1,697 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tathata Zen Monastery â€” Sacred Sutra Library</title>
+<meta name="description" content="A collection of timeless Buddhist teachings, preserved and shared for the cultivation of wisdom, compassion, and inner peace." />
+<link rel="icon" type="image/svg+xml" href="/themes/tathata/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:        #f5f0e8;
+  --fg:        #2e1f0f;
+  --card:      #f8f3ec;
+  --border:    #d8cbb8;
+  --primary:   #5c1a1a;
+  --secondary: #c9922e;
+  --muted-fg:  #7a6550;
+}
+html { scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  background: var(--bg);
+  color: var(--fg);
+  overflow-x: hidden;
+}
+a { text-decoration: none; color: inherit; }
+a:hover { color: var(--primary); }
+img { display: block; }
+
+/* Header */
+header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(245,240,232,0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.header-inner {
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 80px;
+}
+.logo-link { display: flex; align-items: center; gap: 0.75rem; }
+.logo-link img { object-fit: contain; }
+.site-name { font-size: 1.05rem; font-weight: 600; color: var(--primary); letter-spacing: 0.04em; }
+.site-tagline { font-size: 0.72rem; color: var(--muted-fg); font-style: italic; }
+.desktop-nav { display: flex; gap: 2rem; }
+.desktop-nav a { font-size: 0.9rem; font-weight: 500; color: rgba(46,31,15,0.75); }
+.hamburger { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--fg); }
+.mobile-menu { border-top: 1px solid var(--border); background: var(--bg); padding: 1rem 1.5rem; display: none; }
+.mobile-menu.open { display: block; }
+.mobile-menu a { display: block; padding: 0.5rem 0; font-size: 0.9rem; color: rgba(46,31,15,0.75); }
+@media (max-width: 768px) {
+  .desktop-nav { display: none !important; }
+  .hamburger { display: block !important; }
+}
+
+/* Hero */
+.hero { padding: 5rem 1.5rem; text-align: center; }
+.hero h1 { font-size: clamp(2rem,5vw,3.5rem); font-weight: 300; color: var(--primary); letter-spacing: 0.05em; margin-bottom: 1.25rem; line-height: 1.2; }
+.hero p { font-size: clamp(1rem,2.5vw,1.25rem); color: var(--muted-fg); max-width: 640px; margin: 0 auto; line-height: 1.8; }
+.hero-btns { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 2.5rem; }
+.hero-line { height: 1px; width: 3rem; background: var(--secondary); display: block; }
+.btn-chat {
+  font-size: 0.88rem; font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic; color: var(--primary);
+  background: transparent; border: 1px solid rgba(92,26,26,0.4);
+  border-radius: 2px; padding: 0.45rem 1.25rem;
+  cursor: pointer; letter-spacing: 0.06em;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.btn-chat:hover { background: var(--primary); color: #f5f0e8; border-color: var(--primary); }
+
+/* Dividers */
+.divider { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.5rem 0; }
+.divider span.line { height: 1px; width: 4rem; background: var(--border); display: block; }
+.divider span.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); display: block; }
+
+/* Sutras section */
+#sutras { padding: 4rem 0 6rem; }
+.sutras-inner { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+.section-heading { text-align: center; margin-bottom: 3rem; }
+.section-heading h2 { font-size: clamp(1.5rem,3vw,2.2rem); font-weight: 300; color: var(--primary); margin-bottom: 0.5rem; }
+.section-heading .sub { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted-fg); }
+.bilingual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px,1fr)); gap: 3rem; margin-bottom: 3rem; }
+.bilingual-col h3 { font-size: 1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.5rem; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+.text-item { margin-bottom: 1.5rem; }
+.text-item-title { font-size: 0.75rem; font-weight: 700; color: var(--secondary); letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+.text-item p { font-size: 0.95rem; color: rgba(46,31,15,0.8); line-height: 1.9; }
+.bullet-list { list-style: none; padding: 0; margin: 0 0 1.5rem; border-left: 2px solid var(--border); padding-left: 1rem; }
+.bullet-list li { font-size: 0.92rem; color: rgba(46,31,15,0.75); line-height: 1.85; margin-bottom: 0.5rem; font-style: italic; }
+.poem-box { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 2rem; background: rgba(200,180,140,0.15); border: 1px solid var(--border); border-radius: 4px; padding: 2rem; }
+.poem-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--secondary); margin-bottom: 1rem; }
+.verse-block { margin-bottom: 1rem; }
+.verse-block .verse-title { font-size: 0.8rem; font-weight: 600; color: var(--primary); margin-bottom: 0.25rem; }
+.verse-block p { font-size: 0.88rem; color: rgba(46,31,15,0.78); line-height: 2; white-space: pre-line; font-style: italic; }
+.dedication { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.dedication-label { font-size: 0.72rem; color: var(--secondary); letter-spacing: 0.08em; margin-bottom: 0.35rem; }
+.dedication p { font-size: 0.85rem; color: rgba(46,31,15,0.75); line-height: 1.9; font-style: italic; }
+.sutra-divider { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 4rem; }
+.sutra-divider .line { height: 1px; flex: 1; background: var(--border); display: block; }
+.sutra-divider .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--secondary); }
+.sutra-divider .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted-fg); }
+
+/* Sutra book cards */
+.sutra-cards { display: flex; flex-direction: column; gap: 6rem; }
+.sutra-card {
+  display: grid; grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
+  gap: 3rem; align-items: center; min-height: 480px;
+  opacity: 0; transform: translateY(40px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.sutra-card.visible { opacity: 1; transform: translateY(0); }
+.sutra-card-text .card-num { font-size: 0.78rem; color: var(--muted-fg); margin-bottom: 0.6rem; }
+.sutra-card-text .card-en { font-size: 0.85rem; font-style: italic; color: var(--secondary); margin-bottom: 0.25rem; }
+.sutra-card-text h3 { font-size: clamp(1.6rem,4vw,2.6rem); font-weight: 600; color: var(--primary); line-height: 1.2; margin-bottom: 0.35rem; }
+.sutra-card-text .card-tradition { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted-fg); }
+.sutra-card-text .card-translation { font-size: clamp(0.95rem,2vw,1.08rem); color: rgba(46,31,15,0.82); line-height: 1.9; white-space: pre-line; margin-top: 1rem; }
+
+/* Book card */
+.book-wrap { position: relative; }
+.book-shadow { position: absolute; inset: 0; background: rgba(46,31,15,0.18); border-radius: 3px; transform: translate(10px,12px); filter: blur(6px); }
+.book-cover { position: relative; border: 1px solid rgba(100,60,20,0.35); border-radius: 3px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,240,200,0.12); }
+.book-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 14px; background: linear-gradient(to right,rgba(40,20,5,0.18),transparent); z-index: 3; pointer-events: none; }
+.book-page {
+  position: relative; padding: 2.5rem 2.75rem 3.5rem;
+  min-height: 400px; background: #ede0c4;
+}
+.book-page-tint1 { position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(ellipse 80% 60% at 15% 20%,rgba(160,120,60,0.10) 0%,transparent 65%), radial-gradient(ellipse 60% 50% at 85% 75%,rgba(120,90,40,0.08) 0%,transparent 60%); }
+.book-page-vignette { position: absolute; inset: 0; pointer-events: none; z-index: 0; background: linear-gradient(to right,rgba(80,50,10,0.07) 0%,transparent 10%,transparent 90%,rgba(80,50,10,0.07) 100%),linear-gradient(to bottom,rgba(80,50,10,0.07) 0%,transparent 8%,transparent 92%,rgba(80,50,10,0.06) 100%); }
+.book-corner { position: absolute; top: 0; right: 0; z-index: 4; width: 28px; height: 28px; background: linear-gradient(225deg,#c4ad8a 0%,#d4bc96 40%,#ede0c4 100%); clip-path: polygon(100% 0,100% 100%,0 0); box-shadow: -2px 2px 4px rgba(40,20,0,0.18); }
+.book-corner2 { position: absolute; top: 0; right: 0; z-index: 5; width: 28px; height: 28px; background: linear-gradient(225deg,rgba(220,200,165,0.85) 0%,rgba(200,178,140,0.5) 60%,transparent 100%); clip-path: polygon(100% 0,0 0,100% 100%); }
+.book-top-symbol { display: flex; justify-content: center; margin-bottom: 0.5rem; opacity: 0.45; position: relative; z-index: 1; }
+.book-rule { position: relative; z-index: 1; display: flex; justify-content: center; margin-bottom: 0.5rem; }
+.book-rule span { display: block; height: 1px; width: 60%; background: rgba(80,50,10,0.25); }
+.book-header { position: relative; text-align: center; margin-bottom: 0.4rem; z-index: 1; }
+.book-header h4 { font-size: 1rem; font-weight: 700; color: #3a1400; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
+.book-header .script { font-size: 0.65rem; color: rgba(60,25,0,0.7); letter-spacing: 0.07em; font-style: italic; }
+.book-header .en { font-size: 0.6rem; color: rgba(60,25,0,0.55); letter-spacing: 0.06em; font-style: italic; margin-top: 0.1rem; }
+.book-ornament { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0.8rem 0; position: relative; z-index: 1; }
+.book-quote { position: relative; text-align: center; padding: 0 0.25rem; z-index: 1; }
+.book-quote p { font-size: clamp(0.88rem,1.7vw,1rem); color: #2c1000; line-height: 2.1; white-space: pre-line; font-style: italic; font-weight: 500; }
+.book-pagenum { position: absolute; bottom: 1.4rem; right: 1.75rem; font-size: 0.65rem; color: rgba(80,50,10,0.45); z-index: 1; }
+.book-pages-edge { position: absolute; right: 0; top: 8px; bottom: 8px; width: 5px; display: flex; flex-direction: column; gap: 1px; }
+.book-pages-edge div { flex: 1; }
+
+/* Watermark */
+.book-watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.055; pointer-events: none; z-index: 0; }
+
+/* Quote section */
+.quote-section { padding: 4rem 1.5rem; background: rgba(232,224,208,0.5); text-align: center; }
+.quote-section blockquote { font-size: clamp(1.1rem,2.5vw,1.4rem); font-weight: 300; font-style: italic; line-height: 1.9; max-width: 760px; margin: 0 auto 1.25rem; }
+.quote-section cite { font-size: 0.85rem; color: var(--muted-fg); font-style: normal; }
+
+/* About */
+#about { padding: 4rem 1.5rem; }
+.about-inner { max-width: 760px; margin: 0 auto; }
+.about-inner h2 { font-size: clamp(1.5rem,3vw,2rem); font-weight: 300; color: var(--primary); text-align: center; margin-bottom: 2rem; }
+.about-inner p { font-size: clamp(0.95rem,2vw,1.1rem); color: var(--muted-fg); line-height: 1.9; margin-bottom: 1.25rem; }
+.contact-block { border-top: 1px solid var(--border); padding-top: 1.75rem; text-align: center; }
+.contact-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted-fg); margin-bottom: 0.5rem; }
+.contact-block a { font-size: 1rem; color: var(--primary); font-style: italic; }
+
+/* Events */
+#events { padding: 5rem 1.5rem; background: rgba(232,224,208,0.3); }
+.events-inner { max-width: 1200px; margin: 0 auto; }
+.events-heading { text-align: center; margin-bottom: 3.5rem; }
+.events-heading .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--secondary); margin-bottom: 0.75rem; }
+.events-heading h2 { font-size: clamp(1.6rem,3.5vw,2.4rem); font-weight: 300; color: var(--primary); margin-bottom: 0.75rem; }
+.events-heading .sub { font-size: 1rem; color: var(--muted-fg); font-style: italic; }
+.events-dot-divider { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1.5rem; }
+.season-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
+.season-card { background: #f5f0e8; border: 1px solid rgba(100,60,20,0.2); border-radius: 2px; padding: 1.75rem 1.5rem; position: relative; }
+.season-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; flex-shrink: 0; color: #f5f0e8; }
+.season-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem; }
+.season-card h4 { font-size: 1.05rem; font-weight: 600; color: var(--primary); margin-bottom: 0.2rem; }
+.season-card .season-en { font-size: 0.78rem; font-style: italic; color: var(--secondary); margin-bottom: 0.85rem; }
+.season-card p { font-size: 0.88rem; color: rgba(46,31,15,0.72); line-height: 1.85; }
+.schedule-strip { background: rgba(92,26,26,0.06); border: 1px solid rgba(92,26,26,0.14); border-radius: 2px; padding: 1.5rem 2rem; margin-top: 0; margin-bottom: 5rem; }
+.schedule-title { text-align: center; margin-bottom: 1.25rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--secondary); }
+.schedule-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 2rem; }
+.schedule-item { display: flex; align-items: baseline; gap: 0.5rem; min-width: 200px; }
+.schedule-item .time { font-size: 0.72rem; font-weight: 700; color: var(--secondary); font-family: monospace; min-width: 42px; }
+.schedule-item .label { font-size: 0.85rem; color: rgba(46,31,15,0.72); }
+.gallery-heading { text-align: center; margin-bottom: 2rem; }
+.gallery-heading h3 { font-size: 1.1rem; font-weight: 600; color: var(--primary); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.gallery-heading p { font-size: 0.85rem; color: var(--muted-fg); font-style: italic; }
+.gallery-grid { columns: 4; gap: 12px; line-height: 0; }
+@media (max-width: 900px) { .gallery-grid { columns: 3 !important; } }
+@media (max-width: 600px) { .gallery-grid { columns: 2 !important; } }
+.gallery-item { display: inline-block; width: 100%; margin-bottom: 12px; overflow: hidden; border-radius: 2px; border: 1px solid rgba(100,60,20,0.18); background: rgba(200,180,140,0.2); break-inside: avoid; }
+.gallery-item img { width: 100%; display: block; object-fit: cover; filter: sepia(0.12) saturate(0.9); transition: transform 0.4s ease, filter 0.4s ease; }
+.gallery-item img:hover { transform: scale(1.04); filter: sepia(0) saturate(1); }
+
+/* Footer */
+footer { border-top: 1px solid var(--border); padding: 3rem 1.5rem; background: rgba(232,224,208,0.35); }
+.footer-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+.footer-nav { display: flex; gap: 2rem; }
+.footer-nav a { font-size: 0.8rem; color: var(--muted-fg); }
+.footer-copy { border-top: 1px solid var(--border); padding-top: 1.5rem; width: 100%; text-align: center; }
+.footer-copy p { font-size: 0.8rem; color: var(--muted-fg); font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- SVG Paper grain filter -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="paper-grain" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="multiply" result="blended"/>
+      <feComponentTransfer in="blended">
+        <feFuncR type="linear" slope="0.92" intercept="0.04"/>
+        <feFuncG type="linear" slope="0.89" intercept="0.04"/>
+        <feFuncB type="linear" slope="0.82" intercept="0.03"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+</svg>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a href="#" class="logo-link">
+      <img src="/themes/tathata/logo.png" alt="Tathata Zen Monastery" width="56" height="56" />
+      <div>
+        <div class="site-name">Tathata Zen Monastery</div>
+        <div class="site-tagline">Return to Your Ancient Home</div>
+      </div>
+    </a>
+    <nav class="desktop-nav">
+      <a href="#">Home</a>
+      <a href="#sutras">Sutras</a>
+      <a href="#events">Events</a>
+      <a href="#about">About</a>
+    </nav>
+    <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+      <svg id="icon-open" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+      <svg id="icon-close" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#" onclick="closeMobileMenu()">Home</a>
+    <a href="#sutras" onclick="closeMobileMenu()">Sutras</a>
+    <a href="#events" onclick="closeMobileMenu()">Events</a>
+    <a href="#about" onclick="closeMobileMenu()">About</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div style="display:flex;justify-content:center;margin-bottom:2rem">
+    <img src="/themes/tathata/logo.png" alt="Tathata" width="200" height="200" style="object-fit:contain" />
+  </div>
+  <h1>Sacred Sutra Library</h1>
+  <p>A collection of timeless Buddhist teachings, preserved and shared for the cultivation of wisdom, compassion, and inner peace.</p>
+  <div class="hero-btns">
+    <span class="hero-line"></span>
+    <button class="btn-chat" id="btn-chat" onclick="navigateToChat()">AI ÄÃ m Äáº¡o</button>
+    <span class="hero-line"></span>
+  </div>
+</section>
+
+<!-- DIVIDER -->
+<div class="divider">
+  <span class="line"></span>
+  <span class="dot"></span>
+  <span class="line"></span>
+</div>
+
+<!-- SUTRAS SECTION -->
+<section id="sutras">
+  <div class="sutras-inner">
+
+    <!-- Intro heading -->
+    <div class="section-heading" style="max-width:880px;margin-left:auto;margin-right:auto;margin-bottom:3rem">
+      <h2>ThÆ° Viá»‡n PhÃ¡p Báº£o</h2>
+      <div class="sub">Sacred Sutra Library</div>
+    </div>
+
+    <!-- Bilingual intro -->
+    <div class="bilingual-grid" style="max-width:880px;margin:0 auto 3rem">
+      <div class="bilingual-col">
+        <h3>Tiáº¿ng Viá»‡t</h3>
+        <div class="text-item">
+          <div class="text-item-title">I. Vá» Báº£n Thá»ƒ Tuyá»‡t Äá»‘i</div>
+          <p>ChÃ¢n NhÆ° (Suchness) lÃ  thá»±c táº¡i tá»‘i háº­u cá»§a váº¡n há»¯u, vÆ°á»£t ngoÃ i má»i khÃ¡i niá»‡m, ngÃ´n tá»« vÃ  sá»± mÃ´ táº£ cá»§a tÃ¢m trÃ­. ThÆ° viá»‡n sá»‘ nÃ y chá»©a Ä‘á»±ng vÃ´ vÃ n giÃ¡o phÃ¡p thÃ¢m sÃ¢u, nhÆ°ng hÃ£y nhá»›: Kinh Ä‘iá»ƒn lÃ  báº£n Ä‘á»“, cÃ²n ChÃ¢n NhÆ° lÃ  máº£nh Ä‘áº¥t dÆ°á»›i chÃ¢n QuÃ½ Vá»‹.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">II. Vá» Thá»±c Táº¡i KhÃ´ng KhÃ¡i Niá»‡m</div>
+          <p>ChÃ¢n NhÆ° lÃ  cÃ¡i "Äang LÃ " má»™t cÃ¡ch trá»n váº¹n, khÃ´ng qua lÄƒng kÃ­nh phÃ¢n biá»‡t cá»§a Ã½ thá»©c.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">III. Vá» Kho TÃ ng PhÃ¡p Báº£o</div>
+          <p>ChÃºng ta gÃ¬n giá»¯ vÃ  nghiÃªn cá»©u lá»i dáº¡y cá»§a chÆ° Pháº­t khÃ´ng pháº£i Ä‘á»ƒ tÃ­ch lÅ©y tri thá»©c, mÃ  Ä‘á»ƒ dÃ¹ng trÃ­ tuá»‡ Ä‘Ã³ soi rá»i vÃ o sá»± tháº­t.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">IV. Vá» Con ÄÆ°á»ng Tá»‰nh Thá»©c</div>
+          <p>ChÃ¢n NhÆ° khÃ´ng pháº£i lÃ  má»™t Ä‘Ã­ch Ä‘áº¿n á»Ÿ tÆ°Æ¡ng lai. NÃ³ lÃ  sá»± hiá»‡n diá»‡n thuáº§n khiáº¿t ngay táº¡i Ä‘Ã¢y.</p>
+        </div>
+        <ul class="bullet-list">
+          <li>Khi máº¯t tháº¥y sáº¯c mÃ  khÃ´ng bá»‹ khÃ¡i niá»‡m "Ä‘áº¹p - xáº¥u" che má», Ä‘Ã³ lÃ  ChÃ¢n NhÆ°.</li>
+          <li>Khi tai nghe tiáº¿ng mÃ  khÃ´ng bá»‹ Ã½ niá»‡m "hay - dá»Ÿ" cuá»‘n Ä‘i, Ä‘Ã³ lÃ  ChÃ¢n NhÆ°.</li>
+          <li>Khi tÃ¢m khÃ´ng cÃ²n gÃ¡n ghÃ©p tÃªn gá»i hay hÃ¬nh tÆ°á»›ng vÃ o thá»±c táº¡i, báº£n thá»ƒ ChÃ¢n NhÆ° tá»± nhiÃªn hiá»ƒn lá»™.</li>
+        </ul>
+      </div>
+      <div class="bilingual-col">
+        <h3>English</h3>
+        <div class="text-item">
+          <div class="text-item-title">I. On the Nature of Words</div>
+          <p>The Buddha taught that words are but fingers pointing at the moon. This library is filled with profound texts, yet not a single word is the Truth. The Truth is the silent "Suchness" that exists before the first letter was ever written.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">II. On Reality as It Is</div>
+          <p>Tathata is the "Thusness" of the moment. It is the rain falling, the wind blowing, and the screen glowing â€” all without the labels we give them.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">III. On the Purpose of Study</div>
+          <p>We preserve these teachings not to fill your head with concepts, but to help you empty it. Use these texts to realize that you are already what you are seeking.</p>
+        </div>
+        <div class="text-item">
+          <div class="text-item-title">IV. On the Digital Gate</div>
+          <p>This digital space is a mirror. If you come with a seeking mind, you will find more words. If you come with a quiet mind, you will find the Buddha.</p>
+        </div>
+        <ul class="bullet-list">
+          <li>When you see a flower and do not name it "flower," that is Suchness.</li>
+          <li>When you feel a thought and do not call it "mine," that is Suchness.</li>
+          <li>When you witness the world without wanting it to be different, that is Reality.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Poems -->
+    <div class="poem-box" style="max-width:880px;margin:0 auto">
+      <div>
+        <div class="poem-label">Ká»‡ ChÃ¢n NhÆ°</div>
+        <div class="verse-block">
+          <div class="verse-title">NÃ³ KhÃ´ng LÃ  GÃ¬ Cáº£</div>
+          <p>MÃ¬nh vÃ  ngÆ°á»i vá»ng Ä‘á»™ng
+Rá»“i Ä‘áº·t tÃªn cho NÃ³
+Tháº­t NÃ³ khÃ´ng lÃ  gÃ¬.</p>
+        </div>
+        <div class="verse-block">
+          <p>ChÃ¢n NhÆ° vá»‘n háº±ng há»¯u
+VÆ°á»£t ngoÃ i má»i ngÃ´n tá»«
+Cháº³ng Ä‘áº¿n cÅ©ng cháº³ng Ä‘i
+Tá»± TÃ¡nh vá»‘n nhÆ° nhÆ°.</p>
+        </div>
+        <div class="verse-block">
+          <div class="verse-title">Äá»c kinh Ä‘á»ƒ RÃµ MÃ¬nh</div>
+          <p>Rá»i báº¿n, bá» thuyá»n trÃ´i
+Khi khÃ¡i niá»‡m tan sáº¡ch
+ChÃ¢n NhÆ° hiá»‡n ra rá»“i.</p>
+        </div>
+        <div class="dedication">
+          <div class="dedication-label">Há»“i HÆ°á»›ng</div>
+          <p>Nguyá»‡n Ä‘em cÃ´ng Ä‘á»©c nÃ y<br/>Há»“i hÆ°á»›ng kháº¯p táº¥t cáº£<br/>Äá»‡ tá»­ vÃ  chÃºng sanh<br/>Äá»u Ä‘á»“ng thÃ nh Pháº­t Äáº¡o.</p>
+        </div>
+      </div>
+      <div>
+        <div class="poem-label">The Gatha of the Mirror</div>
+        <div class="verse-block">
+          <div class="verse-title">It Is Nothing At All</div>
+          <p>Yet we stir and we call,
+Giving names to the void,
+By our notions employed.</p>
+        </div>
+        <div class="verse-block">
+          <p>But the Truth is just "This,"
+In the "Thusness" of bliss,
+No coming, no going,
+Just the Pure Water flowing.</p>
+        </div>
+        <div class="verse-block">
+          <div class="verse-title">Read the lines, then forget</div>
+          <p>Leave the shore, leave the net,
+When the concepts all flee,
+Only Suchness you'll be.</p>
+        </div>
+        <div class="dedication">
+          <div class="dedication-label">Há»“i HÆ°á»›ng (Dedication)</div>
+          <p>May this merit spread to all,<br/>That we may wake from the dream's thrall,<br/>Together with all sentient beings,<br/>Realizing the Buddha-way in all seeings.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Divider before cards -->
+    <div class="sutra-divider">
+      <span class="line"></span>
+      <span class="dot"></span>
+      <span class="label">The Ten Sutras</span>
+      <span class="dot"></span>
+      <span class="line"></span>
+    </div>
+
+    <!-- Sutra cards (rendered by JS) -->
+    <div class="sutra-cards" id="sutra-cards"></div>
+
+  </div>
+</section>
+
+<!-- QUOTE -->
+<section class="quote-section">
+  <blockquote>"All conditioned phenomena are like a dream, an illusion, a bubble, a shadow, like dew or a flash of lightning; thus we shall perceive them."</blockquote>
+  <cite>â€” Kinh Kim Cang (Diamond Sutra)</cite>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="about-inner">
+    <h2>About Tathata Zen Monastery</h2>
+    <p>Tathata, meaning "Suchness" or "Thusness," points to the ultimate nature of reality as it is, beyond concepts and descriptions. Our monastery is dedicated to the preservation and study of the Buddha's teachings across all traditions.</p>
+    <p>This digital library serves as a resource for practitioners and scholars alike, offering access to some of the most profound texts in Buddhist literature. May these teachings guide you on your path to awakening.</p>
+    <div class="contact-block">
+      <div class="contact-label">Contact Us</div>
+      <a href="mailto:tathata@bodhilab.io">tathata@bodhilab.io</a>
+    </div>
+  </div>
+</section>
+
+<!-- EVENTS -->
+<section id="events">
+  <div class="events-inner">
+    <div class="events-heading">
+      <div class="label">Community Life</div>
+      <h2>Sinh Hoáº¡t &amp; Sá»± Kiá»‡n</h2>
+      <p class="sub">Events &amp; Community Gatherings</p>
+      <div class="events-dot-divider">
+        <span style="height:1px;width:3rem;background:var(--border);display:block"></span>
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--secondary);display:block"></span>
+        <span style="height:1px;width:3rem;background:var(--border);display:block"></span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:5rem">
+      <div style="text-align:center;margin-bottom:2.5rem">
+        <h3 style="font-size:1.1rem;font-weight:600;color:var(--primary);letter-spacing:0.06em;text-transform:uppercase">Lá»‹ch Tu Há»c Bá»‘n MÃ¹a Â· Four-Season Retreat Calendar</h3>
+      </div>
+      <div class="season-grid">
+        <div class="season-card" style="border-top:3px solid #6b8f5e">
+          <div class="season-header">
+            <div class="season-icon" style="background:#6b8f5e">I</div>
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:#6b8f5e;letter-spacing:0.05em;margin-bottom:0.15rem">MÃ¹a XuÃ¢n Â· Spring</div>
+              <div style="font-size:0.68rem;color:var(--muted-fg)">ThÃ¡ng 3 â€“ 5 Â· March â€“ May</div>
+            </div>
+          </div>
+          <h4>KhÃ³a Tu Khai XuÃ¢n</h4>
+          <div class="season-en">Opening Retreat</div>
+          <p>Renewal and beginnings. Silent sitting, sutra recitation at dawn, and the first walking meditation of the year through the monastery gardens.</p>
+        </div>
+        <div class="season-card" style="border-top:3px solid #c9922e">
+          <div class="season-header">
+            <div class="season-icon" style="background:#c9922e">II</div>
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:#c9922e;letter-spacing:0.05em;margin-bottom:0.15rem">MÃ¹a HÃ¨ Â· Summer</div>
+              <div style="font-size:0.68rem;color:var(--muted-fg)">ThÃ¡ng 6 â€“ 8 Â· June â€“ August</div>
+            </div>
+          </div>
+          <h4>KhÃ³a Tu Tinh Táº¥n</h4>
+          <div class="season-en">Intensive Practice</div>
+          <p>Deep immersion. Daily Dharma talks, group sitting, and community service. Newcomers are welcomed for a seven-day introduction to the path.</p>
+        </div>
+        <div class="season-card" style="border-top:3px solid #5c1a1a">
+          <div class="season-header">
+            <div class="season-icon" style="background:#5c1a1a">III</div>
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:#5c1a1a;letter-spacing:0.05em;margin-bottom:0.15rem">MÃ¹a Thu Â· Autumn</div>
+              <div style="font-size:0.68rem;color:var(--muted-fg)">ThÃ¡ng 9 â€“ 11 Â· September â€“ November</div>
+            </div>
+          </div>
+          <h4>KhÃ³a Tu QuÃ¡n Chiáº¿u</h4>
+          <div class="season-en">Contemplation Retreat</div>
+          <p>The season of turning inward. Sutra study circles, calligraphy, and the annual community celebration of the Ullambana (Vu Lan) festival.</p>
+        </div>
+        <div class="season-card" style="border-top:3px solid #2c4a6b">
+          <div class="season-header">
+            <div class="season-icon" style="background:#2c4a6b">IV</div>
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:#2c4a6b;letter-spacing:0.05em;margin-bottom:0.15rem">MÃ¹a ÄÃ´ng Â· Winter</div>
+              <div style="font-size:0.68rem;color:var(--muted-fg)">ThÃ¡ng 12 â€“ 2 Â· December â€“ February</div>
+            </div>
+          </div>
+          <h4>KhÃ³a Tu Tá»‹nh Láº·ng</h4>
+          <div class="season-en">Silent Contemplation</div>
+          <p>The great stillness. Extended periods of noble silence, night-sitting vigils, and a year-end ceremony to dedicate all merits to sentient beings.</p>
+        </div>
+      </div>
+
+      <div class="schedule-strip">
+        <div class="schedule-title">Thá»i KhÃ³a Biá»ƒu Â· Daily Schedule</div>
+        <div class="schedule-grid" id="schedule-grid"></div>
+      </div>
+    </div>
+
+    <div class="gallery-heading">
+      <h3>HÃ¬nh áº¢nh Cá»™ng Äá»“ng Â· Community Gallery</h3>
+      <p>Moments from our monastery and the broader Buddhist world</p>
+    </div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <a href="#" class="logo-link">
+      <img src="/themes/tathata/logo.png" alt="Tathata" width="48" height="48" style="object-fit:contain" />
+      <div>
+        <div style="font-size:0.9rem;font-weight:500;color:var(--primary)">Tathata Zen Monastery</div>
+        <div style="font-size:0.72rem;color:var(--muted-fg)">Return to Your Ancient Home</div>
+      </div>
+    </a>
+    <nav class="footer-nav">
+      <a href="#">Home</a>
+      <a href="#sutras">Sutras</a>
+      <a href="#events">Events</a>
+      <a href="#about">About</a>
+    </nav>
+    <div class="footer-copy">
+      <p>May all beings be happy. May all beings be free from suffering.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+// â”€â”€ Navigation â”€â”€
+const SPACE_SLUG = 'tathata';
+
+function navigateTo(path, aiId) {
+  if (aiId) localStorage.setItem('lastSelectedAiId', String(aiId));
+  window.parent.postMessage({ type: 'NAVIGATE', path, aiId }, '*');
+  try { if (window.self === window.top) window.location.href = path; } catch(e) {}
+}
+
+function navigateToLogin() {
+  const from = encodeURIComponent(window.location.pathname || '/');
+  navigateTo('/' + SPACE_SLUG + '/login?from=' + from);
+}
+
+function navigateToChat() {
+  navigateTo('/' + SPACE_SLUG + '/chat');
+}
+
+// â”€â”€ Mobile menu â”€â”€
+function closeMobileMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.getElementById('icon-open').style.display = '';
+  document.getElementById('icon-close').style.display = 'none';
+}
+
+document.getElementById('hamburger-btn').addEventListener('click', function() {
+  const menu = document.getElementById('mobile-menu');
+  const isOpen = menu.classList.toggle('open');
+  document.getElementById('icon-open').style.display = isOpen ? 'none' : '';
+  document.getElementById('icon-close').style.display = isOpen ? '' : 'none';
+});
+
+// â”€â”€ Sutra data â”€â”€
+const SUTRAS = [
+  { id:'kim-cang', vn:'Kinh Kim Cang', en:'Diamond Sutra', tradition:'Mahayana', script:'VajracchedikÄ PrajÃ±ÄpÄramitÄ',
+    original:'PhÃ m sá»Ÿ há»¯u tÆ°á»›ng, giai thá»‹ hÆ° vá»ng.\nNhÆ°á»£c kiáº¿n chÆ° tÆ°á»›ng phi tÆ°á»›ng,\ntá»©c kiáº¿n NhÆ° Lai.',
+    translation:'PhÃ m cÃ¡i gÃ¬ cÃ³ hÃ¬nh tÆ°á»›ng Ä‘á»u lÃ  hÆ° vá»ng.\nNáº¿u tháº¥y cÃ¡c tÆ°á»›ng cháº³ng pháº£i lÃ  tÆ°á»›ng,\ntá»©c lÃ  tháº¥y NhÆ° Lai â€” tháº¥y Ä‘Æ°á»£c Báº£n Thá»ƒ chÃ¢n tháº­t.' },
+  { id:'tam-kinh', vn:'Kinh TÃ¢m Kinh BÃ¡t NhÃ£', en:'Heart Sutra', tradition:'Mahayana', script:'PrajÃ±ÄpÄramitÄ Há¹›daya',
+    original:'Chiáº¿u kiáº¿n ngÅ© uáº©n giai khÃ´ng,\nÄ‘á»™ nháº¥t thiáº¿t khá»• Ã¡ch.\nThá»‹ chÆ° phÃ¡p khÃ´ng tÆ°á»›ng,\nbáº¥t sanh báº¥t diá»‡t, báº¥t cáº¥u báº¥t tá»‹nh,\nbáº¥t tÄƒng báº¥t giáº£m.',
+    translation:'Soi tháº¥y nÄƒm uáº©n Ä‘á»u KhÃ´ng, vÆ°á»£t qua má»i khá»• Ã¡ch.\nTÃ¡nh KhÃ´ng cá»§a cÃ¡c phÃ¡p khÃ´ng sinh khÃ´ng diá»‡t,\nkhÃ´ng nhÆ¡ khÃ´ng sáº¡ch, khÃ´ng thÃªm khÃ´ng bá»›t.' },
+  { id:'thu-lang-nghiem', vn:'Kinh Thá»§ LÄƒng NghiÃªm', en:'ÅšÅ«raá¹…gama Sutra', tradition:'Mahayana', script:'ÅšÅ«raá¹…gama SÅ«tra',
+    original:'PhÃ¡p thÃ¢n thanh tá»‹nh, báº£n lai tá»± há»¯u.\nCÃ¡i bá»‹ tháº¥y thÃ¬ cÃ³ sinh cÃ³ diá»‡t,\nnhÆ°ng cÃ¡i TÃ¡nh Tháº¥y thÃ¬ cháº³ng há» sinh diá»‡t.',
+    translation:'Kinh dáº¡y hÃ nh giáº£ tÃ¬m láº¡i "CÃ¡i Tháº¥y"\nkhÃ´ng bá»‹ lay Ä‘á»™ng bá»Ÿi cáº£nh tráº§n.\nTÃ¡nh Tháº¥y báº£n lai thanh tá»‹nh, thÆ°á»ng trÃº báº¥t diá»‡t.' },
+  { id:'vien-giac', vn:'Kinh ViÃªn GiÃ¡c', en:'Sutra of Perfect Enlightenment', tradition:'Mahayana', script:'MahÄvaipulya PÅ«rá¹‡abuddhasÅ«tra',
+    original:'Háº¿t tháº£y chÃºng sanh Ä‘á»u cÃ³ tÃ¡nh ViÃªn GiÃ¡c.\nCÃ¡c huyá»…n hÃ³a diá»‡t Ä‘i,\nnhÆ°ng TÃ¡nh GiÃ¡c cháº³ng há» lay Ä‘á»™ng.',
+    translation:'NhÆ° gÆ°Æ¡ng soi váº¡n váº­t â€” hÃ¬nh áº£nh Ä‘áº¿n rá»“i Ä‘i,\nnhÆ°ng báº£n thá»ƒ trong sÃ¡ng cá»§a gÆ°Æ¡ng khÃ´ng thay Ä‘á»•i.\nTÃ¡nh GiÃ¡c cá»§a chÃºng sanh cÅ©ng váº­y.' },
+  { id:'dieu-phap', vn:'Kinh Diá»‡u PhÃ¡p LiÃªn Hoa', en:'Lotus Sutra', tradition:'Mahayana', script:'Saddharmapuá¹‡á¸arÄ«ka SÅ«tra',
+    original:'ChÆ° Pháº­t Tháº¿ TÃ´n vÃ¬ má»™t Ä‘áº¡i sá»± nhÃ¢n duyÃªn\nmÃ  xuáº¥t hiá»‡n á»Ÿ Ä‘á»i.\nKhai thá»‹ chÃºng sanh ngá»™ nháº­p Pháº­t tri kiáº¿n.',
+    translation:'Pháº­t xuáº¥t hiá»‡n á»Ÿ Ä‘á»i chá»‰ vÃ¬ má»™t Ä‘áº¡i sá»± nhÃ¢n duyÃªn:\nKhai má»Ÿ, chá»‰ bÃ y cho chÃºng sanh nháº­n ra\nvÃ  thÃ¢m nháº­p vÃ o Tri Kiáº¿n Pháº­t â€” Kiáº¿n TÃ¡nh.' },
+  { id:'phap-cu', vn:'Kinh PhÃ¡p CÃº', en:'Dhammapada', tradition:'TheravÄda', script:'Dhammapada (PÄá¸·i)',
+    original:'Manopubbaá¹…gamÄ dhammÄ,\nmanoseá¹­á¹­hÄ manomayÄ.\nâ€” TÃ¢m dáº«n Ä‘áº§u cÃ¡c phÃ¡p,\ntÃ¢m lÃ m chá»§, tÃ¢m táº¡o tÃ¡c.',
+    translation:'Náº¿u vá»›i tÃ¢m Ã´ nhiá»…m mÃ  nÃ³i hay lÃ m,\nkhá»• nÃ£o sáº½ theo sau nhÆ° bÃ¡nh xe lÄƒn theo chÃ¢n bÃ².\nNáº¿u vá»›i tÃ¢m thanh tá»‹nh mÃ  nÃ³i hay lÃ m,\nháº¡nh phÃºc sáº½ theo sau nhÆ° bÃ³ng khÃ´ng rá»i hÃ¬nh.' },
+  { id:'duy-ma-cat', vn:'Kinh Duy Ma Cáº­t', en:'VimalakÄ«rti Sutra', tradition:'Mahayana', script:'VimalakÄ«rtinirdeÅ›a SÅ«tra',
+    original:'TÃ¢m tá»‹nh tá»©c Pháº­t Ä‘á»™ tá»‹nh.\nCháº³ng pháº£i nam, cháº³ng pháº£i ná»¯,\ncháº³ng cÃ³ tÆ°á»›ng trung gian â€”\nÄ‘Ã³ lÃ  vÃ o cá»­a Báº¥t Nhá»‹.',
+    translation:'Khi khÃ´ng cÃ²n phÃ¢n biá»‡t Ä‘á»‘i Ä‘Ã£i,\nbáº¡n Ä‘ang sá»‘ng trá»±c tiáº¿p vá»›i Báº£n Thá»ƒ.\nTá»‹nh Ä‘á»™ khÃ´ng á»Ÿ Ä‘Ã¢u xa â€” nÃ³ chÃ­nh lÃ  tÃ¢m thanh tá»‹nh hiá»‡n tiá»n.' },
+  { id:'quan-niem', vn:'Kinh QuÃ¡n Niá»‡m HÆ¡i Thá»Ÿ', en:'Ä€nÄpÄnasati Sutta', tradition:'TheravÄda', script:'Ä€nÄpÄnasati Sutta (PÄá¸·i)',
+    original:'Khi thá»Ÿ vÃ o dÃ i, vá»‹ áº¥y biáº¿t rÃµ:\n"TÃ´i Ä‘ang thá»Ÿ vÃ o dÃ i."\nQuÃ¡n chiáº¿u tÃ¡nh vÃ´ thÆ°á»ng,\nquÃ¡n chiáº¿u tÃ¡nh ly tham,\nquÃ¡n chiáº¿u tÃ¡nh Ä‘oáº¡n diá»‡t.',
+    translation:'Trá»Ÿ vá» vá»›i hÆ¡i thá»Ÿ\nchÃ­nh lÃ  trá»Ÿ vá» vá»›i sá»± hiá»‡n tiá»n â€” ChÃ¢n NhÆ°.\nHÆ¡i thá»Ÿ lÃ  cá»­a vÃ o vÃ´ ngÃ£, lÃ  ná»n táº£ng cá»§a thiá»n Ä‘á»‹nh.' },
+  { id:'chuyen-phap-luan', vn:'Kinh Chuyá»ƒn PhÃ¡p LuÃ¢n', en:'Setting in Motion the Wheel of Dhamma', tradition:'TheravÄda', script:'Dhammacakkappavattana Sutta (PÄá¸·i)',
+    original:'Yaá¹ƒ kiÃ±ci samudayadhammaá¹ƒ,\nsabbaá¹ƒ taá¹ƒ nirodhadhammaá¹ƒ.\nâ€” CÃ¡i gÃ¬ cÃ³ Ä‘áº·c tÃ­nh tÃ­ch tá»¥ (sanh)\ncÃ¡i Ä‘Ã³ cÃ³ Ä‘áº·c tÃ­nh hoáº¡i diá»‡t.',
+    translation:'ÄÃ¢y lÃ  bÃ i phÃ¡p Ä‘áº§u tiÃªn Äá»©c Pháº­t thuyáº¿t sau khi GiÃ¡c Ngá»™.\nKhi tháº¥y rÃµ quy luáº­t sanh diá»‡t báº±ng tuá»‡ giÃ¡c,\ntÃ¢m sáº½ khÃ´ng cÃ²n dÃ­nh máº¯c.' },
+  { id:'bach-du', vn:'Kinh BÃ¡ch Dá»¥', en:'Hundred Parables Sutra', tradition:'Mahayana', script:'ÅšatakaÅ›Ästra',
+    original:'VÃ­ nhÆ° ngÆ°á»i khÃ¡t nÆ°á»›c tÃ¬m tháº¥y sÃ´ng,\nnhÆ°ng chá»‰ Ä‘á»©ng nhÃ¬n mÃ  khÃ´ng uá»‘ng\nvÃ¬ tháº¥y nÆ°á»›c quÃ¡ nhiá»u.',
+    translation:'Pháº­t dáº¡y: ChÃºng sanh tháº¥y kho tÃ ng trÃ­ tuá»‡ Pháº­t quÃ¡ lá»›n\nmÃ  khÃ´ng chá»‹u nháº­n láº¡i "TÃ¡nh Biáº¿t" cá»§a chÃ­nh mÃ¬nh.\nKho bÃ¡u áº¥y chÆ°a tá»«ng máº¥t â€” chá»‰ cáº§n nháº­n ra.' },
+];
+
+// Render sutra cards
+function renderSutraCards() {
+  const container = document.getElementById('sutra-cards');
+  const total = SUTRAS.length;
+  SUTRAS.forEach((s, i) => {
+    const isEven = i % 2 === 1;
+    const edgeSlices = Array.from({length:10},(_,k)=>`<div style="flex:1;background:rgba(${170-k*3},${145-k*2},${110-k*2},0.55)"></div>`).join('');
+    container.innerHTML += `
+    <div class="sutra-card" data-index="${i}">
+      <div class="sutra-card-text" style="order:${isEven?2:0}">
+        <div class="card-num">${String(i+1).padStart(2,'0')}/${String(total).padStart(2,'0')}</div>
+        <div class="card-en">${s.en}</div>
+        <h3>${s.vn}</h3>
+        <div class="card-tradition">${s.tradition} Â· ${s.script}</div>
+        <p class="card-translation">${s.translation}</p>
+      </div>
+      <div class="book-wrap" style="order:${isEven?0:1}">
+        <div class="book-shadow"></div>
+        <div class="book-cover">
+          <div class="book-spine"></div>
+          <div class="book-page">
+            <div class="book-page-tint1"></div>
+            <div class="book-page-vignette"></div>
+            <div class="book-corner"></div>
+            <div class="book-corner2"></div>
+            <div class="book-watermark">
+              <svg width="210" height="210" viewBox="0 0 210 210">
+                <g transform="translate(105,105)">
+                  ${[0,36,72,108,144,180,216,252,288,324].map(a=>`<ellipse rx="12" ry="38" fill="#7a4800" transform="rotate(${a}) translate(0,-28)"/>`).join('')}
+                  <circle r="16" fill="#7a4800"/><circle r="8" fill="#c9922e"/>
+                </g>
+              </svg>
+            </div>
+            <div class="book-top-symbol">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5a2800" stroke-width="1.5">
+                <circle cx="12" cy="8" r="5"/><line x1="12" y1="13" x2="12" y2="21"/><line x1="9" y1="17" x2="15" y2="17"/>
+              </svg>
+            </div>
+            <div class="book-rule"><span></span></div>
+            <div class="book-header">
+              <h4>${s.vn}</h4>
+              <div class="script">${s.script}</div>
+              <div class="en">${s.en}</div>
+            </div>
+            <div class="book-ornament">
+              <span style="height:1px;width:20px;background:rgba(80,40,5,0.3);display:block"></span>
+              <span style="width:3px;height:3px;border-radius:50%;background:rgba(80,40,5,0.35);display:block"></span>
+              <span style="height:1px;width:44px;background:rgba(80,40,5,0.28);display:block"></span>
+              <span style="width:5px;height:5px;border-radius:50%;background:rgba(80,40,5,0.45);display:block"></span>
+              <span style="height:1px;width:44px;background:rgba(80,40,5,0.28);display:block"></span>
+              <span style="width:3px;height:3px;border-radius:50%;background:rgba(80,40,5,0.35);display:block"></span>
+              <span style="height:1px;width:20px;background:rgba(80,40,5,0.3);display:block"></span>
+            </div>
+            <div class="book-quote"><p>${s.original}</p></div>
+            <div class="book-pagenum">${String(i+1).padStart(2,'0')}</div>
+          </div>
+          <div class="book-pages-edge">${edgeSlices}</div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // Scroll reveal
+  const cards = document.querySelectorAll('.sutra-card');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+  cards.forEach(c => obs.observe(c));
+}
+
+// Render daily schedule
+const SCHEDULE = [
+  ['05:00','Thá»©c dáº­y Â· Rising Bell'],['05:30','Tá»a Thiá»n Â· Morning Sitting'],
+  ['07:00','Kinh HÃ nh Â· Walking Meditation'],['08:00','Äiá»ƒm TÃ¢m Â· Breakfast in Silence'],
+  ['09:00','Há»c Kinh Â· Sutra Study'],['12:00','Ngá» Trai Â· Midday Meal'],
+  ['14:00','Lao TÃ¡c Â· Community Work'],['16:00','Tá»a Thiá»n Â· Afternoon Sitting'],
+  ['18:30','PhÃ¡p Thoáº¡i Â· Dharma Talk'],['21:00','Chá»‰ Tá»‹nh Â· Noble Silence'],
+];
+const schedGrid = document.getElementById('schedule-grid');
+SCHEDULE.forEach(([time, label]) => {
+  schedGrid.innerHTML += `<div class="schedule-item"><span class="time">${time}</span><span class="label">${label}</span></div>`;
+});
+
+// Render gallery
+const gallery = document.getElementById('gallery-grid');
+for (let n = 1; n <= 20; n++) {
+  const pad = String(n).padStart(2,'0');
+  gallery.innerHTML += `<div class="gallery-item"><img src="/themes/tathata/events/event-${pad}.jpg" alt="Community photo ${n}" loading="lazy"/></div>`;
+}
+
+renderSutraCards();
+</script>
+</body>
+</html>
+
+

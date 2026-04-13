@@ -1,0 +1,106 @@
+# Hướng Dẫn Chi Tiết Cách Huấn Luyện AI Cho Từng Chức Năng (Dành Cho Người Mới)
+
+> [!NOTE]
+> Tài liệu này hướng dẫn chi tiết các bước để thêm dữ liệu và huấn luyện AI của bạn trong hệ thống Quản lý AI. Việc huấn luyện giúp AI hiểu rõ kiến thức chuyên môn và trả lời chính xác các câu hỏi của người dùng.
+
+## 1. Mở Cửa Sổ Cấu Hình AI
+Trước khi bắt đầu huấn luyện, bạn cần chọn AI muốn cấu hình:
+1. Đăng nhập vào hệ thống và truy cập menu **Quản lý AI**.
+2. Ở danh sách bên trái, nhấp vào tên AI mà bạn muốn huấn luyện (hoặc tạo AI mới).
+3. Chuyển sang thẻ **Huấn luyện** (Training) trong bảng điều khiển chính.
+
+---
+
+## 2. Huấn Luyện Thông Qua System Prompt (Nội Dung Huấn Luyện Cốt Lõi)
+
+**Mục đích:** Cung cấp cho AI vai trò, giọng điệu, và các quy tắc ứng xử cơ bản nhất.
+
+**Cách thực hiện:**
+1. Trong thẻ **Cấu hình** (Configuration), tìm mục **Nội dung huấn luyện (System Prompt)**.
+2. Nhập hướng dẫn cốt lõi. Ví dụ: *"Bạn là một trợ lý ảo hỗ trợ khách hàng của công ty X. Bạn luôn trả lời lịch sự, ngắn gọn và chỉ dựa trên dữ liệu được cung cấp. Nếu không biết, hãy nói 'Tôi chưa có thông tin này'."*
+3. Nhấn nút **Lưu** ở góc trên bên phải.
+
+---
+
+## 3. Huấn Luyện Bằng Cách Tải Lên Tệp (Tài liệu, Chính sách, v.v...)
+
+**Mục đích:** Cung cấp khối lượng thông tin lớn (như file Word, PDF, Text) để AI đọc và lưu trữ làm kiến thức nền tảng (RAG).
+
+**Cách thực hiện:**
+1. Chuyển sang thẻ **Huấn luyện** (Training).
+2. Tìm phần **Nguồn dữ liệu huấn luyện** (Training Data Sources).
+3. Nhấp vào nút **Tải Tệp** (Upload File) hoặc **Đính kèm file** (Attach File).
+4. Khung tải file hiện ra, chọn các tệp từ máy tính của bạn (hỗ trợ .txt, .pdf, .docx...). Các tệp đã chọn sẽ có trạng thái "Chờ tải lên" (Pending upload).
+5. Nhấn nút **Lưu** (Save) ở góc trên cùng để hệ thống bắt đầu tải và lưu tệp vào cơ sở dữ liệu.
+
+> [!TIP]
+> **Tạo tóm tắt cho tệp:** Sau khi tệp được tải lên thành công, đối với các tệp văn bản lớn, bạn nên nhấn nút **Tạo tóm tắt** (Generate Summary) bên dưới tên tệp hoặc dùng nút **Tóm tắt tất cả** (Summarize All). Việc tóm tắt giúp AI phân tích câu hỏi và lấy đúng tệp ngữ cảnh nhanh hơn.
+
+---
+
+## 4. Huấn Luyện Bằng Hỏi - Đáp (Q&A) Trực Tiếp
+
+**Mục đích:** Cung cấp thông tin trực tiếp dưới dạng hỏi-đáp cụ thể, hoặc sửa lỗi khi AI trả lời sai.
+
+**Cách thực hiện (Nhập thủ công):**
+1. Trong thẻ **Huấn luyện**, tìm phần **Dữ liệu Huấn luyện Q&A** (Q&A Training Data).
+2. Nhấp vào nút **Nhập Tay** (Manual Input).
+3. Một hộp thoại sẽ hiện ra. Bạn nhập **Câu Hỏi** (Question) mà người dùng có thể hỏi.
+4. Nhập **Câu Trả Lời** (Answer) chuẩn xác mà bạn muốn AI trả lời.
+5. Nhấn **Lưu** hoặc **Thêm**. Dữ liệu này sẽ được thêm vào danh sách và ưu tiên sử dụng.
+
+**Cách thực hiện (Từ khung chat thử nghiệm):**
+1. Trong màn hình cấu hình của AI, nhìn sang góc phải có **Khung chat thử nghiệm** (Test Chat Window).
+2. Chat thử một câu. Nếu AI trả lời chưa đúng ý bạn, hãy xem phản hồi của AI.
+3. Bên dưới câu trả lời của AI, có nút **Thêm vào Huấn luyện** (Add to Training). Nhấp vào nút này.
+4. Một cửa sổ mở ra chứa câu hỏi của bạn và câu trả lời của AI. Bạn hãy sửa lại phần **Đáp** cho đúng ý bạn nhất.
+5. Nhấn **Xác nhận/Lưu**. Lần sau khi có câu hỏi tương tự, AI sẽ ưu tiên dùng câu trả lời bạn vừa sửa.
+
+---
+
+## 5. Huấn Luyện Hàng Loạt Bằng File Q&A (Excel / Csv / Jsonl)
+
+**Mục đích:** Cung cấp hàng trăm/hàng ngàn bộ câu hỏi - trả lời cùng lúc.
+
+**Cách thực hiện:**
+1. Chuẩn bị file dữ liệu (ví dụ: file Excel hoặc CSV). Đảm bảo file có cấu trúc cột rõ ràng, phổ biến nhất là 2 cột: **Question** (Hỏi) và **Answer** (Đáp).
+2. Trong thẻ **Huấn luyện**, nhấn nút **Tải Tệp** (như Bước 3).
+3. Chọn file Excel/CSV chứa file Q&A của bạn.
+4. Nhấn **Lưu**. Hệ thống sẽ tự động đọc file và tách thành các cặp Hỏi - Đáp lưu vào tab Q&A.
+
+---
+
+## 6. Liên Kết Tài Liệu Từ Thư Viện
+
+**Mục đích:** Nếu bạn đã tải tài liệu lên tính năng "Tệp & Tài liệu" (Files & Documents) của toàn hệ thống, bạn có thể liên kết nhanh chúng vào AI mà không cần tải lại.
+
+**Cách thực hiện:**
+1. Trong thẻ **Huấn luyện**, cuộn xuống phần **Tài liệu đã liên kết** (Linked Documents).
+2. Nhấn nút **Chọn từ Thư viện** (Select from Library).
+3. Một bảng danh sách các tài liệu hiện ra. Bạn có thể tìm kiếm và đánh dấu "Tick" vào các tài liệu muốn AI học.
+4. Nhấn **Thêm các tài liệu đã chọn**.
+5. Đừng quên nhấn **Lưu** ở góc trên cùng để xác nhận thay đổi.
+
+---
+
+## 7. Đồng Bộ Vector Database (Quan trọng)
+
+> [!IMPORTANT]
+> **Tất cả các dữ liệu tải lên hoặc Q&A vừa thêm sẽ không có tác dụng ngay lập tức**. Bạn phải đồng bộ dữ liệu để AI có thể "đọc" được.
+
+**Cách thực hiện:**
+1. Sau khi đã thêm tệp file hoặc thêm dữ liệu Q&A, cuộn xuống dưới cùng của thẻ **Huấn luyện**.
+2. Tìm mục **Trạng thái tác vụ Koii** hoặc phần **Đồng bộ với Vector DB**.
+3. Nhấp vào nút **Đồng bộ với Vector DB** (Sync with Vector DB).
+4. Hệ thống sẽ tiến hành cắt nhỏ dữ liệu và đưa vào bộ nhớ của AI. Quá trình này gọi là "Indexing".
+5. Trạng thái các file sẽ chuyển thành **Đang xử lý** và cuối cùng là **Hoàn thành / Đã Index**. Lúc này, AI mới chính thức hiểu và sử dụng được các dữ liệu bạn vừa thêm.
+
+---
+
+## Tóm Tắt Quy Trình Huấn Luyện AI Thông Thường
+1. Chọn AI > Kiểm tra **System Prompt** đã đúng vai trò chưa.
+2. Tải **File tài liệu** hoặc **Liên kết tài liệu** từ thư viện > Lưu.
+3. Chọn **Tạo tóm tắt** cho các file lớn.
+4. Nhấn **Đồng bộ với Vector DB** và chờ hoàn tất.
+5. Dùng **Khung chat thử nghiệm** để hỏi AI. Nếu AI trả lời sai, dùng chức năng **Thêm vào Huấn luyện** để sửa câu trả lời.
+6. Đồng bộ Vector DB lại nếu có cập nhật mới.

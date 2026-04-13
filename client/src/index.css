@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root,
+  .App {
+    /* height: 100svh; Removed to allow natural document flow */
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 12px;
+    scroll-behavior: smooth;
+  }
+}
+
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: #a1a1aa;
+  /* gray-400 */
+  background-color: transparent;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px !important;
+  display: block !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #8B4513 !important;
+  /* Brown color to match theme */
+  border-radius: 10px;
+  border: 3px solid #fcf8ef !important;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5D2E0C !important;
+  background-clip: content-box;
+}
+
+/* Editor textarea is styled via Tailwind classes in the component */
+.code-editor-textarea::placeholder {
+  color: #a1a1aa; /* gray-400 */
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+

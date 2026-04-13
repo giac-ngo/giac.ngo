@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f5f0e8"/>
+      <stop offset="100%" stop-color="#e8dfc8"/>
+    </radialGradient>
+    <radialGradient id="lotusGrad" cx="50%" cy="60%" r="50%">
+      <stop offset="0%" stop-color="#c9922e"/>
+      <stop offset="100%" stop-color="#8B5E1A"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="98" fill="url(#bgGrad)" stroke="#c9922e" stroke-width="1.5"/>
+
+  <!-- Outer ring -->
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4b87a" stroke-width="0.5" opacity="0.6"/>
+
+  <!-- Lotus petals (outer ring, 10 petals) -->
+  <g transform="translate(100,100)">
+    <!-- Large outer petals -->
+    <g opacity="0.85">
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(0) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(36) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(72) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(108) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(144) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(180) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(216) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(252) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(288) translate(0,-48)" opacity="0.7"/>
+      <ellipse rx="11" ry="34" fill="#c9922e" transform="rotate(324) translate(0,-48)" opacity="0.7"/>
+    </g>
+
+    <!-- Middle petals (rotated 18°) -->
+    <g opacity="0.9">
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(18) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(54) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(90) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(126) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(162) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(198) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(234) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(270) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(306) translate(0,-36)" opacity="0.8"/>
+      <ellipse rx="9" ry="26" fill="#b07820" transform="rotate(342) translate(0,-36)" opacity="0.8"/>
+    </g>
+
+    <!-- Inner petals -->
+    <g>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(0) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(36) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(72) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(108) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(144) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(180) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(216) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(252) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(288) translate(0,-22)" opacity="0.9"/>
+      <ellipse rx="7" ry="18" fill="#5c1a1a" transform="rotate(324) translate(0,-22)" opacity="0.9"/>
+    </g>
+
+    <!-- Center gem -->
+    <circle r="12" fill="#c9922e"/>
+    <circle r="8" fill="#e8b84b"/>
+    <circle r="4" fill="#f5f0e8"/>
+  </g>
+
+  <!-- Text: TATHATA (arc along bottom) -->
+  <text
+    x="100" y="175"
+    text-anchor="middle"
+    font-family="Georgia, serif"
+    font-size="11"
+    font-weight="500"
+    fill="#5c1a1a"
+    letter-spacing="3"
+  >TATHATA</text>
+
+  <!-- Text: ZEN MONASTERY (small) -->
+  <text
+    x="100" y="188"
+    text-anchor="middle"
+    font-family="Georgia, serif"
+    font-size="7"
+    fill="#7a6550"
+    letter-spacing="2"
+    font-style="italic"
+  >ZEN MONASTERY</text>
+
+  <!-- Sanskrit: 如 character in center circle (Suchness) -->
+  <text
+    x="100" y="104"
+    text-anchor="middle"
+    font-family="serif"
+    font-size="13"
+    font-weight="400"
+    fill="#3a1400"
+    opacity="0.9"
+  >如如</text>
+</svg>
