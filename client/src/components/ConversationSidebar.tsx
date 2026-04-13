@@ -1,4 +1,4 @@
-﻿// client/src/components/ConversationSidebar.tsx
+// client/src/components/ConversationSidebar.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AIConfig, Conversation, User, SystemConfig, ViewMode, LibraryFilters, Space } from '../types';
@@ -141,7 +141,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
         return saved || 'light';
     });
 
-    // Apply color mode to practice-space-page and persist to localStorage
+    // Apply color mode: inject a <style> tag directly into DOM so it overrides everything
     useEffect(() => {
         const page = document.querySelector('.practice-space-page');
         if (page) {
@@ -152,6 +152,42 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
             }
         }
         localStorage.setItem('spaceColorMode_v3', colorMode);
+
+        // Inject style tag to guarantee dark mode regardless of CSS file caching
+        let styleEl = document.getElementById('gn-dark-mode-override');
+        if (colorMode === 'dark') {
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'gn-dark-mode-override';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = `
+                .practice-space-page[data-color-mode="dark"],
+                .practice-space-page[data-color-mode="dark"] .main-content {
+                    background-color: hsl(28, 22%, 9%) !important;
+                    color: hsl(44, 45%, 82%) !important;
+                }
+                .practice-space-page[data-color-mode="dark"] .conversation-sidebar,
+                .practice-space-page[data-color-mode="dark"] .bg-background-panel {
+                    background-color: hsl(28, 20%, 13%) !important;
+                }
+                .practice-space-page[data-color-mode="dark"] .sidebar-footer,
+                .practice-space-page[data-color-mode="dark"] .user-info-card-new {
+                    background-color: hsl(28, 20%, 13%) !important;
+                }
+                .practice-space-page[data-color-mode="dark"] .sidebar-header {
+                    background-color: hsl(28, 20%, 11%) !important;
+                }
+                .practice-space-page[data-color-mode="dark"] .welcome-ai-prompt-card,
+                .practice-space-page[data-color-mode="dark"] .timer-display-container {
+                    background-color: hsl(28, 20%, 13%) !important;
+                    border-color: hsl(28, 15%, 22%) !important;
+                    color: hsl(44, 45%, 82%) !important;
+                }
+            `;
+        } else if (styleEl) {
+            styleEl.remove();
+        }
     }, [colorMode]);
 
     const toggleColorMode = () => setColorMode(prev => prev === 'light' ? 'dark' : 'light');
