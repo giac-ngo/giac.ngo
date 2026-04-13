@@ -150,6 +150,69 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [currentSpace, setCurrentSpace] = useState<Space | null>(null);
+  const [colorMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('spaceColorMode_v3') as 'light' | 'dark') || 'light');
+
+  // Inject dark mode style tag for admin page
+  useEffect(() => {
+    let styleEl = document.getElementById('gn-admin-dark-mode');
+    if (colorMode === 'dark') {
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'gn-admin-dark-mode';
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = `
+        .admin-page-container, .admin-page-container aside, .admin-page-container main {
+            background-color: hsl(28, 20%, 13%) !important;
+            color: hsl(44, 45%, 82%) !important;
+            border-color: hsl(28, 15%, 22%) !important;
+        }
+        .admin-page-container .bg-background-light,
+        .admin-page-container [class*="bg-background"] {
+            background-color: hsl(28, 22%, 9%) !important;
+        }
+        .admin-page-container nav button {
+            color: hsl(44, 35%, 65%) !important;
+        }
+        .admin-page-container nav button:hover {
+            background-color: hsl(28, 18%, 18%) !important;
+        }
+        .admin-page-container nav button.bg-primary-light {
+            background-color: hsl(0, 40%, 20%) !important;
+            color: hsl(0, 65%, 65%) !important;
+        }
+        .admin-page-container table,
+        .admin-page-container th,
+        .admin-page-container td {
+            border-color: hsl(28, 15%, 22%) !important;
+            color: hsl(44, 45%, 82%) !important;
+        }
+        .admin-page-container thead tr {
+            background-color: hsl(28, 18%, 16%) !important;
+        }
+        .admin-page-container tbody tr:hover {
+            background-color: hsl(28, 18%, 16%) !important;
+        }
+        .admin-page-container input, .admin-page-container select, .admin-page-container textarea {
+            background-color: hsl(28, 18%, 16%) !important;
+            color: hsl(44, 45%, 82%) !important;
+            border-color: hsl(28, 15%, 22%) !important;
+        }
+        .admin-page-container .bg-white, .admin-page-container [class*="bg-gray"] {
+            background-color: hsl(28, 20%, 15%) !important;
+        }
+        .admin-page-container .text-gray-900, .admin-page-container .text-gray-800,
+        .admin-page-container .text-gray-700, .admin-page-container .text-gray-600 {
+            color: hsl(44, 45%, 82%) !important;
+        }
+        .admin-page-container .text-gray-500, .admin-page-container .text-gray-400 {
+            color: hsl(38, 20%, 55%) !important;
+        }
+      `;
+    } else if (styleEl) {
+      styleEl.remove();
+    }
+  }, [colorMode]);
 
   const t = translations[language];
 
@@ -254,7 +317,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     : (currentSpace?.imageUrl || '');
 
   return (
-    <div className="admin-page-container flex h-screen overflow-hidden bg-background-light">
+    <div className="admin-page-container flex h-screen overflow-hidden bg-background-light" data-color-mode={colorMode}>
       <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
           {!isSidebarCollapsed && logoUrl && (
