@@ -1,0 +1,107 @@
+/* -------------------------------------------------------------------------- */
+/*                           GIÁC NGỘ THEME - BASE STYLES                     */
+/* -------------------------------------------------------------------------- */
+
+html[data-theme="giacngo"] {
+  /* --- Bảng màu chính --- */
+  --color-primary: #991b1b; /* red-800 */
+  --color-primary-hover: #7f1d1d; /* red-900 */
+  --color-primary-light: #fde8e8; /* red-50 adjusted */
+  --color-primary-text: #1f2937; /* gray-800 */
+  --color-text-on-primary: #fefce8; /* yellow-50 */
+
+  /* --- Màu nhấn --- */
+  --color-accent-red: #b91c1c; /* red-700 */
+  --color-accent-red-hover: #991b1b; /* red-800 */
+  --color-accent-red-light: #fee2e2; /* red-100 */
+  --color-accent-green: #15803d; /* green-700 */
+  --color-accent-yellow: #facc15; /* yellow-400 */
+
+  /* --- Màu văn bản --- */
+  --color-text-main: #1f2937; /* gray-800 */
+  --color-text-light: #6b7280; /* gray-500 */
+  
+  /* --- Màu nền --- */
+  --color-background-main: #e8d6a4;
+  --color-background-light: #f5f1e6; /* Lighter beige */
+  --color-background-panel: #efe0bd; /* Creamy off-white */
+  
+  /* --- Màu viền --- */
+  --color-border-color: #dcd5bc;
+
+  /* --- Bong bóng chat --- */
+  --color-background-ai-bubble: #f2ead1;
+  --color-text-on-ai-bubble: #1f2937; /* gray-800 */
+}
+
+html.dark[data-theme="giacngo"] {
+  /* --- Bảng màu chính (Dark Mode) --- */
+  --color-primary: #ef4444; /* red-500 */
+  --color-primary-hover: #dc2626; /* red-600 */
+  --color-primary-light: #7f1d1d; /* red-900 */
+  --color-primary-text: #f3f4f6; /* gray-100 */
+  --color-text-on-primary: #fefce8; /* yellow-50 */
+
+  /* --- Màu nhấn --- */
+  --color-accent-red: #f87171; /* red-400 */
+  --color-accent-red-hover: #ef4444; /* red-500 */
+  --color-accent-red-light: #991b1b; /* red-800 */
+  --color-accent-green: #22c55e; /* green-500 */
+  --color-accent-yellow: #fde047; /* yellow-300 */
+
+  /* --- Màu văn bản --- */
+  --color-text-main: #f3f4f6; /* gray-100 */
+  --color-text-light: #9ca3af; /* gray-400 */
+  
+  /* --- Màu nền --- */
+  --color-background-main: #1f2937; /* gray-800 */
+  --color-background-light: #374151; /* gray-700 */
+  --color-background-panel: #111827; /* gray-900 */
+  
+  /* --- Màu viền --- */
+  --color-border-color: #4b5563; /* gray-600 */
+
+  /* --- Bong bóng chat --- */
+  --color-background-ai-bubble: #374151; /* gray-700 */
+  --color-text-on-ai-bubble: #e5e7eb; /* gray-200 */
+}
+
+/* -------------------------------------------------------------------------- */
+/*                           GLOBAL STYLES                                    */
+/* -------------------------------------------------------------------------- */
+
+html[data-theme="giacngo"] body {
+    background-color: var(--color-background-main);
+    color: var(--color-text-main);
+    font-family: "Libre Baskerville", "Lora", "Merriweather", Georgia, serif;
+}
+
+.page-loader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-size: 1.5rem;
+    color: var(--color-text-main);
+    background-color: var(--color-background-main);
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*                           CUSTOM SCROLLBAR                                 */
+/* -------------------------------------------------------------------------- */
+
+html[data-theme="giacngo"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html[data-theme="giacngo"] ::-webkit-scrollbar-track {
+  background: var(--color-background-light);
+}
+html[data-theme="giacngo"] ::-webkit-scrollbar-thumb {
+  background: var(--color-text-light);
+  border-radius: 3px;
+}
+html[data-theme="giacngo"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-text);
+}
