@@ -167,15 +167,41 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         document.head.appendChild(styleEl);
       }
       styleEl.textContent = `
-        .admin-page-container, .admin-page-container aside, .admin-page-container main {
+        /* ── Base container ── */
+        .admin-page-container,
+        .admin-page-container aside,
+        .admin-page-container main {
             background-color: hsl(28, 20%, 13%) !important;
             color: hsl(44, 45%, 82%) !important;
             border-color: hsl(28, 15%, 22%) !important;
         }
-        .admin-page-container .bg-background-light,
-        .admin-page-container [class*="bg-background"] {
-            background-color: hsl(28, 22%, 9%) !important;
+        /* ── All div/section/article backgrounds ── */
+        .admin-page-container div,
+        .admin-page-container section,
+        .admin-page-container article,
+        .admin-page-container li {
+            border-color: hsl(28, 15%, 22%) !important;
         }
+        /* ── White/light bg elements ── */
+        .admin-page-container .bg-white,
+        .admin-page-container [class*="bg-white"],
+        .admin-page-container [class*="bg-gray-50"],
+        .admin-page-container [class*="bg-gray-100"],
+        .admin-page-container [class*="bg-gray-200"],
+        .admin-page-container [class*="bg-stone-50"],
+        .admin-page-container [class*="bg-background"] {
+            background-color: hsl(28, 20%, 15%) !important;
+        }
+        /* ── Stat / card panels ── */
+        .admin-page-container [class*="rounded"][class*="shadow"],
+        .admin-page-container [class*="rounded-xl"],
+        .admin-page-container [class*="rounded-lg"],
+        .admin-page-container [class*="p-4"],
+        .admin-page-container [class*="p-6"] {
+            background-color: hsl(28, 20%, 16%) !important;
+            border-color: hsl(28, 15%, 22%) !important;
+        }
+        /* ── Nav sidebar ── */
         .admin-page-container nav button {
             color: hsl(44, 35%, 65%) !important;
         }
@@ -186,32 +212,48 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
             background-color: hsl(0, 40%, 20%) !important;
             color: hsl(0, 65%, 65%) !important;
         }
-        .admin-page-container table,
-        .admin-page-container th,
-        .admin-page-container td {
+        /* ── Tables ── */
+        .admin-page-container table { border-color: hsl(28, 15%, 22%) !important; }
+        .admin-page-container th, .admin-page-container td {
             border-color: hsl(28, 15%, 22%) !important;
             color: hsl(44, 45%, 82%) !important;
         }
-        .admin-page-container thead tr {
+        .admin-page-container thead, .admin-page-container thead tr, .admin-page-container thead th {
             background-color: hsl(28, 18%, 16%) !important;
+            color: hsl(38, 20%, 58%) !important;
         }
         .admin-page-container tbody tr:hover {
-            background-color: hsl(28, 18%, 16%) !important;
+            background-color: hsl(28, 18%, 18%) !important;
         }
-        .admin-page-container input, .admin-page-container select, .admin-page-container textarea {
+        /* ── Form inputs ── */
+        .admin-page-container input,
+        .admin-page-container select,
+        .admin-page-container textarea {
             background-color: hsl(28, 18%, 16%) !important;
             color: hsl(44, 45%, 82%) !important;
             border-color: hsl(28, 15%, 22%) !important;
         }
-        .admin-page-container .bg-white, .admin-page-container [class*="bg-gray"] {
-            background-color: hsl(28, 20%, 15%) !important;
-        }
-        .admin-page-container .text-gray-900, .admin-page-container .text-gray-800,
-        .admin-page-container .text-gray-700, .admin-page-container .text-gray-600 {
+        /* ── Text colors ── */
+        .admin-page-container [class*="text-gray-9"],
+        .admin-page-container [class*="text-gray-8"],
+        .admin-page-container [class*="text-gray-7"],
+        .admin-page-container [class*="text-gray-6"],
+        .admin-page-container [class*="text-black"],
+        .admin-page-container h1, .admin-page-container h2,
+        .admin-page-container h3, .admin-page-container h4,
+        .admin-page-container p, .admin-page-container span:not([class*="bg-"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-yellow"]):not([class*="text-blue"]) {
             color: hsl(44, 45%, 82%) !important;
         }
-        .admin-page-container .text-gray-500, .admin-page-container .text-gray-400 {
+        .admin-page-container [class*="text-gray-5"],
+        .admin-page-container [class*="text-gray-4"] {
             color: hsl(38, 20%, 55%) !important;
+        }
+        /* ── Borders + dividers ── */
+        .admin-page-container [class*="border"] {
+            border-color: hsl(28, 15%, 22%) !important;
+        }
+        .admin-page-container [class*="divide"] > * {
+            border-color: hsl(28, 15%, 22%) !important;
         }
       `;
     } else if (styleEl) {
