@@ -1,4 +1,4 @@
-/* client/public/themes/giacngo/PracticeSpacePage.css */
+﻿/* client/public/themes/giacngo/PracticeSpacePage.css */
 
 html[data-theme="giacngo"] .practice-space-page {
     height: 100svh;
@@ -1163,39 +1163,115 @@ html[data-theme="giacngo"] .practice-space-page[data-color-mode="light"] .btn-lo
     background-color: #fff0f0;
 }
 
-/* --- Đen (Dark) --- */
+/* --- Tối (Dark — Temple Wood by Night) --- */
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"],
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .main-content,
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-sidebar {
-    --color-background-main: #1a1a2e;
-    --color-background-panel: #16213e;
-    --color-background-light: #0f3460;
-    --color-border-color: #2d3561;
-    --color-text-main: #e0e0e0;
-    --color-text-light: #a0aec0;
-    --color-background-ai-bubble: #0f3460;
-    --color-text-on-ai-bubble: #e0e0e0;
-    --color-primary-light: #1a1a2e;
+    /* hsl(28, 22%, 9%) = deep walnut */
+    --color-background-main:      hsl(28, 22%, 9%);
+    /* hsl(28, 20%, 13%) = teak panel */
+    --color-background-panel:     hsl(28, 20%, 13%);
+    /* hsl(28, 18%, 18%) = muted wood */
+    --color-background-light:     hsl(28, 18%, 18%);
+    /* hsl(28, 15%, 22%) */
+    --color-border-color:         hsl(28, 15%, 22%);
+    /* hsl(44, 45%, 82%) = warm parchment */
+    --color-text-main:            hsl(44, 45%, 82%);
+    /* hsl(38, 20%, 58%) = amber muted */
+    --color-text-light:           hsl(38, 20%, 58%);
+    /* hsl(0, 65%, 50%) = deep crimson */
+    --color-primary:              hsl(0, 65%, 50%);
+    --color-primary-hover:        hsl(0, 65%, 42%);
+    /* hsl(35, 70%, 35%) = amber accent */
+    --color-background-ai-bubble: hsl(28, 20%, 16%);
+    --color-text-on-ai-bubble:    hsl(44, 45%, 82%);
+    --color-primary-light:        hsl(28, 18%, 16%);
+    --color-text-on-primary:      hsl(60, 91%, 95%);
 }
 
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .chat-input-wrapper {
-    background-color: #16213e;
-    border-color: #2d3561;
+    background-color: hsl(28, 20%, 13%);
+    border-color: hsl(28, 15%, 22%);
 }
 
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .chat-input-field {
-    color: #e0e0e0;
+    color: hsl(44, 45%, 82%);
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .chat-input-field::placeholder {
+    color: hsl(38, 20%, 45%);
 }
 
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .btn-logout-new {
-    background-color: #1a1a2e;
-    color: #f87171;
+    background-color: hsl(28, 22%, 9%);
+    color: hsl(0, 65%, 65%);
 }
 
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .rename-input {
-    background-color: #1a1a2e;
-    color: #e0e0e0;
+    background-color: hsl(28, 22%, 9%);
+    color: hsl(44, 45%, 82%);
 }
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .user-info-card-new,
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .sidebar-footer {
+    border-color: hsl(28, 15%, 16%);
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .btn-cta-new {
+    background-color: hsl(0, 65%, 50%);
+    color: hsl(60, 91%, 95%);
+}
+/* ── Fix 0: Quick-action buttons border in dark mode ── */
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-action-btn {
+    border: 1px solid hsl(28, 20%, 30%) !important;
+    background-color: hsl(28, 20%, 14%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-action-btn.active,
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-action-btn:hover {
+    border-color: hsl(0, 55%, 50%) !important;
+    background-color: hsl(28, 18%, 18%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-action-label {
+    color: hsl(44, 35%, 65%);
+}
+/* ── Fix 1: Sidebar conversation list ── */
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-list,
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-actions-container {
+    background-color: hsl(28, 20%, 11%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-item-wrapper.active .conversation-item,
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-item-wrapper:hover .conversation-item {
+    background-color: hsl(28, 18%, 17%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-item {
+    color: hsl(44, 40%, 72%);
+}
+
+/* ── Fix 2: Dharma Talk cards ── */
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .dharma-card-new {
+    background-color: hsl(28, 20%, 15%) !important;
+    border-color: hsl(28, 15%, 22%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .dharma-card-new .session-title {
+    color: hsl(44, 45%, 82%);
+}
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .dharma-card-new .progress-bar {
+    background-color: hsl(28, 15%, 25%);
+}
+
+/* ── Fix 3: Social Feed cards override SocialFeed CSS vars ── */
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] {
+    --sf-card:     hsl(28, 20%, 13%);
+    --sf-bg:       hsl(28, 22%, 9%);
+    --sf-input-bg: hsl(28, 18%, 16%);
+    --sf-text:     hsl(44, 45%, 82%);
+    --sf-muted:    hsl(38, 20%, 55%);
+    --sf-border:   hsl(28, 15%, 22%);
+    --sf-hover:    rgba(255, 200, 120, 0.07);
+    --sf-skeleton: hsl(28, 15%, 22%);
+    --sf-primary: hsl(0, 65%, 62%);
+}
+
 
 /* Color mode switcher button UI */
 html[data-theme="giacngo"] .color-mode-switcher {

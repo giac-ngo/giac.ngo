@@ -423,14 +423,14 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                                 {!aiExpanded && post.metadata.aiResponse.length > 300 && (
                                     <div style={{
                                         position: 'absolute', bottom: 0, left: 0, right: 0,
-                                        height: 40, background: 'linear-gradient(transparent, rgba(240,232,210,0.95))'
+                                        height: 40, background: 'linear-gradient(transparent, var(--sf-card))'
                                     }} />
                                 )}
                             </div>
                             {post.metadata.aiResponse.length > 300 && (
                                 <button
                                     onClick={() => setAiExpanded(v => !v)}
-                                    style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '4px 0 0', display: 'block' }}
+                                    style={{ background: 'none', border: 'none', color: 'var(--sf-primary, #991b1b)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '4px 0 0', display: 'block' }}
                                 >
                                     {aiExpanded ? 'Thu gọn ▲' : 'Xem thêm ▼'}
                                 </button>

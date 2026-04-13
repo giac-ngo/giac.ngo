@@ -73,6 +73,13 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
     };
     const navigate = useNavigate();
 
+    // Detect dark mode from localStorage (synced by ConversationSidebar)
+    const isDarkMode = typeof window !== 'undefined' &&
+        localStorage.getItem('spaceColorMode_v3') === 'dark';
+    const inactiveBg = isDarkMode ? 'hsl(28, 18%, 20%)' : 'rgba(255,255,255,0.55)';
+    const inactiveColor = isDarkMode ? 'hsl(44, 40%, 65%)' : 'var(--color-text-light)';
+    const inactiveShadow = isDarkMode ? '0 1px 3px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.1)';
+
     // Nếu đang ở custom domain (tathata.bodhilab.io), Back về origin của domain đó
     // Nếu ở giac.ngo với spaceSlug != giac-ngo, Back về trang space (/:spaceSlug)
     // Còn lại Back về /
@@ -126,9 +133,9 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                             style={{
                                 width: 44, height: 44, borderRadius: 13, border: 'none', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: communityTab === 'home' && !showNotifications && !isViewingUser ? 'var(--color-primary)' : 'rgba(255,255,255,0.55)',
-                                color: communityTab === 'home' && !showNotifications && !isViewingUser ? 'var(--color-text-on-primary)' : 'var(--color-text-light)',
-                                boxShadow: communityTab === 'home' && !showNotifications && !isViewingUser ? '0 2px 8px rgba(153,27,27,0.3)' : '0 1px 3px rgba(0,0,0,0.1)',
+                                background: communityTab === 'home' && !showNotifications && !isViewingUser ? 'var(--color-primary)' : inactiveBg,
+                                color: communityTab === 'home' && !showNotifications && !isViewingUser ? 'var(--color-text-on-primary)' : inactiveColor,
+                                boxShadow: communityTab === 'home' && !showNotifications && !isViewingUser ? '0 2px 8px rgba(153,27,27,0.3)' : inactiveShadow,
                                 transition: 'all 0.2s',
                             }}
                         >
@@ -144,9 +151,9 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                             style={{
                                 width: 44, height: 44, borderRadius: 13, border: 'none', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: communityTab === 'feed' && !showNotifications && !isViewingUser ? 'var(--color-primary)' : 'rgba(255,255,255,0.55)',
-                                color: communityTab === 'feed' && !showNotifications && !isViewingUser ? 'var(--color-text-on-primary)' : 'var(--color-text-light)',
-                                boxShadow: communityTab === 'feed' && !showNotifications && !isViewingUser ? '0 2px 8px rgba(153,27,27,0.3)' : '0 1px 3px rgba(0,0,0,0.1)',
+                                background: communityTab === 'feed' && !showNotifications && !isViewingUser ? 'var(--color-primary)' : inactiveBg,
+                                color: communityTab === 'feed' && !showNotifications && !isViewingUser ? 'var(--color-text-on-primary)' : inactiveColor,
+                                boxShadow: communityTab === 'feed' && !showNotifications && !isViewingUser ? '0 2px 8px rgba(153,27,27,0.3)' : inactiveShadow,
                                 transition: 'all 0.2s',
                             }}
                         >
@@ -160,9 +167,9 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                             style={{
                                 width: 44, height: 44, borderRadius: 13, border: 'none', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'rgba(255,255,255,0.55)',
-                                color: 'var(--color-text-light)',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                background: inactiveBg,
+                                color: inactiveColor,
+                                boxShadow: inactiveShadow,
                                 transition: 'all 0.2s',
                             }}
                         >
@@ -178,9 +185,9 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                             style={{
                                 width: 44, height: 44, borderRadius: 13, border: 'none', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-                                background: showNotifications ? 'var(--color-primary)' : 'rgba(255,255,255,0.55)',
-                                color: showNotifications ? 'var(--color-text-on-primary)' : 'var(--color-text-light)',
-                                boxShadow: showNotifications ? '0 2px 8px rgba(153,27,27,0.3)' : '0 1px 3px rgba(0,0,0,0.1)',
+                                background: showNotifications ? 'var(--color-primary)' : inactiveBg,
+                                color: showNotifications ? 'var(--color-text-on-primary)' : inactiveColor,
+                                boxShadow: showNotifications ? '0 2px 8px rgba(153,27,27,0.3)' : inactiveShadow,
                                 transition: 'all 0.2s',
                             }}
                         >
@@ -229,14 +236,14 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                                     </div>
                                 )}
                             </div>
-                            <button onClick={() => setIsMarketplaceModalOpen(true)} className="header-icon-btn" title={t.marketplace}>
+                            <button onClick={() => setIsMarketplaceModalOpen(true)} className="header-icon-btn" title={t.marketplace} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 10px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:44 }}>
                                 {/* Sparkle / AI icon */}
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 3 10.5 8.5 5 10l5.5 1.5L12 17l1.5-5.5L19 10l-5.5-1.5Z"/>
                                     <path d="M5.5 3 4.7 5.7 2 6.5l2.7.8.8 2.7.8-2.7 2.7-.8-2.7-.8Z"/>
                                     <path d="M19 14l-.8 2.7-2.7.8 2.7.8.8 2.7.8-2.7 2.7-.8-2.7-.8Z"/>
                                 </svg>
-                                <span className="header-icon-label">{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
+                                <span className="header-icon-label" style={{ fontSize:'0.5rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
                             </button>
                         </>
                     )}
@@ -246,11 +253,12 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                             onClick={handleCommunityClick}
                             className="header-icon-btn"
                             title={language === 'vi' ? 'Cộng Đồng' : 'Community'}
+                            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 10px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:44 }}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                             </svg>
-                            <span className="header-icon-label">{language === 'vi' ? 'Cộng Đồng' : 'Community'}</span>
+                            <span className="header-icon-label" style={{ fontSize:'0.5rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Cộng Đồng' : 'Community'}</span>
                         </button>
                     )}
                 </div>

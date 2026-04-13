@@ -136,24 +136,25 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
         }
     }, [currentSpace]);
 
-    const [colorMode, setColorMode] = useState<'default' | 'light' | 'dark'>(() => {
-        // v2 key = forces fresh default for all devices (old 'dark' values are ignored)
-        const saved = localStorage.getItem('spaceColorMode_v2') as 'default' | 'light' | 'dark';
-        return saved || 'default';
+    const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => {
+        const saved = localStorage.getItem('spaceColorMode_v3') as 'light' | 'dark';
+        return saved || 'light';
     });
 
     // Apply color mode to practice-space-page and persist to localStorage
     useEffect(() => {
         const page = document.querySelector('.practice-space-page');
         if (page) {
-            if (colorMode === 'default') {
-                page.removeAttribute('data-color-mode');
+            if (colorMode === 'dark') {
+                page.setAttribute('data-color-mode', 'dark');
             } else {
-                page.setAttribute('data-color-mode', colorMode);
+                page.removeAttribute('data-color-mode');
             }
         }
-        localStorage.setItem('spaceColorMode_v2', colorMode);
+        localStorage.setItem('spaceColorMode_v3', colorMode);
     }, [colorMode]);
+
+    const toggleColorMode = () => setColorMode(prev => prev === 'light' ? 'dark' : 'light');
 
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [page, setPage] = useState(1);
@@ -382,11 +383,12 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                 <button onClick={() => setIsSidebarCollapsed(false)} className="p-0 border-0 bg-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-panel focus:ring-primary">
                                     <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full cursor-pointer" title={user.name} />
                                 </button>
-                                <div className="color-mode-switcher flex-col" title="Màu nền">
-                                    <button className={`color-mode-btn color-mode-btn-default ${colorMode === 'default' ? 'active' : ''}`} onClick={() => setColorMode('default')} title="Màu hiện tại" />
-                                    <button className={`color-mode-btn color-mode-btn-light ${colorMode === 'light' ? 'active' : ''}`} onClick={() => setColorMode('light')} title="Trắng" />
-                                    <button className={`color-mode-btn color-mode-btn-dark ${colorMode === 'dark' ? 'active' : ''}`} onClick={() => setColorMode('dark')} title="Đen" />
-                                </div>
+                                <button onClick={toggleColorMode} title={colorMode === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {colorMode === 'dark'
+                                        ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                                        : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                    }
+                                </button>
                                 <button onClick={onLogout} className="p-2 text-text-light hover:bg-background-light rounded-full" title={t.logout}>
                                     <LogoutIcon className="w-6 h-6" />
                                 </button>
@@ -420,11 +422,12 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                     <button onClick={onOpenMeritPurchase} className="btn-cta-new">
                                         <CryptoIcon className="w-4 h-4" /> {t.donation}
                                     </button>
-                                    <div className="color-mode-switcher" title="Màu nền">
-                                        <button className={`color-mode-btn color-mode-btn-default ${colorMode === 'default' ? 'active' : ''}`} onClick={() => setColorMode('default')} title="Màu hiện tại" />
-                                        <button className={`color-mode-btn color-mode-btn-light ${colorMode === 'light' ? 'active' : ''}`} onClick={() => setColorMode('light')} title="Trắng" />
-                                        <button className={`color-mode-btn color-mode-btn-dark ${colorMode === 'dark' ? 'active' : ''}`} onClick={() => setColorMode('dark')} title="Đen" />
-                                    </div>
+                                    <button onClick={toggleColorMode} title={colorMode === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, borderRadius: 8 }}>
+                                        {colorMode === 'dark'
+                                            ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>Sáng</>
+                                            : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>Tối</>
+                                        }
+                                    </button>
                                     <div className="w-full flex items-center justify-between gap-2">
                                         <div className="user-menu-language-switcher !p-0">
                                             <div className="user-menu-language-switcher-pill flex items-center">
