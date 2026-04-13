@@ -458,18 +458,19 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                     <button onClick={onOpenMeritPurchase} className="btn-cta-new">
                                         <CryptoIcon className="w-4 h-4" /> {t.donation}
                                     </button>
-                                    <button onClick={toggleColorMode} title={colorMode === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, borderRadius: 8 }}>
-                                        {colorMode === 'dark'
-                                            ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>{language === 'vi' ? 'Sáng' : 'Light'}</>
-                                            : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>{language === 'vi' ? 'Tối' : 'Dark'}</>
-                                        }
-                                    </button>
                                     <div className="w-full flex items-center justify-between gap-2">
-                                        <div className="user-menu-language-switcher !p-0">
+                                        <div className="user-menu-language-switcher !p-0" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                             <div className="user-menu-language-switcher-pill flex items-center">
                                                 <button onClick={() => setLanguage('vi')} className={`${language === 'vi' ? 'active' : ''} !px-2 !py-0.5 !text-[10px]`}>VIE</button>
                                                 <button onClick={() => setLanguage('en')} className={`${language === 'en' ? 'active' : ''} !px-2 !py-0.5 !text-[10px]`}>ENG</button>
                                             </div>
+                                            {/* Dark/Light toggle — next to language pill */}
+                                            <button onClick={toggleColorMode} title={colorMode === 'dark' ? (language === 'vi' ? 'Chuyển sang sáng' : 'Switch to Light') : (language === 'vi' ? 'Chuyển sang tối' : 'Switch to Dark')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px 5px', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', borderRadius: 6 }}>
+                                                {colorMode === 'dark'
+                                                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                                                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                                }
+                                            </button>
                                         </div>
                                         {hasAdminPermission && (
                                             <button onClick={onGoToAdmin} className="btn-secondary-new !px-2 !py-1 !text-[11px] whitespace-nowrap">
