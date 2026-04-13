@@ -1,4 +1,4 @@
-﻿/* client/public/themes/giacngo/PracticeSpacePage.css */
+/* client/public/themes/giacngo/PracticeSpacePage.css */
 
 html[data-theme="giacngo"] .practice-space-page {
     height: 100svh;
@@ -1182,11 +1182,26 @@ html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .convers
     /* hsl(0, 65%, 50%) = deep crimson */
     --color-primary:              hsl(0, 65%, 50%);
     --color-primary-hover:        hsl(0, 65%, 42%);
-    /* hsl(35, 70%, 35%) = amber accent */
     --color-background-ai-bubble: hsl(28, 20%, 16%);
     --color-text-on-ai-bubble:    hsl(44, 45%, 82%);
     --color-primary-light:        hsl(28, 18%, 16%);
     --color-text-on-primary:      hsl(60, 91%, 95%);
+    /* Explicit overrides for Tailwind-compiled colors */
+    background-color: hsl(28, 22%, 9%) !important;
+    color: hsl(44, 45%, 82%) !important;
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .conversation-sidebar {
+    background-color: hsl(28, 20%, 13%) !important;
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .main-content {
+    background-color: hsl(28, 22%, 9%) !important;
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .sidebar-footer,
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .user-info-card-new {
+    background-color: hsl(28, 20%, 13%) !important;
 }
 
 html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .chat-input-wrapper {
