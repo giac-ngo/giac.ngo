@@ -390,16 +390,31 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     // ─── Theme ───────────────────────────────────────────────────────────────
     const isGiacngo = document.documentElement.getAttribute('data-theme') === 'giacngo';
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+    const isDark = localStorage.getItem('spaceColorMode_v3') === 'dark' ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
         window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isGiacngoDark = isGiacngo && isDark;
 
-    const bg       = isGiacngo ? '#f5ede0' : isDark ? '#1c1c1e' : '#ffffff';
-    const bgCard   = isGiacngo ? '#fdf8f0' : isDark ? '#242526' : '#f7f7f7';
-    const textColor = isGiacngo ? '#1f2937' : isDark ? '#e4e6eb' : '#050505';
-    const muted    = isGiacngo ? '#6b7280' : isDark ? '#8e8e93' : '#65676b';
-    const border   = isGiacngo ? '#dcd5bc' : isDark ? '#38383a' : '#e4e6ea';
-    const inputBg  = isGiacngo ? '#efe0bd' : isDark ? '#2c2c2e' : '#f0f2f5';
-    const primary  = isGiacngo ? '#991b1b' : '#1877f2';
+    const bg        = isGiacngoDark ? 'hsl(28, 22%, 9%)'
+                    : isGiacngo     ? '#f5ede0'
+                    : isDark        ? '#1c1c1e' : '#ffffff';
+    const bgCard    = isGiacngoDark ? 'hsl(28, 20%, 13%)'
+                    : isGiacngo     ? '#fdf8f0'
+                    : isDark        ? '#242526' : '#f7f7f7';
+    const textColor = isGiacngoDark ? 'hsl(44, 45%, 82%)'
+                    : isGiacngo     ? '#1f2937'
+                    : isDark        ? '#e4e6eb' : '#050505';
+    const muted     = isGiacngoDark ? 'hsl(38, 20%, 55%)'
+                    : isGiacngo     ? '#6b7280'
+                    : isDark        ? '#8e8e93' : '#65676b';
+    const border    = isGiacngoDark ? 'hsl(28, 15%, 22%)'
+                    : isGiacngo     ? '#dcd5bc'
+                    : isDark        ? '#38383a' : '#e4e6ea';
+    const inputBg   = isGiacngoDark ? 'hsl(28, 18%, 18%)'
+                    : isGiacngo     ? '#efe0bd'
+                    : isDark        ? '#2c2c2e' : '#f0f2f5';
+    const primary   = isGiacngo ? '#991b1b' : '#1877f2';
+
 
     const cfg = {
         idle:       { color: muted,                     micBg: inputBg,   glow: 'none' },
@@ -453,7 +468,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                         padding: '16px 20px 12px',
                         borderBottom: `1px solid ${border}`,
                         display: 'flex', alignItems: 'center', gap: 12,
-                        background: isGiacngo ? '#efe0bd' : 'transparent',
+                        background: isGiacngoDark ? 'hsl(28, 20%, 11%)' : isGiacngo ? '#efe0bd' : 'transparent',
                     }}>
                         {currentAiConfig?.avatarUrl
                             ? <img src={currentAiConfig.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `2px solid ${border}` }} />
@@ -511,7 +526,9 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                     <div style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center',
                         padding: '28px 24px 16px',
-                        background: isGiacngo
+                        background: isGiacngoDark
+                            ? 'hsl(28, 20%, 13%)'
+                            : isGiacngo
                             ? 'linear-gradient(180deg,#fdf8f0 0%,#f5ede0 100%)'
                             : bgCard,
                         position: 'relative',
@@ -571,7 +588,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                         padding: '14px 20px 18px',
                         borderTop: `1px solid ${border}`,
                         display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center',
-                        background: isGiacngo ? '#efe0bd' : 'transparent',
+                        background: isGiacngoDark ? 'hsl(28, 20%, 11%)' : isGiacngo ? '#efe0bd' : 'transparent',
                     }}>
                         {/* Stop / X button */}
                         <button
@@ -642,7 +659,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                     {/* ── Recording status bar — always visible ── */}
                     <div style={{
                         padding: '8px 20px 12px',
-                        background: isGiacngo ? '#efe0bd' : 'transparent',
+                        background: isGiacngoDark ? 'hsl(28, 20%, 11%)' : isGiacngo ? '#efe0bd' : 'transparent',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         flexDirection: 'column',
                     }}>
