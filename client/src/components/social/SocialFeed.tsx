@@ -14,6 +14,36 @@ function toMdParagraphs(text: string): string {
     return text.replace(/([^\n])\n([^\n])/g, '$1\n\n$2');
 }
 
+
+const translations = {
+    vi: {
+        justNow: 'Vừa xong', minutesAgo: ' phút trước', hoursAgo: ' giờ trước', daysAgo: ' ngày trước', monthsAgo: ' tháng trước', yearsAgo: ' năm trước',
+        reply: 'Phản hồi', delete: 'Xóa', readMore: 'Xem thêm ▼', showLess: 'Thu gọn ▲', readMoreContent: 'Xem thêm', deletePost: '🗑 Xóa bài viết',
+        writeComment: 'Viết bình luận...', loading: 'Đang tải...', replyingTo: 'Đang phản hồi', loginToLike: translations[language || "vi"].loginToLike,
+        deleteCommentFailed: 'Xóa bình luận thất bại.', deletePostFailed: translations[language || "vi"].deletePostFailed, sendCommentFailed: translations[language || "vi"].sendCommentFailed,
+        thinking: 'ơi, bạn đang nghĩ gì vậy?', thinkingAnonymous: 'Bạn đang nghĩ gì vậy?', photoVideo: '📸 Ảnh/Video', feeling: '😊 Cảm xúc',
+        post: 'Đăng', posting: 'Đang đăng...', postToCommunity: 'Đăng lên cộng đồng', searchPosts: 'Tìm kiếm bài viết...', loginToJoin: 'Đăng nhập để tham gia cộng đồng',
+        loginReq: 'Bạn cần đăng nhập để xem, đăng bài và bình luận.', noPostsYet: 'Chưa có bài đăng nào', noUserPostsYet: 'Bạn chưa có bài đăng nào',
+        beFirst: 'Hãy là người đầu tiên chia sẻ điều gì đó!', shareSomething: 'Hãy chia sẻ điều gì đó lên cộng đồng!', loginToRepost: translations[language || "vi"].loginToRepost,
+        alreadyReposted: translations[language || "vi"].alreadyReposted, repostSuccess: translations[language || "vi"].repostSuccess, repostFailed: translations[language || "vi"].repostFailed,
+        repostTitle: 'Chia sẻ bài viết', repostPlaceholder: 'Nhập nội dung chia sẻ...', cancel: 'Hủy', share: 'Chia sẻ', sharing: 'Đang chia sẻ...', update: 'Cập nhật',
+        from: 'Từ', mediaLibrary: 'Thư Viện Media', selectImages: 'Chọn tối đa 4 ảnh', mediaLibOrDevice: 'Chọn từ Thư Viện Media hoặc tải lên từ thiết bị'
+    },
+    en: {
+        justNow: 'Just now', minutesAgo: 'm ago', hoursAgo: 'h ago', daysAgo: 'd ago', monthsAgo: 'mo ago', yearsAgo: 'y ago',
+        reply: 'Reply', delete: 'Delete', readMore: 'Read more ▼', showLess: 'Show less ▲', readMoreContent: 'Read more', deletePost: '🗑 Delete post',
+        writeComment: 'Write a comment...', loading: 'Loading...', replyingTo: 'Replying to', loginToLike: 'Please login to like.',
+        deleteCommentFailed: 'Failed to delete comment.', deletePostFailed: 'Failed to delete post.', sendCommentFailed: 'Failed to send comment.',
+        thinking: 'what are you thinking?', thinkingAnonymous: 'What are you thinking?', photoVideo: '📸 Photo/Video', feeling: '😊 Feeling',
+        post: 'Post', posting: 'Posting...', postToCommunity: 'Share with community', searchPosts: 'Search posts...', loginToJoin: 'Log in to join the community',
+        loginReq: 'You need to be logged in to view, post, and comment.', noPostsYet: 'No posts yet', noUserPostsYet: 'You have no posts yet',
+        beFirst: 'Be the first to share something!', shareSomething: 'Share something with the community!', loginToRepost: 'Please login to repost.',
+        alreadyReposted: 'You already reposted this.', repostSuccess: 'Reposted successfully! 🎉', repostFailed: 'Failed to repost.',
+        repostTitle: 'Repost', repostPlaceholder: 'Add your thoughts...', cancel: 'Cancel', share: 'Repost', sharing: 'Posting...', update: 'Update',
+        from: 'From', mediaLibrary: 'Media Library', selectImages: 'Select up to 4 images', mediaLibOrDevice: 'Select from Media Library or upload from device'
+    }
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(dateStr: string): string {
@@ -177,6 +207,7 @@ function PhotoGrid({ urls }: { urls: string[] }) {
 // ─── Comment Item ──────────────────────────────────────────────────────────────
 
 function CommentItem({
+    language = 'vi',
     comment, currentUser, spaceId, postId, postUserId,
     onDelete, onReply
 }: {
@@ -187,6 +218,7 @@ function CommentItem({
     postUserId: number;
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
+    language?: 'vi' | 'en';
 }) {
     const canDelete = currentUser && (
         currentUser.id === comment.userId ||
@@ -210,16 +242,16 @@ function CommentItem({
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 3, paddingLeft: 8 }}>
-                    <span style={{ fontSize: 12, color: 'var(--sf-muted)' }}>{timeAgo(comment.createdAt)}</span>
+                    <span style={{ fontSize: 12, color: 'var(--sf-muted)' }}>{timeAgo(comment.createdAt, language)}</span>
                     <button
                         onClick={() => onReply(comment.id, comment.userName)}
                         style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: 'var(--sf-muted)', cursor: 'pointer', padding: 0 }}
-                    >Phản hồi</button>
+                    >{translations[language].reply}</button>
                     {canDelete && (
                         <button
                             onClick={() => onDelete(comment.id)}
                             style={{ background: 'none', border: 'none', fontSize: 12, color: '#e74c3c', cursor: 'pointer', padding: 0 }}
-                        >Xóa</button>
+                        >{translations[language].delete}</button>
                     )}
                 </div>
             </div>
@@ -367,7 +399,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
         try {
             const data = await apiService.getSocialComments(spaceId, post.id);
             setComments(data);
-        } catch { showToast('Không thể tải bình luận.', 'error'); }
+        } catch { showToast(translations[language || "vi"].sendCommentFailed, 'error'); }
         finally { setLoadingComments(false); }
     };
 
@@ -453,7 +485,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
                         style={{ fontWeight: 600, fontSize: 14, color: 'var(--sf-text)', cursor: onUserClick ? 'pointer' : 'default', display: 'inline-block' }}
                     >{post.userName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.createdAt)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.createdAt, language || 'vi')}</div>
                 </div>
                 {canDelete && (
                     <div style={{ position: 'relative' }} ref={menuRef}>
@@ -470,7 +502,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 <button
                                     onClick={() => { onDelete(post.id); setMenuOpen(false); }}
                                     style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: '#e74c3c', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
-                                >🗑 Xóa bài viết</button>
+                                >{translations[language || "vi"].deletePost}</button>
                             </div>
                         )}
                     </div>
@@ -582,7 +614,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             <Avatar name={post.quotedPost.userName} url={post.quotedPost.userAvatarUrl} size={22} />
                             <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--sf-text)' }}>{post.quotedPost.userName}</span>
                         </div>
-                        <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.quotedPost.createdAt)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.quotedPost.createdAt, language || 'vi')}</span>
                     </div>
                     {/* Original content — rendered with same format as original post */}
                     <QuotedPostBody post={post.quotedPost} maxLines={6} />
@@ -601,7 +633,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid var(--sf-border)' }}>
                             <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sf-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <img src="/themes/giacngo/senhong.png" alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
-                                {language === 'en' ? 'Repost' : 'Chia sẻ bài viết'}
+                                {translations[language || "vi"].repostTitle}
                             </span>
                             <button onClick={() => setRepostModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 20, lineHeight: 1 }}>×</button>
                         </div>
@@ -610,7 +642,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             <textarea
                                 value={repostComment}
                                 onChange={e => setRepostComment(e.target.value)}
-                                placeholder={language === 'en' ? 'Enter your thoughts to share...' : 'Nhập nội dung chia sẻ...'}
+                                placeholder={translations[language || "vi"].repostPlaceholder}
                                 rows={3}
                                 autoFocus
                                 style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)', color: 'var(--sf-text)', fontSize: 13, resize: 'none', boxSizing: 'border-box' as any, outline: 'none', fontFamily: 'inherit', lineHeight: 1.55, marginBottom: 12 }}
@@ -627,11 +659,11 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                 <button onClick={() => setRepostModalOpen(false)} disabled={repostSubmitting}
                                     style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--sf-border)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-                                    {language === 'en' ? 'Cancel' : 'Hủy'}
+                                    {translations[language || "vi"].cancel}
                                 </button>
                                 <button onClick={handleRepostSubmit} disabled={repostSubmitting}
                                     style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#991b1b', color: '#fff', cursor: repostSubmitting ? 'default' : 'pointer', fontWeight: 700, fontSize: 13, opacity: repostSubmitting ? 0.7 : 1 }}>
-                                    {repostSubmitting ? (language === 'en' ? 'Posting...' : 'Đang chia sẻ...') : (language === 'en' ? 'Repost' : 'Chia sẻ')}
+                                    {repostSubmitting ? translations[language || "vi"].sharing : translations[language || "vi"].share}
                                 </button>
                             </div>
                         </div>
@@ -702,7 +734,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             {showComments && (
                 <div style={{ padding: '12px 16px' }}>
                     {loadingComments ? (
-                        <div style={{ textAlign: 'center', color: 'var(--sf-muted)', fontSize: 13, padding: '8px 0' }}>Đang tải...</div>
+                        <div style={{ textAlign: 'center', color: 'var(--sf-muted)', fontSize: 13, padding: '8px 0' }}>{translations[language || "vi"].loading}</div>
                     ) : (
                         <>
                             {topLevel.map(c => (
@@ -735,7 +767,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             <div style={{ flex: 1, position: 'relative' }}>
                                 {replyTo && (
                                     <div style={{ fontSize: 12, color: '#1877f2', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        Đang phản hồi <strong>{replyTo.name}</strong>
+                                        {translations[language || "vi"].replyingTo} <strong>{replyTo.name}</strong>
                                         <button onClick={() => { setReplyTo(null); setCommentText(''); }}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 14, lineHeight: 1 }}>×</button>
                                     </div>
@@ -745,7 +777,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     value={commentText}
                                     onChange={e => setCommentText(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(e as any); } }}
-                                    placeholder="Viết bình luận..."
+                                    placeholder={translations[language || "vi"].writeComment}
                                     style={{
                                         width: '100%', padding: '8px 40px 8px 14px', borderRadius: 20,
                                         border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)',
@@ -770,10 +802,11 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
 
 // ─── Post Editor ───────────────────────────────────────────────────────────────
 
-function PostEditor({ currentUser, spaceId, onPostCreated }: {
+function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
     currentUser: User;
     spaceId: number;
     onPostCreated: (post: SocialPost) => void;
+    language?: "vi" | "en";
 }) {
     const { showToast } = useToast();
     const [expanded, setExpanded] = useState(false);
@@ -871,7 +904,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated }: {
                             ref={textareaRef}
                             value={content}
                             onChange={e => setContent(e.target.value)}
-                            placeholder={`${currentUser.name} ơi, bạn đang nghĩ gì vậy?`}
+                            placeholder={currentUser ? `${currentUser.name} ${translations[language].thinking}` : translations[language].thinkingAnonymous}
                             rows={4}
                             style={{
                                 flex: 1, padding: '8px 0', background: 'none', border: 'none',
@@ -1223,7 +1256,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                             type="text"
                             value={internalSearch}
                             onChange={e => setInternalSearch(e.target.value)}
-                            placeholder="Tìm kiếm bài viết..."
+                            placeholder={translations[language].searchPosts}
                             style={{
                                 width: '100%', padding: '9px 38px 9px 38px',
                                 borderRadius: 20, border: '1px solid var(--sf-border)',
@@ -1244,11 +1277,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                 )}
 
                 {currentUser && (!filterUserId || filterUserId === currentUser.id) && (
-                    <PostEditor
-                        currentUser={currentUser}
-                        spaceId={spaceId}
-                        onPostCreated={handlePostCreated}
-                    />
+                    <PostEditor currentUser={currentUser} spaceId={spaceId} onPostCreated={handlePostCreated} language={language} />
                 )}
                 {!currentUser && (
                     <div style={{
@@ -1275,10 +1304,10 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                     }}>
                         <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
                         <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--sf-text)', marginBottom: 6 }}>
-                            {filterUserId ? 'Bạn chưa có bài đăng nào' : 'Chưa có bài đăng nào'}
+                            {filterUserId ? translations[language].noUserPostsYet : translations[language].noPostsYet}
                         </div>
                         <div style={{ color: 'var(--sf-muted)', fontSize: 14 }}>
-                            {filterUserId ? 'Hãy chia sẻ điều gì đó lên cộng đồng!' : 'Hãy là người đầu tiên chia sẻ điều gì đó!'}
+                            {filterUserId ? translations[language].shareSomething : translations[language].beFirst}
                         </div>
                     </div>
                 ) : (

@@ -60,7 +60,7 @@ const translations = {
     language: 'English',
     transactionsAndTopUp: 'Ví Merit',
     spaceBilling: 'Ví Space',
-    paymentSettings: 'Cấu hình thanh toán',
+    paymentSettings: 'Cài đặt thanh toán',
     domainSettings: 'Cấu hình tên miền',
     mailServerSettings: 'Cấu hình Mail Server',
     mediaLibrary: 'Thư viện Media',

@@ -587,6 +587,9 @@ export const apiService = {
             body: JSON.stringify({ spaceId }),
         }).then(handleResponse);
     },
+    getStripeConnectAccountStatus: (accountId: string): Promise<{ chargesEnabled: boolean, payoutsEnabled: boolean, detailsSubmitted: boolean }> => {
+        return authedFetch(`/api/stripe/connect/account/${accountId}`).then(handleResponse);
+    },
 
     
     createWithdrawalRequest: (userId: number, amount: number, spaceId?: number): Promise<WithdrawalRequest> => {

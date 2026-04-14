@@ -42,7 +42,7 @@ const translations = {
             'user-billing': 'Giao dịch & Nạp Merit',
             'space-billing': 'Ví Space',
             'manual-billing': 'Lịch sử Giao dịch',
-            'payment-settings': 'Cấu hình Thanh toán',
+            'payment-settings': 'Cài đặt Thanh toán',
             'withdrawals': 'Quản lý Rút tiền',
             'templates': 'Quản lý Page',
             'finetune': 'Fine-tune Dữ liệu',

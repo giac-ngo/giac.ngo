@@ -1,61 +1,55 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Giác Ngộ — Awakening AI Network</title>
-    <meta name="description" content="Không gian tu tập và thực hành chính thức của Giác Ngộ AI.">
-    <!-- Open Graph fallback (server sẽ override cho từng tenant/crawler) -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Giác Ngộ — Awakening AI Network">
-    <meta property="og:description" content="Không gian tu tập và thực hành chính thức của Giác Ngộ AI.">
-    <meta property="og:image" content="/themes/giacngo/og-image.png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Giác Ngộ — Awakening AI Network">
-    <meta name="twitter:description" content="Không gian tu tập và thực hành chính thức của Giác Ngộ AI.">
-    <meta name="twitter:image" content="/themes/giacngo/og-image.png">
 
-    <link rel="icon" id="dynamic-favicon" type="image/svg+xml" href="/themes/giacngo/logo.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700&subset=vietnamese,latin,latin-ext&display=swap" rel="stylesheet">
-    
-    <!-- Stripe.js for payment processing -->
-    <script src="https://js.stripe.com/v3/"></script>
-    
-    <!-- Apply theme synchronously to prevent 0.5s CSS FOUC missing -->
-    <script>
-      (function() {
-        try {
-          var theme = 'giacngo'; // Default fallback
-          var userStr = localStorage.getItem('user');
-          if (userStr) {
-            var user = JSON.parse(userStr);
-            if (user && user.template) theme = user.template;
-          }
-          document.documentElement.setAttribute('data-theme', theme);
-        } catch (e) {}
-      })();
-    </script>
-    
-    <!-- Base theme styles are kept for fallback/initial load -->
-    <link rel="stylesheet" href="/themes/giacngo/theme.css?v=3">
-    
-    <!-- Page-specific CSS, loaded statically to prevent FOUC -->
-    <link rel="stylesheet" href="/themes/giacngo/HomePage.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/PracticeSpacePage.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/Library.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/SpaceDetailPage.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/AuthPage.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/admin.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/static.css?v=3">
-    <link rel="stylesheet" href="/themes/giacngo/DonationPage.css?v=3">
-  <script type="module" crossorigin src="/assets/index-Cqernv3T.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-ctc3nRDw.css">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Awakening AI</title>
+  <meta name="description" content="AI-powered practice space">
+
+  <link rel="icon" id="dynamic-favicon" type="image/svg+xml" href="/themes/giacngo/logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700&subset=vietnamese,latin,latin-ext&display=swap"
+    rel="stylesheet">
+
+  <!-- Stripe.js for payment processing -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <!-- Apply theme synchronously to prevent 0.5s CSS FOUC missing -->
+  <script>
+    (function () {
+      try {
+        var theme = 'giacngo'; // Default fallback
+        var userStr = localStorage.getItem('user');
+        if (userStr) {
+          var user = JSON.parse(userStr);
+          if (user && user.template) theme = user.template;
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) { }
+    })();
+  </script>
+
+  <!-- Base theme styles are kept for fallback/initial load -->
+  <link rel="stylesheet" href="/themes/giacngo/theme.css?v=3">
+
+  <!-- Page-specific CSS, loaded statically to prevent FOUC -->
+  <link rel="stylesheet" href="/themes/giacngo/HomePage.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/PracticeSpacePage.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/Library.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/SpaceDetailPage.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/AuthPage.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/admin.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/static.css?v=3">
+  <link rel="stylesheet" href="/themes/giacngo/DonationPage.css?v=3">
+  <script type="module" crossorigin src="/assets/index-DsFiDTzQ.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-MAWJx8UJ.css">
 </head>
-  <body class="antialiased">
-    <div id="root"></div>
-  </body>
+
+<body class="antialiased">
+  <div id="root"></div>
+</body>
+
 </html>

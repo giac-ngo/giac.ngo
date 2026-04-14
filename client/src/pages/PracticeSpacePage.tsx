@@ -1904,7 +1904,7 @@ export const PracticeSpacePage: React.FC<{
                                 }
                                 <div>
                                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text-main)' }}>{user?.name || 'Bạn'}</div>
-                                    <div style={{ fontSize: 12, color: 'var(--color-text-light)' }}>@{(user?.name || 'user').toLowerCase().replace(/\s/g, '')} · Vừa xong</div>
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-light)' }}>@{(user?.name || 'user').toLowerCase().replace(/\s/g, '')} · {language === 'vi' ? 'Vừa xong' : 'Just now'}</div>
                                 </div>
                             </div>
 
