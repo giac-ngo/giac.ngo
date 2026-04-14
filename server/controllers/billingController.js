@@ -206,7 +206,10 @@ export const billingController = {
 
     // NEW: Create Stripe Checkout Session
     async createCheckoutSession(req, res) {
-        const { amount, userId, message, spaceId, planId, type, returnPath } = req.body; // Amount in USD
+        let { amount, userId, message, spaceId, planId, type, returnPath, returnUrl } = req.body; // Amount in USD
+        userId = userId || (req.user ? req.user.id : null);
+        returnPath = returnPath || returnUrl;
+
         if (!userId || !amount || amount <= 0) {
             return res.status(400).json({ message: 'User ID and valid amount are required.' });
         }
