@@ -9,6 +9,7 @@ interface MediaLibraryProps {
     language: 'vi' | 'en';
     onSelect?: (url: string) => void;
     selectable?: boolean;
+    defaultFileType?: string;  // pre-select file type tab: 'all' | 'image' | 'audio' | 'video' | 'document'
 }
 
 interface MediaFile {
@@ -21,7 +22,7 @@ interface MediaFile {
     ext: string;
 }
 
-export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onSelect, selectable = false }) => {
+export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onSelect, selectable = false, defaultFileType }) => {
     const { showToast } = useToast();
     const [files, setFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +31,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
     const [currentPage, setCurrentPage] = useState(1);
     const [isUploading, setIsUploading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState<string>('all');
+    const [filterType, setFilterType] = useState<string>(defaultFileType || 'all');
     const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
     const [activeFile, setActiveFile] = useState<MediaFile | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -249,7 +250,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                             ) : (
                                 <PlusIcon className="w-4 h-4" />
                             )}
-                            + {language === 'vi' ? 'Tải lên' : 'Upload'}
+                            {language === 'vi' ? 'Tải lên' : 'Upload'}
                         </button>
                     </div>
                 </div>

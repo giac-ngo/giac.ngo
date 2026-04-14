@@ -80,7 +80,12 @@ export const spacesController = {
         try {
             const spaceData = { ...req.body };
             if (req.file) {
-                spaceData.imageUrl = `/uploads/${req.file.filename}`;
+                // Path relative: system/pending-space-assets/{name} (will be moved after creation if needed)
+                const relativePath = req.file.path
+                    .replace(/\\/g, '/')
+                    .split('/uploads/')
+                    .pop();
+                spaceData.imageUrl = `/uploads/${relativePath}`;
             }
             // Convert string arrays from form-data
             if (spaceData.tags && typeof spaceData.tags === 'string') {
@@ -155,7 +160,12 @@ export const spacesController = {
 
             const spaceData = { ...req.body };
             if (req.file) {
-                spaceData.imageUrl = `/uploads/${req.file.filename}`;
+                // req.file.path is absolute; extract relative from uploads/
+                const relativePath = req.file.path
+                    .replace(/\\/g, '/')
+                    .split('/uploads/')
+                    .pop();
+                spaceData.imageUrl = `/uploads/${relativePath}`;
             }
             // Convert string arrays from form-data
             if (spaceData.tags && typeof spaceData.tags === 'string') {
@@ -310,7 +320,11 @@ export const spacesController = {
                 return res.status(400).json({ message: 'No QR code image file provided.' });
             }
 
-            const qrCodeImage = `/uploads/${req.file.filename}`;
+            const relativePath = req.file.path
+                .replace(/\\/g, '/')
+                .split('/uploads/')
+                .pop();
+            const qrCodeImage = `/uploads/${relativePath}`;
             const updated = await spaceModel.update(id, { qrCodeImage });
             res.json({ qrCodeImage: updated.qrCodeImage });
         } catch (error) {

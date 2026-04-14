@@ -41,7 +41,15 @@ const translations = {
         cancel: 'Đóng',
         aiName: 'Tên AI',
         addToSocialFeed: 'Thêm vào Social Feed',
-        socialFeedNotImplemented: 'Tính năng "Thêm vào Social Feed" chưa được cài đặt.',
+        selectSpace: 'Chọn Không gian để đăng',
+        shareTitle: 'Chia sẻ lên cộng đồng',
+        shareThoughts: 'Thêm suy nghĩ của bạn...',
+        sharePost: 'Chia sẻ',
+        sharePosting: 'Đang đăng...',
+        shareCancel: 'Hủy',
+        shareSuccess: 'Đã chia sẻ lên cộng đồng! 🎉',
+        shareFailed: 'Chia sẻ thất bại.',
+        shareNoSpace: 'Vui lòng chọn Không gian để đăng bài.',
         filterByUser: 'Lọc theo người dùng',
         filterByAi: 'Lọc theo AI',
         allUsers: 'Tất cả người dùng',
@@ -78,7 +86,15 @@ const translations = {
         cancel: 'Close',
         aiName: 'AI Name',
         addToSocialFeed: 'Add to Social Feed',
-        socialFeedNotImplemented: 'Feature "Add to Social Feed" is not implemented yet.',
+        selectSpace: 'Select Space to post',
+        shareTitle: 'Share to Community',
+        shareThoughts: 'Add your thoughts...',
+        sharePost: 'Share',
+        sharePosting: 'Posting...',
+        shareCancel: 'Cancel',
+        shareSuccess: 'Shared to community! 🎉',
+        shareFailed: 'Share failed.',
+        shareNoSpace: 'Please select a Space to post.',
         filterByUser: 'Filter by user',
         filterByAi: 'Filter by AI',
         allUsers: 'All Users',
@@ -89,6 +105,12 @@ const translations = {
     }
 };
 
+type ShareModalState = {
+    conversation: Conversation;
+    comment: string;
+    submitting: boolean;
+    selectedSpaceId: number | null;
+};
 
 export const ConversationManagement: React.FC<ConversationManagementProps> = ({ user, language }) => {
     const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -104,9 +126,13 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
         return '';
     });
     const [allSpaces, setAllSpaces] = useState<Space[]>([]);
+    const [shareModal, setShareModal] = useState<ShareModalState | null>(null);
     const { showToast } = useToast();
     const t = translations[language];
-    useEscapeKey(() => setIsModalOpen(false), isModalOpen);
+    useEscapeKey(() => {
+        if (shareModal && !shareModal.submitting) setShareModal(null);
+        else setIsModalOpen(false);
+    }, isModalOpen || !!shareModal);
 
     const [trainingPairIndex, setTrainingPairIndex] = useState<number | null>(null);
     const [successfullyTrainedIndices, setSuccessfullyTrainedIndices] = useState<Set<number>>(new Set());
@@ -320,8 +346,59 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
         }
     };
 
-    const handleAddToSocialFeed = () => {
-        showToast(t.socialFeedNotImplemented, 'info');
+    const handleOpenShareModal = (conv: Conversation) => {
+        // Find the space for this conversation's AI
+        const aiConfig = aiConfigs.find(ai => ai.id === conv.aiConfigId);
+        const defaultSpaceId = aiConfig?.spaceId
+            ? (typeof aiConfig.spaceId === 'number' ? aiConfig.spaceId : null)
+            : (manageableSpaces[0]?.id ? Number(manageableSpaces[0].id) : null);
+
+        setShareModal({
+            conversation: conv,
+            comment: '',
+            submitting: false,
+            selectedSpaceId: defaultSpaceId,
+        });
+    };
+
+    const handleShareSubmit = async () => {
+        if (!shareModal) return;
+        if (!shareModal.selectedSpaceId) {
+            showToast(t.shareNoSpace, 'error');
+            return;
+        }
+
+        setShareModal(prev => prev ? { ...prev, submitting: true } : null);
+
+        try {
+            const conv = shareModal.conversation;
+            const aiName = conv.aiName || 'AI';
+            const userQuestion = conv.messages.find(m => m.sender === 'user')?.text || '';
+            const aiResponse = conv.messages.filter(m => m.sender === 'ai').map(m => m.text).join('\n\n');
+
+            const fd = new FormData();
+            fd.append('content', shareModal.comment || ' ');
+            fd.append('metadata', JSON.stringify({
+                type: 'ai_share',
+                aiName,
+                userQuestion,
+                aiResponse,
+            }));
+
+            await apiService.createSocialPost(shareModal.selectedSpaceId, fd);
+            showToast(t.shareSuccess, 'success');
+            setShareModal(null);
+        } catch {
+            showToast(t.shareFailed, 'error');
+            setShareModal(prev => prev ? { ...prev, submitting: false } : null);
+        }
+    };
+
+    // Build a short preview text from the conversation
+    const getConversationPreview = (conv: Conversation): string => {
+        const aiMessages = conv.messages.filter(m => m.sender === 'ai');
+        if (aiMessages.length === 0) return conv.messages[0]?.text || '';
+        return aiMessages[0].text;
     };
 
     const renderPagination = () => (
@@ -404,7 +481,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-text-light">{new Date(conv.startTime).toLocaleString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
                                     <button onClick={() => handleOpenModal(conv)} className="text-primary hover:text-primary-hover">{t.viewAndTrain}</button>
-                                    <button onClick={handleAddToSocialFeed} className="text-indigo-600 hover:text-indigo-800">{t.addToSocialFeed}</button>
+                                    <button onClick={() => handleOpenShareModal(conv)} className="text-indigo-600 hover:text-indigo-800">{t.addToSocialFeed}</button>
                                 </td>
                             </tr>
                         ))}
@@ -414,6 +491,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
             </div>
             {renderPagination()}
 
+            {/* Conversation Detail Modal */}
             {isModalOpen && selectedConversation && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
                     <div className="bg-background-panel rounded-lg shadow-xl w-full max-w-3xl flex flex-col h-[80vh]" onClick={e => e.stopPropagation()}>
@@ -475,6 +553,121 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
                         </div>
                         <div className="text-right space-x-3 p-6 border-t border-border-color flex-shrink-0">
                             <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-text-main bg-background-light rounded-md hover:bg-border-color">{t.cancel}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Share to Social Feed Modal — giống PracticeSpacePage */}
+            {shareModal && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+                    onClick={() => !shareModal.submitting && setShareModal(null)}
+                >
+                    <div
+                        style={{ background: 'var(--color-background-panel)', borderRadius: 16, width: '100%', maxWidth: 500, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem 0.75rem', borderBottom: '1px solid var(--color-border-color)' }}>
+                            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--color-primary)', fontFamily: "'EB Garamond', serif" }}>
+                                {t.shareTitle}
+                            </span>
+                            <button onClick={() => setShareModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+                        </div>
+
+                        {/* Space selector (nếu có nhiều space) */}
+                        {manageableSpaces.length > 1 && (
+                            <div style={{ padding: '0.75rem 1.25rem 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <label style={{ fontSize: 13, color: 'var(--color-text-light)', fontWeight: 600, flexShrink: 0 }}>{t.selectSpace}:</label>
+                                <select
+                                    value={shareModal.selectedSpaceId ?? ''}
+                                    onChange={e => setShareModal(prev => prev ? { ...prev, selectedSpaceId: Number(e.target.value) } : null)}
+                                    style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--color-border-color)', background: 'var(--color-background-main)', color: 'var(--color-text-main)', fontSize: 13 }}
+                                >
+                                    {manageableSpaces.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Post preview card */}
+                        <div style={{ margin: '0.75rem 1.25rem', background: 'var(--color-background-main)', borderRadius: 12, border: '1px solid var(--color-border-color)', overflow: 'hidden' }}>
+                            {/* User row */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px 0' }}>
+                                {user?.avatarUrl
+                                    ? <img src={user.avatarUrl} alt={user.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                    : <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#7c3d3d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{user?.name?.charAt(0) || '?'}</div>
+                                }
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text-main)' }}>{user?.name || 'Bạn'}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-light)' }}>@{(user?.name || 'user').toLowerCase().replace(/\s/g, '')} · Vừa xong</div>
+                                </div>
+                            </div>
+
+                            {/* Textarea for thoughts */}
+                            <textarea
+                                autoFocus
+                                value={shareModal.comment}
+                                onChange={e => setShareModal(prev => prev ? { ...prev, comment: e.target.value } : null)}
+                                placeholder={t.shareThoughts}
+                                rows={2}
+                                style={{
+                                    width: '100%', padding: '10px 14px', background: 'none', border: 'none',
+                                    color: 'var(--color-text-main)', fontSize: '0.9rem', resize: 'none', outline: 'none',
+                                    fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5
+                                }}
+                            />
+
+                            {/* AI Quote block */}
+                            <div style={{ margin: '0 10px 10px', background: 'rgba(185,148,90,0.12)', border: '1px solid rgba(185,148,90,0.3)', borderRadius: 10, padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                    <span style={{ fontSize: 13, color: 'var(--color-text-light)' }}>☆</span>
+                                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
+                                        {shareModal.conversation.aiName ? `Agent: ${shareModal.conversation.aiName}` : (language === 'vi' ? 'Phản hồi AI' : 'AI Response')}
+                                    </span>
+                                </div>
+                                {/* User question preview */}
+                                {(() => {
+                                    const q = shareModal.conversation.messages.find(m => m.sender === 'user')?.text;
+                                    return q ? (
+                                        <div style={{ fontSize: 12, color: 'var(--color-text-light)', marginBottom: 6, fontStyle: 'italic' }}>
+                                            ❝ {q.length > 100 ? q.slice(0, 100) + '…' : q}
+                                        </div>
+                                    ) : null;
+                                })()}
+                                <div style={{ fontSize: 13, color: 'var(--color-text-main)', lineHeight: 1.65, display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' } as React.CSSProperties}>
+                                    {getConversationPreview(shareModal.conversation)}
+                                </div>
+                            </div>
+
+                            {/* Preview stats bar */}
+                            <div style={{ display: 'flex', gap: 18, padding: '8px 14px 12px', borderTop: '1px solid var(--color-border-color)' }}>
+                                {[{ icon: '♡', label: '0' }, { icon: '○', label: '0' }, { icon: '↻', label: '0' }].map((item, i) => (
+                                    <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--color-text-light)' }}>
+                                        <span style={{ fontSize: 15 }}>{item.icon}</span>{item.label}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', padding: '0.75rem 1.25rem 1rem' }}>
+                            <button
+                                onClick={() => setShareModal(null)}
+                                disabled={shareModal.submitting}
+                                style={{ padding: '0.55rem 1.2rem', borderRadius: 8, border: 'none', background: 'none', color: 'var(--color-text-main)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+                            >
+                                {t.shareCancel}
+                            </button>
+                            <button
+                                onClick={handleShareSubmit}
+                                disabled={shareModal.submitting}
+                                style={{ padding: '0.55rem 1.4rem', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'var(--color-text-on-primary)', cursor: shareModal.submitting ? 'default' : 'pointer', fontWeight: 700, fontSize: '0.9rem', opacity: shareModal.submitting ? 0.7 : 1 }}
+                            >
+                                {shareModal.submitting ? t.sharePosting : t.sharePost}
+                            </button>
                         </div>
                     </div>
                 </div>

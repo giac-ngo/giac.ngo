@@ -4,6 +4,7 @@ import { apiService } from '../../services/apiService';
 import { MeditationSession, Space } from '../../types';
 import { useToast } from '../ToastProvider';
 import { PlusIcon, TrashIcon, PencilIcon, SearchIcon, PlayIcon, PauseIcon } from '../Icons';
+import { MediaPickerModal } from '../admin/MediaPickerModal';
 
 interface MeditationManagementProps {
     language: 'vi' | 'en';
@@ -80,12 +81,14 @@ const MeditationModal: React.FC<{
         titleEn: '',
         description: '',
         descriptionEn: '',
-        duration: 900, // Default 15 mins
+        duration: 900,
     });
-    const [audioFile, setAudioFile] = useState<File | null>(null);
-    const [audioFileEn, setAudioFileEn] = useState<File | null>(null);
-    const [endAudioFile, setEndAudioFile] = useState<File | null>(null);
-    const [endAudioFileEn, setEndAudioFileEn] = useState<File | null>(null);
+    // Picker state for each audio field
+    const [isAudioPickerOpen, setIsAudioPickerOpen] = useState(false);
+    const [isAudioEnPickerOpen, setIsAudioEnPickerOpen] = useState(false);
+    const [isEndAudioPickerOpen, setIsEndAudioPickerOpen] = useState(false);
+    const [isEndAudioEnPickerOpen, setIsEndAudioEnPickerOpen] = useState(false);
+    const activeSpace = spaces.find(s => s.id === formData.spaceId) ?? null;
 
     useEffect(() => {
         if (meditation) {
@@ -100,10 +103,6 @@ const MeditationModal: React.FC<{
                 duration: 900,
             });
         }
-        setAudioFile(null);
-        setAudioFileEn(null);
-        setEndAudioFile(null);
-        setEndAudioFileEn(null);
     }, [meditation, spaces, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -115,12 +114,11 @@ const MeditationModal: React.FC<{
         if (formData.description) data.append('description', formData.description);
         if (formData.descriptionEn) data.append('descriptionEn', formData.descriptionEn);
         if (formData.duration) data.append('duration', String(formData.duration));
-
-        if (audioFile) data.append('audioFile', audioFile);
-        if (audioFileEn) data.append('audioFileEn', audioFileEn);
-        if (endAudioFile) data.append('endAudioFile', endAudioFile);
-        if (endAudioFileEn) data.append('endAudioFileEn', endAudioFileEn);
-
+        // Audio URLs (from MediaPickerModal — stored as URL strings)
+        if (formData.audioUrl) data.append('audioUrl', formData.audioUrl);
+        if (formData.audioUrlEn) data.append('audioUrlEn', formData.audioUrlEn);
+        if (formData.endAudioUrl) data.append('endAudioUrl', formData.endAudioUrl);
+        if (formData.endAudioUrlEn) data.append('endAudioUrlEn', formData.endAudioUrlEn);
         onSave(data);
     };
 
@@ -201,46 +199,34 @@ const MeditationModal: React.FC<{
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">{t.audioFile} (VI)</label>
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={(e) => setAudioFile(e.target.files ? e.target.files[0] : null)}
-                                className="w-full p-2 border border-border-color rounded bg-background-light text-text-main"
-                            />
-                            {meditation?.audioUrl && <p className="text-xs text-text-light mt-1 truncate">{meditation.audioUrl}</p>}
+                            <button type="button" onClick={() => setIsAudioPickerOpen(true)}
+                                className="w-full p-2 border border-dashed border-primary/50 rounded bg-primary/5 text-sm text-primary hover:bg-primary/10 text-left">
+                                {formData.audioUrl ? <span className="truncate block">{formData.audioUrl.split('/').pop()}</span> : t.audioFile}
+                            </button>
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">{t.audioFileEn}</label>
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={(e) => setAudioFileEn(e.target.files ? e.target.files[0] : null)}
-                                className="w-full p-2 border border-border-color rounded bg-background-light text-text-main"
-                            />
-                            {meditation?.audioUrlEn && <p className="text-xs text-text-light mt-1 truncate">{meditation.audioUrlEn}</p>}
+                            <button type="button" onClick={() => setIsAudioEnPickerOpen(true)}
+                                className="w-full p-2 border border-dashed border-primary/50 rounded bg-primary/5 text-sm text-primary hover:bg-primary/10 text-left">
+                                {formData.audioUrlEn ? <span className="truncate block">{formData.audioUrlEn.split('/').pop()}</span> : t.audioFileEn}
+                            </button>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">{t.endAudioFile}</label>
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={(e) => setEndAudioFile(e.target.files ? e.target.files[0] : null)}
-                                className="w-full p-2 border border-border-color rounded bg-background-light text-text-main"
-                            />
-                            {meditation?.endAudioUrl && <p className="text-xs text-text-light mt-1 truncate">{meditation.endAudioUrl}</p>}
+                            <button type="button" onClick={() => setIsEndAudioPickerOpen(true)}
+                                className="w-full p-2 border border-dashed border-primary/50 rounded bg-primary/5 text-sm text-primary hover:bg-primary/10 text-left">
+                                {formData.endAudioUrl ? <span className="truncate block">{formData.endAudioUrl.split('/').pop()}</span> : t.endAudioFile}
+                            </button>
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">{t.endAudioFileEn}</label>
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={(e) => setEndAudioFileEn(e.target.files ? e.target.files[0] : null)}
-                                className="w-full p-2 border border-border-color rounded bg-background-light text-text-main"
-                            />
-                            {meditation?.endAudioUrlEn && <p className="text-xs text-text-light mt-1 truncate">{meditation.endAudioUrlEn}</p>}
+                            <button type="button" onClick={() => setIsEndAudioEnPickerOpen(true)}
+                                className="w-full p-2 border border-dashed border-primary/50 rounded bg-primary/5 text-sm text-primary hover:bg-primary/10 text-left">
+                                {formData.endAudioUrlEn ? <span className="truncate block">{formData.endAudioUrlEn.split('/').pop()}</span> : t.endAudioFileEn}
+                            </button>
                         </div>
                     </div>
 
@@ -263,6 +249,19 @@ const MeditationModal: React.FC<{
                     </div>
                 </form>
             </div>
+            {/* Audio pickers */}
+            <MediaPickerModal isOpen={isAudioPickerOpen} onClose={() => setIsAudioPickerOpen(false)}
+                onSelect={(url) => { setFormData(p => ({ ...p, audioUrl: url })); setIsAudioPickerOpen(false); }}
+                space={activeSpace} language={language} defaultFileType="audio" />
+            <MediaPickerModal isOpen={isAudioEnPickerOpen} onClose={() => setIsAudioEnPickerOpen(false)}
+                onSelect={(url) => { setFormData(p => ({ ...p, audioUrlEn: url })); setIsAudioEnPickerOpen(false); }}
+                space={activeSpace} language={language} defaultFileType="audio" />
+            <MediaPickerModal isOpen={isEndAudioPickerOpen} onClose={() => setIsEndAudioPickerOpen(false)}
+                onSelect={(url) => { setFormData(p => ({ ...p, endAudioUrl: url })); setIsEndAudioPickerOpen(false); }}
+                space={activeSpace} language={language} defaultFileType="audio" />
+            <MediaPickerModal isOpen={isEndAudioEnPickerOpen} onClose={() => setIsEndAudioEnPickerOpen(false)}
+                onSelect={(url) => { setFormData(p => ({ ...p, endAudioUrlEn: url })); setIsEndAudioEnPickerOpen(false); }}
+                space={activeSpace} language={language} defaultFileType="audio" />
         </div>
     );
 };

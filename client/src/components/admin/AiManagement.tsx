@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AIConfig, Message, User, TrainingDataSource, KoiiTask, Conversation, Document, Tag, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
-import { ExpandIcon, PaperclipIcon, BrainwaveIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon } from '../Icons';
+import { ExpandIcon, PaperclipIcon, BrainwaveIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon, ThumbsUpIcon, ThumbsDownIcon, ShareIcon } from '../Icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { normalizePostgresArray } from '../../utils/arrayUtils';
@@ -742,6 +742,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
 
     const [isRecording, setIsRecording] = useState(false);
     const recognitionRef = useRef<any>(null);
+    const [testFeedbackStatus, setTestFeedbackStatus] = useState<Record<string, 'liked' | 'disliked' | null>>({});
 
     // TTS for test chat
     const [testSpeakingId, setTestSpeakingId] = useState<string | number | null>(null);
@@ -763,6 +764,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
     const prevScrollHeightRef = useRef<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const qaListRef = useRef<HTMLDivElement>(null);
+    const [isTrainingPickerOpen, setIsTrainingPickerOpen] = useState(false);
 
     const [trainingFilter, setTrainingFilter] = useState<'all' | 'indexed' | 'not_indexed'>('all');
 
@@ -2071,7 +2073,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                         <div className="flex justify-between items-center bg-[#efe0bd] py-1.5 px-3 mb-2 rounded-md">
                                             <h3 className="font-semibold text-sm text-[#991b1b]">{t.trainingDataSources}</h3>
                                             <div className="flex items-center gap-1.5">
-                                                <button onClick={() => fileInputRef.current?.click()} disabled={isUploading || isFormDisabled} className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium border border-[#dcd5bc] bg-white rounded-full hover:bg-white/50 disabled:opacity-50">
+                                                <button onClick={() => setIsTrainingPickerOpen(true)} disabled={isUploading || isFormDisabled} className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium border border-[#dcd5bc] bg-white rounded-full hover:bg-white/50 disabled:opacity-50">
                                                     {isUploading ? <SpinnerIcon className="w-3 h-3 animate-spin" /> : <PaperclipIcon className="w-3 h-3" />}
                                                     {t.uploadFile}
                                                 </button>
@@ -2374,13 +2376,13 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                             </div>
                         </div>
 
-                        <div ref={chatContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto p-4 bg-background-light relative">
+                        <div ref={chatContainerRef} onScroll={handleScroll} className="chat-messages-container relative" style={{ backgroundColor: 'var(--color-background-main, var(--color-background-light))' }}>
                             {isChatHistoryLoading ? (
                                 <p className="text-center text-sm text-gray-500">{t.loadingTestHistory}</p>
                             ) : allMessages.length === 0 ? (
                                 <p className="text-center text-sm text-gray-500">{t.noTestHistory}</p>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="chat-messages-list">
                                     {isLoadingMore && <div className="text-center text-xs text-gray-500 p-2">{t.loadingOlderMessages}</div>}
                                     {displayedMessages.map((msg, index) => {
                                         const allMessagesIndex = allMessages.length - displayedMessages.length + index;
@@ -2388,50 +2390,159 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                         const pairKey = (msg.sender === 'ai' && questionMessage?.sender === 'user') ? `${questionMessage.text.trim()}|||${msg.text.trim()}` : null;
                                         const isAlreadyTrained = pairKey ? trainedPairs.has(pairKey) : false;
 
-                                        // Split AI messages by paragraph breaks (blank lines) into separate bubbles
-                                        const segments = msg.sender === 'ai'
-                                            ? msg.text.split(/^-{3,}\s*$|\n{2,}/m).map(s => s.trim()).filter(s => s.length > 0)
-                                            : [msg.text];
+                                        // Split AI messages using the same algorithm as PracticeSpacePage
+                                        const segments = (() => {
+                                            if (msg.sender !== 'ai') return [msg.text];
+                                            const rawSegs = msg.text.split(/^-{3,}\s*$|\n{2,}/m).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+                                            if (rawSegs.length <= 1) return rawSegs;
 
-                                        return segments.map((segText, segIndex) => (
-                                            <div key={`${msg.id || index}-${segIndex}`} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className="chat-message-content group">
-                                                    <div className={`p-3 rounded-lg max-w-[80%] ${msg.sender === 'user' ? 'bg-primary text-white' : 'bg-white shadow-sm'}`}>
-                                                        {msg.sender === 'user' ? (
-                                                            <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{segText}</p>
-                                                        ) : (
-                                                            <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{segText}</ReactMarkdown></div>
+                                            // A short single-line segment (likely a kệ/verse line)
+                                            const isKeLine = (seg: string): boolean =>
+                                                !seg.includes('\n') && seg.length >= 4 && seg.length <= 140;
+
+                                            // Strategy 1: Numbered sections (e.g. "1. TAM VÕ", "2. THẤY MÌNH")
+                                            const isSectionHeading = (seg: string): boolean =>
+                                                /^\d+\.\s+\S/.test(seg) && !seg.includes('\n') && seg.length < 100;
+
+                                            if (rawSegs.some(isSectionHeading)) {
+                                                const sections: string[][] = [];
+                                                let current: string[] = [];
+                                                for (const seg of rawSegs) {
+                                                    if (isSectionHeading(seg) && current.length > 0) {
+                                                        sections.push(current);
+                                                        current = [seg];
+                                                    } else {
+                                                        current.push(seg);
+                                                    }
+                                                }
+                                                if (current.length > 0) sections.push(current);
+
+                                                const sectionTexts = sections.map((segs: string[]) => {
+                                                    const parts: string[] = [];
+                                                    let i = 0;
+                                                    while (i < segs.length) {
+                                                        if (isKeLine(segs[i])) {
+                                                            const block: string[] = [segs[i]];
+                                                            while (i + 1 < segs.length && isKeLine(segs[i + 1])) { i++; block.push(segs[i]); }
+                                                            parts.push(block.join('\n'));
+                                                        } else {
+                                                            parts.push(segs[i]);
+                                                        }
+                                                        i++;
+                                                    }
+                                                    return parts.join('\n\n');
+                                                });
+
+                                                if (sectionTexts.length <= 3) return sectionTexts;
+                                                const gSize = Math.ceil(sectionTexts.length / 3);
+                                                const result: string[] = [];
+                                                for (let gi = 0; gi < sectionTexts.length; gi += gSize) {
+                                                    result.push(sectionTexts.slice(gi, gi + gSize).join('\n\n'));
+                                                }
+                                                return result;
+                                            }
+
+                                            // Strategy 2: No numbered sections — merge consecutive kệ lines
+                                            const merged: string[] = [];
+                                            let i = 0;
+                                            while (i < rawSegs.length) {
+                                                if (isKeLine(rawSegs[i])) {
+                                                    const block: string[] = [rawSegs[i]];
+                                                    while (i + 1 < rawSegs.length && isKeLine(rawSegs[i + 1])) { i++; block.push(rawSegs[i]); }
+                                                    merged.push(block.join('\n'));
+                                                } else {
+                                                    merged.push(rawSegs[i]);
+                                                }
+                                                i++;
+                                            }
+
+                                            if (merged.length <= 1) return merged;
+                                            const totalChars = merged.join('').length;
+                                            if (totalChars < 600) return [merged.join('\n\n')];
+                                            if (merged.length <= 3) return merged;
+                                            const groupSize = Math.ceil(merged.length / 3);
+                                            const grouped: string[] = [];
+                                            for (let gi = 0; gi < merged.length; gi += groupSize) {
+                                                grouped.push(merged.slice(gi, gi + groupSize).join('\n\n'));
+                                            }
+                                            return grouped;
+                                        })();
+
+                                        return (
+                                            <div key={`${msg.id || index}-msg`} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>
+                                                {segments.map((segText, segIndex) => (
+                                                    <div key={`${msg.id || index}-${segIndex}`} className="chat-message-content">
+                                                        <div className={`chat-message-bubble ${msg.sender === 'user' ? 'user' : 'ai'}`}>
+                                                            {msg.sender === 'user' ? (
+                                                                <p style={{ margin: 0 }}>{segText}</p>
+                                                            ) : (
+                                                                <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{segText}</ReactMarkdown></div>
+                                                            )}
+                                                            {msg.sender === 'ai' && msg.thought && segIndex === segments.length - 1 && (
+                                                                <details className="mt-2 text-xs">
+                                                                    <summary className="cursor-pointer font-semibold">{t.aiThought}</summary>
+                                                                    <pre className="mt-1 p-2 bg-gray-100 rounded text-gray-600 whitespace-pre-wrap font-sans">{msg.thought}</pre>
+                                                                </details>
+                                                            )}
+                                                        </div>
+                                                        {msg.sender === 'ai' && !isTyping && msg.id && (
+                                                            <div className="chat-message-toolbar">
+                                                                {segIndex === segments.length - 1 && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                if (!testConversationId || !msg.id) return;
+                                                                                const cur = testFeedbackStatus[String(msg.id)];
+                                                                                const next = cur === 'liked' ? null : 'liked';
+                                                                                setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: next }));
+                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
+                                                                            }}
+                                                                            title={language === 'vi' ? 'Thích' : 'Like'}
+                                                                            className={`p-1.5 rounded-full hover:bg-background-light ${testFeedbackStatus[String(msg.id)] === 'liked' ? 'text-primary' : 'text-text-light'}`}
+                                                                        ><ThumbsUpIcon className="w-4 h-4" /></button>
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                if (!testConversationId || !msg.id) return;
+                                                                                const cur = testFeedbackStatus[String(msg.id)];
+                                                                                const next = cur === 'disliked' ? null : 'disliked';
+                                                                                setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: next }));
+                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
+                                                                            }}
+                                                                            title={language === 'vi' ? 'Không thích' : 'Dislike'}
+                                                                            className={`p-1.5 rounded-full hover:bg-background-light ${testFeedbackStatus[String(msg.id)] === 'disliked' ? 'text-accent-red' : 'text-text-light'}`}
+                                                                        ><ThumbsDownIcon className="w-4 h-4" /></button>
+                                                                    </>
+                                                                )}
+                                                                <button onClick={() => navigator.clipboard.writeText(segText).then(() => showToast(t.copied, 'success'))} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
+                                                                <button onClick={() => handleTestSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${testSpeakingId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}><SpeakerWaveIcon className="w-4 h-4" /></button>
+                                                                <button onClick={() => handleTestDownloadVoice(segText, `${msg.id}-${segIndex}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
+                                                                {segIndex === segments.length - 1 && (
+                                                                    <button
+                                                                        onClick={() => navigator.clipboard.writeText(segments.join('\n\n')).then(() => showToast(language === 'vi' ? 'Đã sao chép toàn bộ câu trả lời!' : 'Full response copied!', 'success'))}
+                                                                        title={language === 'vi' ? 'Chia sẻ (sao chép)' : 'Share (copy)'}
+                                                                        className="p-1.5 rounded-full hover:bg-background-light text-text-light"
+                                                                    ><ShareIcon className="w-5 h-5" /></button>
+                                                                )}
+                                                            </div>
                                                         )}
-                                                        {msg.sender === 'ai' && msg.thought && segIndex === segments.length - 1 && (
-                                                            <details className="mt-2 text-xs">
-                                                                <summary className="cursor-pointer font-semibold">{t.aiThought}</summary>
-                                                                <pre className="mt-1 p-2 bg-gray-100 rounded text-gray-600 whitespace-pre-wrap font-sans">{msg.thought}</pre>
-                                                            </details>
+                                                        {msg.sender === 'ai' && pairKey && segIndex === segments.length - 1 && (
+                                                            <div className="mt-2 text-right">
+                                                                <button
+                                                                    onClick={() => handleToggleTrainPair(msg)}
+                                                                    disabled={trainingPairIndex !== null}
+                                                                    className={`px-2 py-1 text-xs rounded ${isAlreadyTrained ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
+                                                                >
+                                                                    {trainingPairIndex === allMessagesIndex ? t.trainingPair : isAlreadyTrained ? t.untrainPair : t.addToTraining}
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    {msg.sender === 'ai' && !isTyping && msg.id && (
-                                                        <div className="chat-message-toolbar">
-                                                            <button onClick={() => navigator.clipboard.writeText(segText).then(() => showToast(t.copied, 'success'))} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
-                                                            <button onClick={() => handleTestSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${testSpeakingId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}><SpeakerWaveIcon className="w-4 h-4" /></button>
-                                                            <button onClick={() => handleTestDownloadVoice(segText, `${msg.id}-${segIndex}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
-                                                        </div>
-                                                    )}
-                                                    {msg.sender === 'ai' && pairKey && segIndex === segments.length - 1 && (
-                                                        <div className="mt-2 text-right">
-                                                            <button
-                                                                onClick={() => handleToggleTrainPair(msg)}
-                                                                disabled={trainingPairIndex !== null}
-                                                                className={`px-2 py-1 text-xs rounded ${isAlreadyTrained ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
-                                                            >
-                                                                {trainingPairIndex === allMessagesIndex ? t.trainingPair : isAlreadyTrained ? t.untrainPair : t.addToTraining}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                ))}
                                             </div>
-                                        ));
+                                        );
                                     })}
-                                    {isTyping && <div className="flex justify-start"><div className="p-3 rounded-lg bg-white shadow-sm"><div className="typing-indicator"><span></span><span></span><span></span></div></div></div>}
+                                    {isTyping && <div className="chat-message-row ai"><div className="chat-message-content"><div className="chat-message-bubble ai"><div className="typing-indicator"><span></span><span></span><span></span></div></div></div></div>}
+
                                 </div>
                             )}
                             <div ref={messagesEndRef} />
@@ -2524,7 +2635,37 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                     </div>
                 </div>
             )}
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".xlsx,.xls,.csv,.pdf,.docx,.txt,.jsonl" multiple />
+            {/* Training file MediaPickerModal */}
+            <MediaPickerModal
+                isOpen={isTrainingPickerOpen}
+                onClose={() => setIsTrainingPickerOpen(false)}
+                onSelect={async (url) => {
+                    setIsTrainingPickerOpen(false);
+                    if (!selectedAi || isFormDisabled) return;
+                    // For new/unsaved AI: we can't upload until saved; show info
+                    if (typeof selectedAi.id === 'string' && selectedAi.id.startsWith('new-')) {
+                        showToast(language === 'vi' ? 'Lưu AI trước khi thêm file training' : 'Save AI first before adding training files', 'info');
+                        return;
+                    }
+                    if (typeof selectedAi.id !== 'number') return;
+                    setIsUploading(true);
+                    try {
+                        const formData = new FormData();
+                        formData.append('fileUrl', url);
+                        formData.append('type', 'file');
+                        const res = await apiService.createTrainingDataSourceForAI(selectedAi.id, formData);
+                        setTrainingData(prev => [res, ...prev]);
+                        showToast(t.addedToTraining, 'success');
+                    } catch (error: any) {
+                        showToast(t.uploadError, 'error');
+                    } finally {
+                        setIsUploading(false);
+                    }
+                }}
+                space={manageableSpaces.find(s => String(s.id) === String(selectedAi?.spaceId)) ?? null}
+                language={language}
+                defaultFileType="all"
+            />
 
             <MediaPickerModal
                 isOpen={isMediaPickerOpen}
@@ -2535,6 +2676,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                 }}
                 space={manageableSpaces.find(s => String(s.id) === String(selectedAi?.spaceId)) ?? null}
                 language={language}
+                defaultFileType="image"
             />
         </div>
     );

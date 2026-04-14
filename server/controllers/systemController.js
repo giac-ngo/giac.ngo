@@ -16,30 +16,34 @@ const uploadsDir = path.join(projectRoot, 'uploads');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const { spaceId, context = 'general' } = req.body;
-        // Sanitize to prevent path traversal
-        const safeContext = String(context).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const { spaceId, userScoped } = req.body;
+        const userId = req.user?.id;
         let dir;
 
         if (spaceId && spaceId !== 'global' && spaceId !== 'system') {
             const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
-            dir = path.join(uploadsDir, `space-${safeSpaceId}`, safeContext);
+            // userScoped=true → personal folder (avatar, social)
+            if ((userScoped === 'true' || userScoped === true) && userId) {
+                dir = path.join(uploadsDir, `space-${safeSpaceId}`, `user-${userId}`);
+            } else {
+                // Space-level flat directory (TTS audio, admin uploads)
+                dir = path.join(uploadsDir, `space-${safeSpaceId}`);
+            }
         } else {
-            // For system-level or non-space-specific files, place them in a subfolder within uploads
-            dir = path.join(uploadsDir, safeContext);
+            // System-level uploads (super admin)
+            dir = path.join(uploadsDir, 'system');
         }
 
         try {
             fs.mkdirSync(dir, { recursive: true });
             cb(null, dir);
         } catch (err) {
-            console.error("Error creating upload directory:", err);
+            console.error('Error creating upload directory:', err);
             cb(err);
         }
     },
     filename: (req, file, cb) => {
         const utf8OriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        // Sanitize to prevent path traversal and other issues but keep unicode letters
         const safeOriginalName = path.basename(utf8OriginalName).replace(/[^\w\s.\-\p{L}]/gu, '_');
         cb(null, safeOriginalName);
     }

@@ -273,12 +273,38 @@ async function buildHtmlPage(page, space, assets) {
     const cssLinks = cssAssets.map(a => `<link rel="stylesheet" href="${a.url}">`).join('\n    ');
     const jsScripts = jsAssets.map(a => `<script src="${a.url}"></script>`).join('\n    ');
 
+    const pageTitle = page.title ? `${page.title} - ${space.name}` : space.name;
+    const ogDescription = space.description || `${space.name} — Powered by Giác Ngộ`;
+    const ogImage = space.avatarUrl || '/themes/giacngo/og-image.png';
+    // Build absolute og:image URL
+    const ogImageUrl = ogImage.startsWith('http') ? ogImage : `https://${space.customDomain || 'giac.ngo'}${ogImage}`;
+    const canonicalUrl = space.customDomain ? `https://${space.customDomain}/` : `https://giac.ngo/`;
+
     return `<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${page.title} - ${space.name}</title>
+    <title>${pageTitle}</title>
+
+    <!-- Open Graph / Zalo / Facebook share -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${canonicalUrl}">
+    <meta property="og:site_name" content="${space.name}">
+    <meta property="og:title" content="${pageTitle}">
+    <meta property="og:description" content="${ogDescription}">
+    <meta property="og:image" content="${ogImageUrl}">
+    <meta property="og:locale" content="vi_VN">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${pageTitle}">
+    <meta name="twitter:description" content="${ogDescription}">
+    <meta name="twitter:image" content="${ogImageUrl}">
+
+    <!-- SEO -->
+    <meta name="description" content="${ogDescription}">
+
     ${cssLinks}
 </head>
 <body>
@@ -287,6 +313,7 @@ async function buildHtmlPage(page, space, assets) {
 </body>
 </html>`;
 }
+
 
 // ─── Controller ────────────────────────────────────────────────────────────
 

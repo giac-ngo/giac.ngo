@@ -220,6 +220,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                     setIsMediaPickerOpen(false);
                 }}
                 onClose={() => setIsMediaPickerOpen(false)}
+                defaultFileType="image"
             />
         </>
     );

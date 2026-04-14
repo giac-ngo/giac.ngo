@@ -14,7 +14,11 @@ const uploadsDir = path.join(__dirname, 'uploads');
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
         const spaceId = req.body.spaceId || 'global';
-        const finalDir = path.join(uploadsDir, String(spaceId), 'meditation');
+        const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        // Flat space directory — no category subfolder
+        const finalDir = safeSpaceId === 'global'
+            ? path.join(uploadsDir, 'global')
+            : path.join(uploadsDir, `space-${safeSpaceId}`);
 
         try {
             await fs.mkdir(finalDir, { recursive: true });

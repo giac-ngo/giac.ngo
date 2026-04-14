@@ -1,7 +1,7 @@
-// server/routes/spacesRoutes.js
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spacesController } from '../controllers/spacesController.js';
 import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
@@ -12,8 +12,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(path.join(__filename, '..'));
 const uploadsDir = path.join(__dirname, 'uploads');
 
+// Use flat space directory for space cover/logo/QR uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
+  destination: (req, file, cb) => {
+    const rawId = req.params.id;
+    let dir;
+    if (rawId) {
+      const safeId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '_');
+      dir = path.join(uploadsDir, `space-${safeId}`);
+    } else {
+      // New space — use a staging dir; controller will re-assign after space is created
+      dir = path.join(uploadsDir, 'system', 'pending-space-assets');
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
   filename: (req, file, cb) => {
     const utf8OriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const safeName = path.basename(utf8OriginalName).replace(/[^\w\s.\-\p{L}]/gu, '_');

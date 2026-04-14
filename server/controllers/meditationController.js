@@ -32,7 +32,7 @@ export const meditationController = {
         try {
             const { spaceId, title, titleEn, description, descriptionEn, duration } = req.body;
 
-            // Security check: Can user manage this space?
+            // Security check
             if (!isAdmin(req.user)) {
                 const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
                 if (!userSpaceIds.includes(parseInt(spaceId))) {
@@ -41,48 +41,38 @@ export const meditationController = {
             }
 
             const files = req.files;
+            const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-            let audioUrl = '';
-            let audioUrlEn = null;
-            let endAudioUrl = null;
-            let endAudioUrlEn = null;
+            // Prefer URL from body (MediaPickerModal); fall back to uploaded file
+            let audioUrl = req.body.audioUrl || '';
+            let audioUrlEn = req.body.audioUrlEn || null;
+            let endAudioUrl = req.body.endAudioUrl || null;
+            let endAudioUrlEn = req.body.endAudioUrlEn || null;
 
             if (files) {
-                if (files.audioFile) {
-                    audioUrl = `/uploads/${spaceId}/meditation/${files.audioFile[0].filename}`;
-                }
-                if (files.audioFileEn) {
-                    audioUrlEn = `/uploads/${spaceId}/meditation/${files.audioFileEn[0].filename}`;
-                }
-                if (files.endAudioFile) {
-                    endAudioUrl = `/uploads/${spaceId}/meditation/${files.endAudioFile[0].filename}`;
-                }
-                if (files.endAudioFileEn) {
-                    endAudioUrlEn = `/uploads/${spaceId}/meditation/${files.endAudioFileEn[0].filename}`;
-                }
+                if (!audioUrl && files.audioFile)
+                    audioUrl = `/uploads/space-${safeSpaceId}/${files.audioFile[0].filename}`;
+                if (!audioUrlEn && files.audioFileEn)
+                    audioUrlEn = `/uploads/space-${safeSpaceId}/${files.audioFileEn[0].filename}`;
+                if (!endAudioUrl && files.endAudioFile)
+                    endAudioUrl = `/uploads/space-${safeSpaceId}/${files.endAudioFile[0].filename}`;
+                if (!endAudioUrlEn && files.endAudioFileEn)
+                    endAudioUrlEn = `/uploads/space-${safeSpaceId}/${files.endAudioFileEn[0].filename}`;
             }
 
             if (!audioUrl) {
-                return res.status(400).json({ error: 'Vietnamese audio file is required' });
+                return res.status(400).json({ error: 'Vietnamese audio URL or file is required' });
             }
 
             const newSession = await meditationModel.create({
-                spaceId,
-                title,
-                titleEn,
-                description,
-                descriptionEn,
-                audioUrl,
-                audioUrlEn,
-                endAudioUrl,
-                endAudioUrlEn,
-                duration
+                spaceId, title, titleEn, description, descriptionEn,
+                audioUrl, audioUrlEn, endAudioUrl, endAudioUrlEn, duration
             });
 
             res.status(201).json(newSession);
         } catch (error) {
             console.error('Error creating meditation:', error);
-            if (error.code === '23505') { // Unique violation
+            if (error.code === '23505') {
                 return res.status(400).json({ error: 'A meditation session already exists for this space' });
             }
             res.status(500).json({ error: 'Internal server error' });
@@ -92,20 +82,10 @@ export const meditationController = {
     updateMeditation: async (req, res) => {
         try {
             const { id } = req.params;
-            const { title, titleEn, description, descriptionEn, duration } = req.body;
+            const { title, titleEn, description, descriptionEn, duration, spaceId } = req.body;
             const files = req.files;
 
-            const updateData = {
-                title,
-                titleEn,
-                description,
-                descriptionEn,
-                duration
-            };
-
-            const spaceId = req.body.spaceId; // Need spaceId for upload path consistency
-
-            // Security check: Can user manage this space? (if spaceId is changed)
+            // Security check
             if (spaceId && !isAdmin(req.user)) {
                 const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
                 if (!userSpaceIds.includes(parseInt(spaceId))) {
@@ -113,19 +93,24 @@ export const meditationController = {
                 }
             }
 
-            if (files) {
-                if (files.audioFile) {
-                    updateData.audioUrl = `/uploads/${spaceId}/meditation/${files.audioFile[0].filename}`;
-                }
-                if (files.audioFileEn) {
-                    updateData.audioUrlEn = `/uploads/${spaceId}/meditation/${files.audioFileEn[0].filename}`;
-                }
-                if (files.endAudioFile) {
-                    updateData.endAudioUrl = `/uploads/${spaceId}/meditation/${files.endAudioFile[0].filename}`;
-                }
-                if (files.endAudioFileEn) {
-                    updateData.endAudioUrlEn = `/uploads/${spaceId}/meditation/${files.endAudioFileEn[0].filename}`;
-                }
+            const updateData = { title, titleEn, description, descriptionEn, duration };
+            const safeSpaceId = String(spaceId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+            // Prefer URL from body (MediaPickerModal); fall back to uploaded file
+            if (req.body.audioUrl) updateData.audioUrl = req.body.audioUrl;
+            if (req.body.audioUrlEn) updateData.audioUrlEn = req.body.audioUrlEn;
+            if (req.body.endAudioUrl) updateData.endAudioUrl = req.body.endAudioUrl;
+            if (req.body.endAudioUrlEn) updateData.endAudioUrlEn = req.body.endAudioUrlEn;
+
+            if (files && safeSpaceId) {
+                if (!updateData.audioUrl && files.audioFile)
+                    updateData.audioUrl = `/uploads/space-${safeSpaceId}/${files.audioFile[0].filename}`;
+                if (!updateData.audioUrlEn && files.audioFileEn)
+                    updateData.audioUrlEn = `/uploads/space-${safeSpaceId}/${files.audioFileEn[0].filename}`;
+                if (!updateData.endAudioUrl && files.endAudioFile)
+                    updateData.endAudioUrl = `/uploads/space-${safeSpaceId}/${files.endAudioFile[0].filename}`;
+                if (!updateData.endAudioUrlEn && files.endAudioFileEn)
+                    updateData.endAudioUrlEn = `/uploads/space-${safeSpaceId}/${files.endAudioFileEn[0].filename}`;
             }
 
             const updatedSession = await meditationModel.update(id, updateData);

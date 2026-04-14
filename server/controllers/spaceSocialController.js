@@ -8,12 +8,14 @@ import { isAdmin } from '../middleware/authMiddleware.js';
 
 
 
-// --- Multer config: lưu ảnh theo uploads/space/{spaceId}/{userId}/ ---
+// --- Multer config: lưu ảnh theo uploads/space-{spaceId}/user-{userId}/ ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const spaceId = req.params.id;
         const userId = req.user?.id || 'guest';
-        const dir = path.join(process.cwd(), 'uploads', 'space', String(spaceId), String(userId));
+        const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        // User personal folder — flat within space
+        const dir = path.join(process.cwd(), 'uploads', `space-${safeSpaceId}`, `user-${userId}`);
         fs.mkdirSync(dir, { recursive: true });
         cb(null, dir);
     },
@@ -49,19 +51,24 @@ export const getSocialPosts = async (req, res) => {
         const { rows } = await pool.query(`
             SELECT
                 p.*,
+                -- Always use live user data (not the snapshot stored at post time)
+                COALESCE(u.name, p.user_name)           AS user_name,
+                COALESCE(u.avatar_url, p.user_avatar_url) AS user_avatar_url,
                 CASE WHEN pl.user_id IS NOT NULL THEN true ELSE false END AS is_liked_by_me,
                 -- Quoted post data (for reposts)
                 qp.id            AS qp_id,
                 qp.user_id       AS qp_user_id,
-                qp.user_name     AS qp_user_name,
-                qp.user_avatar_url AS qp_user_avatar_url,
+                COALESCE(qu.name, qp.user_name)             AS qp_user_name,
+                COALESCE(qu.avatar_url, qp.user_avatar_url) AS qp_user_avatar_url,
                 qp.content       AS qp_content,
                 qp.image_urls    AS qp_image_urls,
                 qp.created_at    AS qp_created_at,
                 qp.metadata      AS qp_metadata
             FROM social_posts p
+            LEFT JOIN users u  ON u.id = p.user_id
             LEFT JOIN social_post_likes pl ON pl.post_id = p.id AND pl.user_id = $3
             LEFT JOIN social_posts qp ON qp.id = p.quoted_post_id
+            LEFT JOIN users qu ON qu.id = qp.user_id
             WHERE p.space_id = $1
             ORDER BY p.created_at DESC
             LIMIT $2 OFFSET ${offset}
@@ -119,8 +126,9 @@ export const createSocialPost = async (req, res) => {
         const { content, quotedPostId } = req.body;
 
         // Images: uploaded files + library URLs passed as imageUrls[]
+        const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
         const uploadedUrls = (req.files || []).map(f =>
-            `/uploads/space/${spaceId}/${user.id}/${f.filename}`
+            `/uploads/space-${safeSpaceId}/user-${user.id}/${f.filename}`
         );
         const libraryUrls = req.body.imageUrls
             ? (Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls])
@@ -238,9 +246,14 @@ export const getSocialComments = async (req, res) => {
         if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
 
         const { rows } = await pool.query(`
-            SELECT * FROM social_post_comments
-            WHERE post_id = $1
-            ORDER BY created_at ASC
+            SELECT
+                c.*,
+                COALESCE(u.name, c.user_name)             AS user_name,
+                COALESCE(u.avatar_url, c.user_avatar_url) AS user_avatar_url
+            FROM social_post_comments c
+            LEFT JOIN users u ON u.id = c.user_id
+            WHERE c.post_id = $1
+            ORDER BY c.created_at ASC
         `, [postId]);
 
         res.json(rows.map(mapRowToCamelCase));

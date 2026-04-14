@@ -876,7 +876,10 @@ export const apiService = {
     },
     getMediaLibrary: (spaceId: number | string, page = 1, limit = 60): Promise<{ files: any[]; total: number; page: number; limit: number; hasMore: boolean }> =>
         authedFetch(`/api/media/${spaceId}?page=${page}&limit=${limit}`).then(handleResponse),
-    uploadMedia: (spaceId: number | string, formData: FormData): Promise<{ success: boolean; urls: string[] }> => {
+    uploadMedia: (spaceId: number | string, formData: FormData, userScoped = false): Promise<{ success: boolean; urls: string[] }> => {
+        // userScoped=true → file goes into space-{id}/user-{userId}/ (avatar, social post images)
+        // userScoped=false (default) → file goes into flat space-{id}/ (admin uploads)
+        if (userScoped) formData.append('userScoped', 'true');
         return authedFetch(`/api/media/${spaceId}/upload`, {
             method: 'POST',
             body: formData,

@@ -25,6 +25,8 @@ import apiRoutes from './routes/index.js';
 import { spaceModel } from './models/space.model.js';
 import { spacePageController } from './controllers/spacePageController.js';
 import { authenticateToken } from './middleware/authMiddleware.js';
+import { pool, mapRowToCamelCase } from './db.js';
+
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -196,13 +198,65 @@ app.use(express.static(publicPath, {
 }));
 
 
-app.get('*', (req, res, next) => {
+app.get('*', async (req, res, next) => {
     // If the request is for an API route, let it pass to the 404 handler
     if (req.path.startsWith('/api/')) {
         return next();
     }
-    // Otherwise, serve the main index.html for any non-API route.
+
     const indexFile = path.join(publicPath, 'index.html');
+
+    // Detect social media crawlers (Zalo, Facebook, Twitter, Telegram, etc.)
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const isCrawler = /facebookexternalhit|twitterbot|telegrambot|whatsapp|zalo|linkedinbot|slackbot|discordbot|applebot|googlebot|bingbot|baiduspider|yandexbot|duckduckbot|rogerbot|pinterestbot|embedly|semrushbot|ahrefsbot/.test(ua);
+
+    if (isCrawler) {
+        try {
+            const host = req.headers.host?.split(':')[0] || '';
+            // Find space by custom domain OR by main domain setting
+            const spaceRes = await pool.query(
+                `SELECT * FROM spaces WHERE custom_domain = $1 LIMIT 1`,
+                [host]
+            );
+            const space = spaceRes.rows[0] ? mapRowToCamelCase(spaceRes.rows[0]) : null;
+
+            if (space) {
+                let html = await fs.readFile(indexFile, 'utf8');
+                const spaceName = space.name || host;
+                const desc = space.description || spaceName;
+                const ogImg = space.avatarUrl && space.avatarUrl.startsWith('http')
+                    ? space.avatarUrl
+                    : `https://${host}/themes/giacngo/og-image.png`;
+
+                const ogTags = `
+    <!-- Open Graph / Zalo / Facebook share -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://${host}/">
+    <meta property="og:site_name" content="${spaceName}">
+    <meta property="og:title" content="${spaceName}">
+    <meta property="og:description" content="${desc}">
+    <meta property="og:image" content="${ogImg}">
+    <meta property="og:locale" content="vi_VN">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${spaceName}">
+    <meta name="twitter:description" content="${desc}">
+    <meta name="twitter:image" content="${ogImg}">
+    <meta name="description" content="${desc}">`;
+
+                // Inject OG tags after <head> and replace <title>
+                html = html.replace(/<title>[^<]*<\/title>/, `<title>${spaceName}</title>`);
+                html = html.replace('</head>', `${ogTags}\n</head>`);
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.setHeader('Cache-Control', 'no-cache');
+                return res.send(html);
+            }
+        } catch (err) {
+            console.error('[OG Inject] Error injecting OG tags for crawler:', err.message);
+        }
+    }
+
+    // Normal browser: serve static index.html
     res.sendFile(indexFile, (err) => {
         if (err) {
             console.error(`[Static] Could not serve index.html from ${indexFile}:`, err.message);

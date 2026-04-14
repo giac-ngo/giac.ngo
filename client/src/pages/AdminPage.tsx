@@ -315,6 +315,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'files':
         return <FilesAndDocuments language={language} user={user} />;
       case 'media-library':
+        if (spaceSlug && !currentSpace) {
+          return <div className="flex h-full items-center justify-center"><span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
+        }
         return <MediaLibrary space={currentSpace} language={language} />;
       case 'spaces':
         return <SpaceManagement language={language} user={user} />;

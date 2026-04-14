@@ -127,6 +127,11 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
     const t = translations[language];
     const { showToast } = useToast();
 
+    // Global Admin = người có permission 'roles' (theo isAdmin() trong authMiddleware)
+    // Space Owner = có space context NHƯNG không phải Global Admin
+    const isGlobalAdmin = adminUser.permissions?.includes('roles') ?? false;
+    const isSpaceOwner = !!space?.id && !isGlobalAdmin;
+
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -147,10 +152,12 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
     useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
     useEffect(() => {
-        apiService.getAllRoles().then(setRoles).catch(err => showToast(err.message, 'error'));
-        // Always load spaces list (needed for dropdown in edit modal)
-        apiService.getSpaces().then(setSpaces).catch(console.error);
-    }, [showToast]);
+        // Space Owner không có quyền gọi /roles và /spaces
+        if (!isSpaceOwner) {
+            apiService.getAllRoles().then(setRoles).catch(err => showToast(err.message, 'error'));
+            apiService.getSpaces().then(setSpaces).catch(console.error);
+        }
+    }, [showToast, isSpaceOwner]);
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -331,6 +338,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         }
     };
 
+
     const getRoleNames = (roleIds: number[] | undefined) => {
         if (!roleIds) return '';
         return roleIds.map(id => roles.find(r => r.id === id)?.name).filter(Boolean).join(', ');
@@ -340,13 +348,16 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         <div className="p-6 h-full flex flex-col bg-background-panel">
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h1 className="text-2xl font-bold font-serif">{t.title}</h1>
-                <button onClick={() => openModal(null)} className="px-4 py-2 bg-primary text-text-on-primary rounded-md flex items-center gap-2 font-semibold">
-                    <PlusIcon className="w-5 h-5" /> {t.newUser}
-                </button>
+                {/* Nút Tạo mới chỉ hiện với Global Admin */}
+                {!isSpaceOwner && (
+                    <button onClick={() => openModal(null)} className="px-4 py-2 bg-primary text-text-on-primary rounded-md flex items-center gap-2 font-semibold">
+                        <PlusIcon className="w-5 h-5" /> {t.newUser}
+                    </button>
+                )}
             </div>
 
             <div className={`mb-4 grid grid-cols-1 ${!space?.id ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 p-4 border rounded-lg bg-background-light border-border-color flex-shrink-0`}>
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t.searchPlaceholder} className="p-2 border rounded-md bg-background-panel border-border-color" />
+                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t.searchPlaceholder} autoComplete="off" className="p-2 border rounded-md bg-background-panel border-border-color" />
                 <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="p-2 border rounded-md bg-background-panel border-border-color"><option value="">{t.allRoles}</option>{roles.map(r => <option key={r.id as number} value={r.id as number}>{r.name}</option>)}</select>
                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="p-2 border rounded-md bg-background-panel border-border-color"><option value="">{t.allStatuses}</option><option value="true">{t.active}</option><option value="false">{t.inactive}</option></select>
                 {!space?.id && (
@@ -360,16 +371,50 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
             <div className="flex-1 overflow-auto border border-border-color rounded-lg shadow-sm bg-background-panel">
                 <table className="min-w-full divide-y divide-border-color">
                     <thead className="bg-background-light sticky top-0"><tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.name}</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.email}</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.roles}</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.merits}</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.status}</th><th className="px-4 py-3 text-right text-xs font-semibold uppercase">{t.table.actions}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.name}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.email}</th>
+                        {!isSpaceOwner && <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.roles}</th>}
+                        {!isSpaceOwner && <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.merits}</th>}
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.status}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase">{t.table.actions}</th>
                     </tr></thead>
                     <tbody className="bg-background-panel divide-y divide-border-color">
-                        {isLoading ? (<tr><td colSpan={6} className="text-center p-4">{t.feedback.loading}</td></tr>) : paginatedUsers.length === 0 ? (<tr><td colSpan={6} className="text-center p-4">{t.feedback.noUsers}</td></tr>) : (
+                        {isLoading ? (<tr><td colSpan={isSpaceOwner ? 4 : 6} className="text-center p-4">{t.feedback.loading}</td></tr>) : paginatedUsers.length === 0 ? (<tr><td colSpan={isSpaceOwner ? 4 : 6} className="text-center p-4">{t.feedback.noUsers}</td></tr>) : (
                             paginatedUsers.map((u: User) => (
                                 <tr key={u.id} className="hover:bg-background-light">
-                                    <td className="px-4 py-3 flex items-center gap-3"><UserAvatar name={u.name} url={u.avatarUrl} size={40} />{u.name}</td>
-                                    <td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td><td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>
-                                    <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{u.isActive ? t.active : t.inactive}</span></td>
-                                    <td className="px-4 py-3 text-right space-x-2"><button onClick={() => openModal(u)} className="p-2 rounded-full hover:bg-gray-200"><PencilIcon className="w-5 h-5" /></button><button onClick={() => handleDelete(u)} className="p-2 rounded-full hover:bg-gray-200"><TrashIcon className="w-5 h-5 text-red-600" /></button></td>
+                                    {/* Avatar + Name */}
+                                    <td className="px-4 py-3 flex items-center gap-3">
+                                        <UserAvatar name={u.name} url={u.avatarUrl} size={40} />
+                                        {u.name}
+                                    </td>
+                                    <td className="px-4 py-3">{u.email}</td>
+
+                                    {/* Global Admin only columns */}
+                                    {!isSpaceOwner && <td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td>}
+                                    {!isSpaceOwner && <td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>}
+
+                                    {/* Status badge */}
+                                    <td className="px-4 py-3">
+                                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {u.isActive ? t.active : t.inactive}
+                                        </span>
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td className="px-4 py-3 text-right space-x-2">
+                                        {isSpaceOwner ? (
+                                            // Space Owner: chỉ nút Edit (mở modal giới hạn)
+                                            <button onClick={() => openModal(u)} className="p-2 rounded-full hover:bg-gray-200" title={language === 'vi' ? 'Xem & đặt lại mật khẩu' : 'View & reset password'}>
+                                                <PencilIcon className="w-5 h-5" />
+                                            </button>
+                                        ) : (
+                                            // Global Admin: full edit + delete
+                                            <>
+                                                <button onClick={() => openModal(u)} className="p-2 rounded-full hover:bg-gray-200"><PencilIcon className="w-5 h-5" /></button>
+                                                <button onClick={() => handleDelete(u)} className="p-2 rounded-full hover:bg-gray-200"><TrashIcon className="w-5 h-5 text-red-600" /></button>
+                                            </>
+                                        )}
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -405,54 +450,79 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                 onSelect={handleAvatarSelect}
                 space={space ?? null}
                 language={language}
+                defaultFileType="image"
             />
 
+            {/* Reset Password Modal — Space Owner only: removed, now uses edit modal */}
+
+            {/* Full Edit Modal — Global Admin + Space Owner (Space Owner sees limited fields) */}
             {isModalOpen && editingUser && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
                     <div className="bg-background-panel rounded-lg shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold p-4 border-b border-border-color">{editingUser.id === 'new' ? t.modal.createTitle : t.modal.editTitle}</h2>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            {/* Avatar: Global Admin có thể đổi, Space Owner chỉ xem */}
                             <div className="flex items-center gap-4">
                                 <img src={editingUser.avatarUrl || `https://i.pravatar.cc/150?u=${editingUser.email}`} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
-                                <div><label className="block text-sm font-medium">{t.modal.avatar}</label><button type="button" onClick={() => setIsMediaPickerOpen(true)} className="text-sm text-primary hover:underline">{t.modal.changeAvatar}</button></div>
+                                <div>
+                                    <label className="block text-sm font-medium">{t.modal.avatar}</label>
+                                    {!isSpaceOwner && (
+                                        <button type="button" onClick={() => setIsMediaPickerOpen(true)} className="text-sm text-primary hover:underline">{t.modal.changeAvatar}</button>
+                                    )}
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-sm font-medium">{t.modal.name}</label><input name="name" value={editingUser.name || ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
+                                {/* Tên: cả 2 đều sửa được */}
+                                <div>
+                                    <label className="block text-sm font-medium">{t.modal.name}</label>
+                                    <input name="name" value={editingUser.name || ''} onChange={handleFormChange}
+                                        className="mt-1 w-full p-2 border rounded-md border-border-color bg-background-light" />
+                                </div>
+                                {/* Email: luôn luôn readonly */}
                                 <div>
                                     <label className="block text-sm font-medium">{t.modal.email}</label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={editingUser.email || ''}
-                                        onChange={handleFormChange}
+                                    <input type="email" name="email" value={editingUser.email || ''} onChange={handleFormChange}
                                         className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color disabled:bg-gray-200 disabled:text-gray-500"
-                                        disabled={editingUser.id !== 'new'}
-                                    />
+                                        disabled={editingUser.id !== 'new'} />
                                 </div>
                             </div>
-                            <div><label className="block text-sm font-medium">{t.modal.password}</label><input type="password" name="password" value={editingUser.password || ''} onChange={handleFormChange} placeholder={editingUser.id === 'new' ? t.modal.passwordNew : t.modal.passwordEdit} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
-                            <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
+                            {/* Mật khẩu: cả 2 đều có, Space Owner đặt lại được */}
                             <div>
-                                <label className="block text-sm font-medium">{t.modal.roles}</label>
-                                <div className="mt-2 grid grid-cols-3 gap-2 p-4 border rounded-md bg-background-light border-border-color">
-                                    {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="checkbox" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
-                                </div>
+                                <label className="block text-sm font-medium">{t.modal.password}</label>
+                                <input type="password" name="password" value={editingUser.password || ''} onChange={handleFormChange}
+                                    placeholder={editingUser.id === 'new' ? t.modal.passwordNew : t.modal.passwordEdit}
+                                    className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" />
                             </div>
-                            {!space?.id && (
-                            <div>
-                                <label className="block text-sm font-medium">{(t.modal as any).spaces}</label>
-                                <select 
-                                    value={userSpaceId ?? ''} 
-                                    onChange={e => setUserSpaceId(e.target.value ? Number(e.target.value) : null)}
-                                    className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color"
-                                >
-                                    <option value="">{language === 'vi' ? '-- Không thuộc không gian nào --' : '-- No space --'}</option>
-                                    {spaces.map(s => (
-                                        <option key={s.id as number} value={s.id as number}>{s.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {/* Merits: chỉ Global Admin */}
+                            {!isSpaceOwner && (
+                                <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
                             )}
+                            {/* Roles: chỉ Global Admin */}
+                            {!isSpaceOwner && (
+                                <div>
+                                    <label className="block text-sm font-medium">{t.modal.roles}</label>
+                                    <div className="mt-2 grid grid-cols-3 gap-2 p-4 border rounded-md bg-background-light border-border-color">
+                                        {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="checkbox" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Không gian: chỉ Global Admin khi không có space context */}
+                            {!isSpaceOwner && !space?.id && (
+                                <div>
+                                    <label className="block text-sm font-medium">{(t.modal as any).spaces}</label>
+                                    <select
+                                        value={userSpaceId ?? ''}
+                                        onChange={e => setUserSpaceId(e.target.value ? Number(e.target.value) : null)}
+                                        className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color"
+                                    >
+                                        <option value="">{language === 'vi' ? '-- Không thuộc không gian nào --' : '-- No space --'}</option>
+                                        {spaces.map(s => (
+                                            <option key={s.id as number} value={s.id as number}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {/* Trạng thái: cả 2 đều có */}
                             <div className="flex items-center"><input id="isActive" name="isActive" type="checkbox" checked={editingUser.isActive ?? true} onChange={handleFormChange} className="h-4 w-4 mr-2" /><label htmlFor="isActive">{t.modal.active}</label></div>
                         </div>
                         <div className="p-4 border-t border-border-color flex justify-end gap-2">

@@ -9,6 +9,8 @@ interface MediaPickerModalProps {
     onSelect: (url: string) => void;
     space: Space | null;
     language: 'vi' | 'en';
+    /** Pre-select file type tab: 'all' | 'image' | 'audio' | 'video' | 'document' */
+    defaultFileType?: string;
 }
 
 export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
@@ -16,7 +18,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     onClose,
     onSelect,
     space,
-    language
+    language,
+    defaultFileType,
 }) => {
     if (!isOpen) return null;
 
@@ -40,7 +43,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         space={space} 
                         language={language} 
                         selectable={true} 
-                        onSelect={handleSelect} 
+                        onSelect={handleSelect}
+                        defaultFileType={defaultFileType}
                     />
                 </div>
             </div>

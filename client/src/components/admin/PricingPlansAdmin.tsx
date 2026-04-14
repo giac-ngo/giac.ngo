@@ -351,6 +351,7 @@ export const PricingPlansAdmin: React.FC<PricingPlansAdminProps> = ({ language, 
                         setIsMediaPickerOpen(false);
                     }}
                     onClose={() => setIsMediaPickerOpen(false)}
+                    defaultFileType="image"
                 />
             )}
         </div>

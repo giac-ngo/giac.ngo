@@ -166,11 +166,10 @@ html[data-theme="giacngo"] .admin-page-container aside .hover\:bg-background-lig
 
 html[data-theme="giacngo"] .admin-page-container .markdown-content {
     line-height: 1.5;
-    white-space: pre-wrap;
 }
 
 html[data-theme="giacngo"] .admin-page-container .markdown-content p {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
 }
 
 html[data-theme="giacngo"] .admin-page-container .markdown-content p:last-child {
@@ -192,6 +191,18 @@ html[data-theme="giacngo"] .admin-page-container .markdown-content li {
 html[data-theme="giacngo"] .fixed.top-5.right-5>div {
     font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
+/* ── Test chat: user bubble should not wrap short text ── */
+html[data-theme="giacngo"] .admin-page-container .bg-primary.rounded-lg {
+    width: fit-content;
+}
+
+/* ── Dark mode: prevent rounded-lg override from killing user bubble bg ── */
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-primary.rounded-lg,
+html[data-theme="giacngo"] .admin-page-container[data-color-mode="dark"] .bg-primary.w-fit {
+    background-color: hsl(0, 55%, 38%) !important;
+    color: hsl(44, 55%, 92%) !important;
+}
+
 
 /* Custom style for AI Thought block */
 html[data-theme="giacngo"] .admin-page-container .ai-thought-block {

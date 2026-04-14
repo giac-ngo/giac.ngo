@@ -138,8 +138,8 @@ const DharmaTalkModal: React.FC<{
     const [audioFileVi, setAudioFileVi] = useState<File | null>(null);
     const [audioFileEn, setAudioFileEn] = useState<File | null>(null);
     const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
-    const audioViInputRef = useRef<HTMLInputElement>(null);
-    const audioEnInputRef = useRef<HTMLInputElement>(null);
+    const [isAudioViPickerOpen, setIsAudioViPickerOpen] = useState(false);
+    const [isAudioEnPickerOpen, setIsAudioEnPickerOpen] = useState(false);
 
     useEffect(() => {
         if (isOpen && talk) {
@@ -218,19 +218,15 @@ const DharmaTalkModal: React.FC<{
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium">{t.url} (VI)</label>
-                                <input type="url" name="url" value={formData.url || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" />
-                                <div className="mt-2">
-                                    <input type="file" ref={audioViInputRef} onChange={(e) => handleFileChange(e, 'audioVi')} accept="audio/*" className="hidden" />
-                                    <button type="button" onClick={() => audioViInputRef.current?.click()} className="px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioVi}</button>
-                                </div>
+                                <input type="url" name="url" value={formData.url || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
+                                <button type="button" onClick={() => setIsAudioViPickerOpen(true)} className="mt-2 px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioVi}</button>
+                                {formData.url && !formData.url.startsWith('blob:') && <p className="text-xs text-text-light mt-1 truncate">{formData.url}</p>}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">{t.url} (EN)</label>
-                                <input type="url" name="urlEn" value={formData.urlEn || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" />
-                                <div className="mt-2">
-                                    <input type="file" ref={audioEnInputRef} onChange={(e) => handleFileChange(e, 'audioEn')} accept="audio/*" className="hidden" />
-                                    <button type="button" onClick={() => audioEnInputRef.current?.click()} className="px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioEn}</button>
-                                </div>
+                                <input type="url" name="urlEn" value={formData.urlEn || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
+                                <button type="button" onClick={() => setIsAudioEnPickerOpen(true)} className="mt-2 px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioEn}</button>
+                                {formData.urlEn && !formData.urlEn.startsWith('blob:') && <p className="text-xs text-text-light mt-1 truncate">{formData.urlEn}</p>}
                             </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -256,6 +252,31 @@ const DharmaTalkModal: React.FC<{
                 onSelect={handleAvatarSelect}
                 space={spaces.find(s => s.id === formData.spaceId) ?? null}
                 language={language}
+                defaultFileType="image"
+            />
+            {/* Audio VI picker */}
+            <MediaPickerModal
+                isOpen={isAudioViPickerOpen}
+                onClose={() => setIsAudioViPickerOpen(false)}
+                onSelect={(url) => {
+                    setFormData(prev => ({ ...prev, url }));
+                    setIsAudioViPickerOpen(false);
+                }}
+                space={spaces.find(s => s.id === formData.spaceId) ?? null}
+                language={language}
+                defaultFileType="audio"
+            />
+            {/* Audio EN picker */}
+            <MediaPickerModal
+                isOpen={isAudioEnPickerOpen}
+                onClose={() => setIsAudioEnPickerOpen(false)}
+                onSelect={(url) => {
+                    setFormData(prev => ({ ...prev, urlEn: url }));
+                    setIsAudioEnPickerOpen(false);
+                }}
+                space={spaces.find(s => s.id === formData.spaceId) ?? null}
+                language={language}
+                defaultFileType="audio"
             />
         </>
     );

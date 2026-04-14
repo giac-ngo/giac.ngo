@@ -17,17 +17,21 @@ const parseAndProcessTalkData = (req) => {
         if (files.avatarFile) {
             data.speakerAvatarUrl = `/uploads/${spaceDir}/dharmatalks/${files.avatarFile[0].filename}`;
         }
+        // Audio VI: file upload overrides body URL
         if (files.audioFileVi) {
             data.url = `/uploads/${spaceDir}/dharmatalks/${files.audioFileVi[0].filename}`;
         }
+        // Audio EN: file upload overrides body URL
         if (files.audioFileEn) {
             data.urlEn = `/uploads/${spaceDir}/dharmatalks/${files.audioFileEn[0].filename}`;
         }
-        // Legacy support: if audioFile is used (old field name), treat it as Vietnamese
+        // Legacy support
         if (files.audioFile && !files.audioFileVi) {
             data.url = `/uploads/${spaceDir}/dharmatalks/${files.audioFile[0].filename}`;
         }
     }
+    // If no uploaded file for audio, keep URL from req.body (from MediaPickerModal)
+    // data.url and data.urlEn already come from req.body via spread at line 8
 
     // FIX: Properly handle empty strings for array fields to prevent DB errors.
     // An empty string from FormData should be converted to an empty array for PostgreSQL.

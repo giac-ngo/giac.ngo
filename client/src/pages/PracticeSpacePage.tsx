@@ -858,6 +858,40 @@ export const PracticeSpacePage: React.FC<{
         }
     }, [allMessages, conversationId, currentAiConfig, fileAttachment, imagePreview, isChatDisabled, isGuestLimitReached, isUserMeritsDepleted, language, needsPurchase, newMessage, onUserUpdate, showToast, t, user, needsContactAccess, guestMessageCount, viewMode]);
 
+    // ─── Save Voice Session to Conversation History ──────────────────────────
+    const handleVoiceSessionSave = useCallback(async (turns: { role: 'user' | 'ai'; text: string }[]) => {
+        if (!user || !currentAiConfig || turns.length === 0) return;
+        // Convert VoiceTurn[] → Message[]
+        const now = Date.now();
+        const voiceMessages: Message[] = turns.map((t, i) => ({
+            id: `voice-${now}-${i}`,
+            text: t.text,
+            sender: t.role === 'user' ? 'user' : 'ai',
+            timestamp: now + i,
+        }));
+        try {
+            if (conversationId) {
+                // Append to existing conversation: update local state
+                setAllMessages(prev => [...prev, ...voiceMessages]);
+                setMessages(prev => [...prev, ...voiceMessages]);
+                // Persist via streaming endpoint isn't ideal; use createConversation to merge
+                await apiService.createConversation(currentAiConfig.id!, [...allMessages, ...voiceMessages], user);
+            } else {
+                // Create new conversation from voice session
+                const conv = await apiService.createConversation(currentAiConfig.id!, voiceMessages, user);
+                if (conv?.id) {
+                    setConversationId(conv.id);
+                    setAllMessages(voiceMessages);
+                    setMessages(voiceMessages);
+                    setConversationUpdateTrigger(c => c + 1);
+                }
+            }
+            showToast(language === 'vi' ? 'Đã lưu lịch sử trò chuyện thoại.' : 'Voice session saved to history.', 'success');
+        } catch {
+            showToast(language === 'vi' ? 'Không thể lưu lịch sử thoại.' : 'Failed to save voice session.', 'error');
+        }
+    }, [user, currentAiConfig, conversationId, allMessages, language, showToast]);
+
     useEffect(() => {
         const initialQuery = localStorage.getItem('initialQuery');
         if (initialQuery && currentAiConfig && !initialQuerySent.current) {
@@ -1555,6 +1589,7 @@ export const PracticeSpacePage: React.FC<{
                                                                     if (viewingUser && uid === viewingUser.id) return;
                                                                     openUserProfile(uid, uname, uavatar);
                                                                 }}
+                                                                language={language}
                                                             />
                                                         </div>
                                                     ) : communityTab === 'home' && user ? (
@@ -1699,6 +1734,7 @@ export const PracticeSpacePage: React.FC<{
                                                                         if (typeof user?.id === 'number' && uid === user.id) return;
                                                                         openUserProfile(uid, uname, uavatar);
                                                                     }}
+                                                                    language={language}
                                                                 />
                                                             )}
                                                         </div>
@@ -1714,6 +1750,7 @@ export const PracticeSpacePage: React.FC<{
                                                                     if (typeof user?.id === 'number' && uid === user.id) return;
                                                                     openUserProfile(uid, uname, uavatar);
                                                                 }}
+                                                                language={language}
                                                             />
                                                         ) : (
                                                             <div className="flex items-center justify-center h-full">
@@ -1742,6 +1779,7 @@ export const PracticeSpacePage: React.FC<{
                         setConversationId(id);
                         setConversationUpdateTrigger(c => c + 1);
                     }}
+                    onSaveSession={handleVoiceSessionSave}
                     onClose={() => setIsVoiceChatOpen(false)}
                 />
             )}

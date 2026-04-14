@@ -69,24 +69,36 @@ export const trainingDataController = {
             let newSourceData = { aiConfigId: aiId, type };
 
             if (type === 'file') {
-                if (!req.file) return res.status(400).json({ message: 'File is required.' });
+                // Mode 1: URL from body (MediaPickerModal — file already in media library)
+                if (req.body.fileUrl) {
+                    const fileUrl = req.body.fileUrl;
+                    const fileName = path.basename(fileUrl.split('?')[0]);
+                    newSourceData.fileUrl = fileUrl;
+                    newSourceData.fileName = fileName;
+                }
+                // Mode 2: Direct file upload via multer
+                else if (req.file) {
+                    const safeSpaceId = aiConfig.spaceId
+                        ? String(aiConfig.spaceId).replace(/[^a-zA-Z0-9_-]/g, '_')
+                        : 'global';
+                    // Flat space directory — no training subfolder
+                    const spaceDir = safeSpaceId === 'global'
+                        ? path.join(uploadsDir, 'global')
+                        : path.join(uploadsDir, `space-${safeSpaceId}`);
+                    await fs.mkdir(spaceDir, { recursive: true });
 
-                // Determine correct space folder
-                const safeSpaceId = aiConfig.spaceId
-                    ? String(aiConfig.spaceId).replace(/[^a-zA-Z0-9_-]/g, '_')
-                    : 'global';
-                const spaceDir = path.join(uploadsDir, `space-${safeSpaceId}`, 'training');
-                await fs.mkdir(spaceDir, { recursive: true });
+                    const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                    const safeName = path.basename(utf8Name).replace(/[^\w\s.\-\p{L}]/gu, '_');
+                    const destPath = path.join(spaceDir, safeName);
+                    await fs.writeFile(destPath, req.file.buffer);
+                    uploadedFilePath = destPath;
 
-                // Sanitize filename
-                const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-                const safeName = path.basename(utf8Name).replace(/[^\w\s.\-\p{L}]/gu, '_');
-                const destPath = path.join(spaceDir, safeName);
-                await fs.writeFile(destPath, req.file.buffer);
-                uploadedFilePath = destPath;
-
-                newSourceData.fileUrl = `/uploads/space-${safeSpaceId}/training/${safeName}`;
-                newSourceData.fileName = utf8Name;
+                    newSourceData.fileUrl = `/uploads/space-${safeSpaceId}/${safeName}`;
+                    newSourceData.fileName = utf8Name;
+                }
+                else {
+                    return res.status(400).json({ message: 'File or fileUrl is required.' });
+                }
 
             } else if (type === 'qa') {
                 if (!question || !answer) return res.status(400).json({ message: 'Question and Answer are required.' });

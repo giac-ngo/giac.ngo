@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -63,35 +63,114 @@ function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; s
 }
 
 function PhotoGrid({ urls }: { urls: string[] }) {
+    const [lightboxIdx, setLightboxIdx] = React.useState<number | null>(null);
     if (!urls.length) return null;
     const count = urls.length;
+
+    const openLightbox = (i: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setLightboxIdx(i);
+    };
+    const closeLightbox = () => setLightboxIdx(null);
+    const prev = (e: React.MouseEvent) => { e.stopPropagation(); setLightboxIdx(i => i != null && i > 0 ? i - 1 : i); };
+    const next = (e: React.MouseEvent) => { e.stopPropagation(); setLightboxIdx(i => i != null && i < urls.length - 1 ? i + 1 : i); };
+
     return (
-        <div style={{
-            display: 'grid', gap: 2, borderRadius: 12, overflow: 'hidden',
-            gridTemplateColumns: count === 1 ? '1fr' : count === 2 ? '1fr 1fr' : count === 3 ? '2fr 1fr' : '1fr 1fr',
-            gridTemplateRows: count === 3 ? '1fr 1fr' : 'auto',
-        }}>
-            {urls.slice(0, 4).map((url, i) => (
-                <div key={i} style={{
-                    position: 'relative',
-                    gridRow: count === 3 && i === 0 ? 'span 2' : undefined,
-                    aspectRatio: count === 1 ? '16/9' : '1',
-                }}>
-                    <img
-                        src={url} alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
-                        onClick={() => window.open(url, '_blank')}
-                    />
-                    {i === 3 && count > 4 && (
-                        <div style={{
-                            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)',
+        <>
+            <div style={{
+                display: 'grid', gap: 2, borderRadius: 12, overflow: 'hidden',
+                gridTemplateColumns: count === 1 ? '1fr' : count === 2 ? '1fr 1fr' : count === 3 ? '2fr 1fr' : '1fr 1fr',
+                gridTemplateRows: count === 3 ? '1fr 1fr' : 'auto',
+            }}>
+                {urls.slice(0, 4).map((url, i) => (
+                    <div key={i} style={{
+                        position: 'relative',
+                        gridRow: count === 3 && i === 0 ? 'span 2' : undefined,
+                        aspectRatio: count === 1 ? '16/9' : '1',
+                    }}>
+                        <img
+                            src={url} alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
+                            onClick={(e) => openLightbox(i, e)}
+                        />
+                        {i === 3 && count > 4 && (
+                            <div style={{
+                                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#fff', fontSize: 28, fontWeight: 700
+                            }}>+{count - 4}</div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Lightbox modal */}
+            {lightboxIdx !== null && (
+                <div
+                    onClick={closeLightbox}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 99999,
+                        background: 'rgba(0,0,0,0.92)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        touchAction: 'none',
+                    }}
+                >
+                    {/* Close button */}
+                    <button
+                        onClick={closeLightbox}
+                        style={{
+                            position: 'absolute', top: 16, right: 16,
+                            background: 'rgba(255,255,255,0.15)', border: 'none',
+                            borderRadius: '50%', width: 40, height: 40,
+                            color: '#fff', fontSize: 22, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: 28, fontWeight: 700
-                        }}>+{count - 4}</div>
+                            backdropFilter: 'blur(4px)',
+                        }}
+                    >×</button>
+
+                    {/* Prev */}
+                    {lightboxIdx > 0 && (
+                        <button onClick={prev} style={{
+                            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+                            width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>‹</button>
+                    )}
+
+                    {/* Image */}
+                    <img
+                        src={urls[lightboxIdx]}
+                        alt=""
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            maxWidth: '95vw', maxHeight: '90vh',
+                            objectFit: 'contain', borderRadius: 8,
+                            userSelect: 'none',
+                        }}
+                    />
+
+                    {/* Next */}
+                    {lightboxIdx < urls.length - 1 && (
+                        <button onClick={next} style={{
+                            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+                            width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>›</button>
+                    )}
+
+                    {/* Counter */}
+                    {urls.length > 1 && (
+                        <div style={{
+                            position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+                            color: '#fff', fontSize: 13, background: 'rgba(0,0,0,0.5)',
+                            padding: '4px 12px', borderRadius: 20,
+                        }}>{lightboxIdx + 1} / {urls.length}</div>
                     )}
                 </div>
-            ))}
-        </div>
+            )}
+        </>
     );
 }
 
@@ -222,15 +301,14 @@ function QuotedPostBody({ post, maxLines = 5 }: { post: any; maxLines?: number }
     );
 }
 
-// ─── Post Card ─────────────────────────────────────────────────────────────────
-
-function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick }: {
+function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick, language }: {
     post: SocialPost;
     currentUser: User | null;
     spaceId: number;
     onDelete: (id: number) => void;
     onRepost?: (post: SocialPost) => void;
     onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
+    language?: 'vi' | 'en';
 }) {
     const { showToast } = useToast();
     const [liked, setLiked] = useState(post.isLikedByMe || false);
@@ -521,7 +599,10 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                         onClick={e => e.stopPropagation()}>
                         {/* Header */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid var(--sf-border)' }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sf-text)' }}>🔁 Repost bài viết</span>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sf-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <img src="/themes/giacngo/senhong.png" alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                                {language === 'en' ? 'Repost' : 'Chia sẻ bài viết'}
+                            </span>
                             <button onClick={() => setRepostModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 20, lineHeight: 1 }}>×</button>
                         </div>
                         <div style={{ padding: '14px 16px 16px' }}>
@@ -529,7 +610,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                             <textarea
                                 value={repostComment}
                                 onChange={e => setRepostComment(e.target.value)}
-                                placeholder="Thêm bình luận của bạn... (không bắt buộc)"
+                                placeholder={language === 'en' ? 'Enter your thoughts to share...' : 'Nhập nội dung chia sẻ...'}
                                 rows={3}
                                 autoFocus
                                 style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)', color: 'var(--sf-text)', fontSize: 13, resize: 'none', boxSizing: 'border-box' as any, outline: 'none', fontFamily: 'inherit', lineHeight: 1.55, marginBottom: 12 }}
@@ -546,11 +627,11 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                 <button onClick={() => setRepostModalOpen(false)} disabled={repostSubmitting}
                                     style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--sf-border)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-                                    Hủy
+                                    {language === 'en' ? 'Cancel' : 'Hủy'}
                                 </button>
                                 <button onClick={handleRepostSubmit} disabled={repostSubmitting}
-                                    style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#1877f2', color: '#fff', cursor: repostSubmitting ? 'default' : 'pointer', fontWeight: 700, fontSize: 13, opacity: repostSubmitting ? 0.7 : 1 }}>
-                                    {repostSubmitting ? 'Đang repost...' : '🔁 Repost'}
+                                    style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#991b1b', color: '#fff', cursor: repostSubmitting ? 'default' : 'pointer', fontWeight: 700, fontSize: 13, opacity: repostSubmitting ? 0.7 : 1 }}>
+                                    {repostSubmitting ? (language === 'en' ? 'Posting...' : 'Đang chia sẻ...') : (language === 'en' ? 'Repost' : 'Chia sẻ')}
                                 </button>
                             </div>
                         </div>
@@ -629,7 +710,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                                     <CommentItem
                                         comment={c} currentUser={currentUser}
                                         spaceId={spaceId} postId={post.id}
-                                        postUserId={post.userId}
+                                        postUserId={post.userId ?? 0}
                                         onDelete={handleDeleteComment} onReply={handleReply}
                                     />
                                     {getReplies(c.id).map(reply => (
@@ -637,7 +718,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick 
                                             <CommentItem
                                                 comment={reply} currentUser={currentUser}
                                                 spaceId={spaceId} postId={post.id}
-                                                postUserId={post.userId}
+                                                postUserId={post.userId ?? 0}
                                                 onDelete={handleDeleteComment} onReply={handleReply}
                                             />
                                         </div>
@@ -929,8 +1010,10 @@ function PostEditor({ currentUser, spaceId, onPostCreated }: {
                 acceptLabel="ảnh"
                 onSelect={url => addLibraryUrl(url)}
                 onClose={() => setShowMediaPicker(false)}
+                defaultFileType="image"
             />
         )}
+
         </>
     );
 }
@@ -956,7 +1039,7 @@ function PostSkeleton() {
 
 // ─── Main SocialFeed ───────────────────────────────────────────────────────────
 
-export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; filterUserId?: number | null; onPostsLoaded?: (count: number) => void; searchQuery?: string; focusTrigger?: number; onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void; }> = ({ spaceId, currentUser, filterUserId, onPostsLoaded, searchQuery: externalSearch, focusTrigger, onUserClick }) => {
+export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; filterUserId?: number | null; onPostsLoaded?: (count: number) => void; searchQuery?: string; focusTrigger?: number; onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void; language?: 'vi' | 'en'; }> = ({ spaceId, currentUser, filterUserId, onPostsLoaded, searchQuery: externalSearch, focusTrigger, onUserClick, language = 'vi' }) => {
     const { showToast } = useToast();
     const [posts, setPosts] = useState<SocialPost[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1167,7 +1250,6 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                         onPostCreated={handlePostCreated}
                     />
                 )}
-
                 {!currentUser && (
                     <div style={{
                         background: 'var(--sf-card)', borderRadius: 12, padding: '20px 24px',
@@ -1209,6 +1291,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                             onDelete={handleDeletePost}
                             onRepost={handlePostCreated}
                             onUserClick={onUserClick}
+                            language={language}
                         />
                     ))
                 )}

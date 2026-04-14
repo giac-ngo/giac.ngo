@@ -14,6 +14,11 @@ const LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type VoiceState = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error';
 
+interface VoiceTurn {
+    role: 'user' | 'ai';
+    text: string;
+}
+
 interface VoiceChatProps {
     currentAiConfig: AIConfig | null;
     user: User | null;
@@ -22,6 +27,8 @@ interface VoiceChatProps {
     conversationId: number | null;
     onNewConversationId: (id: number) => void;
     onClose: () => void;
+    /** Called when session ends with the list of transcript turns (may be empty if no text extracted) */
+    onSaveSession?: (turns: VoiceTurn[]) => void;
 }
 
 // ─── Audio Helpers ─────────────────────────────────────────────────────────────
@@ -88,9 +95,10 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
     user,
     language,
     setLanguage,
-    conversationId,
-    onNewConversationId,
+    conversationId: _conversationId,
+    onNewConversationId: _onNewConversationId,
     onClose,
+    onSaveSession,
 }) => {
     const { showToast } = useToast();
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -111,6 +119,12 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
     const recognitionRef = useRef<any>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordingChunks = useRef<Blob[]>([]);
+    // Mix context: combines mic + AI audio for recording
+    const mixCtxRef = useRef<AudioContext | null>(null);
+    const mixDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+    // Transcript accumulation for history saving
+    const voiceTurnsRef = useRef<VoiceTurn[]>([]);
+    const currentAiTurnRef = useRef<string>('');
 
     useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
@@ -119,15 +133,14 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     // ─── Schedule audio playback (seamless queue) ───────────────────────────
     const scheduleAudio = useCallback((base64Data: string, mimeType: string) => {
-        if (isMutedRef.current) return;
-
         const rateMatch = mimeType?.match(/rate=(\d+)/);
         const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
 
         const float32 = base64PcmToFloat32(base64Data);
 
+        // Playback context (for speakers)
         if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
-            playbackCtxRef.current = new AudioContext({ sampleRate });
+            playbackCtxRef.current = new AudioContext({ sampleRate, latencyHint: 'interactive' });
             nextPlayTimeRef.current = 0;
         }
         const ctx = playbackCtxRef.current;
@@ -138,7 +151,24 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
         const source = ctx.createBufferSource();
         source.buffer = buffer;
-        source.connect(ctx.destination);
+
+        // Always play to speakers (regardless of mute, mute just stops playback to ears)
+        if (!isMutedRef.current) {
+            source.connect(ctx.destination);
+        }
+
+        // Also feed AI audio into the mix recorder context
+        if (mixCtxRef.current && mixDestRef.current && mixCtxRef.current.state !== 'closed') {
+            const mixCtx = mixCtxRef.current;
+            // Resample if needed (mix context runs at 48kHz)
+            const mixBuffer = mixCtx.createBuffer(1, float32.length, sampleRate);
+            mixBuffer.getChannelData(0).set(float32);
+            const mixSource = mixCtx.createBufferSource();
+            mixSource.buffer = mixBuffer;
+            mixSource.connect(mixDestRef.current);
+            const startAt = Math.max(mixCtx.currentTime, nextPlayTimeRef.current);
+            mixSource.start(startAt);
+        }
 
         const startAt = Math.max(ctx.currentTime, nextPlayTimeRef.current);
         source.start(startAt);
@@ -161,11 +191,25 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
         // stop speech recognition
         try { recognitionRef.current?.stop(); } catch {}
         recognitionRef.current = null;
+        // close mix context
+        try { mixCtxRef.current?.close(); } catch {}
+        mixCtxRef.current = null;
+        mixDestRef.current = null;
         setLiveTranscript('');
     }, []);
 
     // ─── Stop Session ────────────────────────────────────────────────────────
     const stopSession = useCallback(() => {
+        // Flush any pending AI turn
+        if (currentAiTurnRef.current.trim()) {
+            voiceTurnsRef.current.push({ role: 'ai', text: currentAiTurnRef.current.trim() });
+            currentAiTurnRef.current = '';
+        }
+        // Save accumulated transcript to conversation history
+        if (onSaveSession && voiceTurnsRef.current.length > 0) {
+            onSaveSession([...voiceTurnsRef.current]);
+        }
+        voiceTurnsRef.current = [];
         // Auto-stop recording and generate download link
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop(); // onstop will set recordingUrl
@@ -174,7 +218,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
         cleanup();
         setVoiceState('idle');
         setStatusText('Nhấn micro để bắt đầu lại');
-    }, [cleanup]);
+    }, [cleanup, onSaveSession]);
 
     // ─── Speech Recognition (live transcript) ───────────────────────────────
     const startSpeechRecognition = useCallback(() => {
@@ -188,6 +232,11 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             let interim = '';
             for (let i = e.resultIndex; i < e.results.length; i++) {
                 if (e.results[i].isFinal) {
+                    const finalText = e.results[i][0].transcript.trim();
+                    if (finalText) {
+                        // Save user turn to transcript history
+                        voiceTurnsRef.current.push({ role: 'user', text: finalText });
+                    }
                     setLiveTranscript('');  // clear after final
                 } else {
                     interim += e.results[i][0].transcript;
@@ -223,17 +272,26 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             setVoiceState('connecting');
             setStatusText('Đang kết nối Gemini Live...');
 
-            // 1. Mic stream
+            // 1. Mic stream — request low-latency audio
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+                audio: {
+                    channelCount: 1,
+                    sampleRate: 16000,       // hint browser to capture at 16kHz directly
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    // @ts-ignore — non-standard but supported in Chrome/Edge
+                    latency: 0,
+                },
             });
             streamRef.current = stream;
 
-            // 2. Capture context at 16kHz (Gemini Live requirement)
-            const captureCtx = new AudioContext({ sampleRate: 16000 });
+            // 2. Capture context at 16kHz with interactive latency hint
+            const captureCtx = new AudioContext({ sampleRate: 16000, latencyHint: 'interactive' });
             captureCtxRef.current = captureCtx;
             const micSource = captureCtx.createMediaStreamSource(stream);
-            const processor = captureCtx.createScriptProcessor(4096, 1, 1);
+            // Buffer 2048 @ 16kHz = 128ms per chunk (was 4096 = 256ms) → halves input delay
+            const processor = captureCtx.createScriptProcessor(2048, 1, 1);
             processorRef.current = processor;
 
             // Silent output (prevent mic feedback)
@@ -284,15 +342,40 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                                     part.inlineData.mimeType ?? 'audio/pcm;rate=24000'
                                 );
                             }
+                            // Capture AI text transcript if Gemini provides it
+                            if (part?.text) {
+                                currentAiTurnRef.current += part.text;
+                            }
                         }
-                        // AI turn complete → go back to listening
+                        // Also check outputTranscription (some Gemini Live versions)
+                        const outputText = msg?.serverContent?.outputTranscription?.text;
+                        if (outputText) {
+                            currentAiTurnRef.current += outputText;
+                        }
+                        // AI turn complete → save transcript turn and go back to listening
                         if (msg?.serverContent?.turnComplete) {
+                            if (currentAiTurnRef.current.trim()) {
+                                voiceTurnsRef.current.push({ role: 'ai', text: currentAiTurnRef.current.trim() });
+                                currentAiTurnRef.current = '';
+                            }
                             setTimeout(() => {
                                 if (liveSessionRef.current) {
                                     setVoiceState('listening');
                                     setStatusText('Đang nghe... (nói để AI trả lời)');
                                 }
                             }, 300);
+                        }
+                        // inputTranscription = what user said (Gemini STT, more accurate than browser)
+                        const inputText = msg?.serverContent?.inputTranscription?.text;
+                        if (inputText && inputText.trim()) {
+                            // Update the last user turn if it was added by SpeechRecognition
+                            // (prefer Gemini's more accurate transcription)
+                            const lastTurn = voiceTurnsRef.current[voiceTurnsRef.current.length - 1];
+                            if (lastTurn && lastTurn.role === 'user') {
+                                lastTurn.text = inputText.trim();
+                            } else {
+                                voiceTurnsRef.current.push({ role: 'user', text: inputText.trim() });
+                            }
                         }
                     },
                     onerror: (e: any) => {
@@ -326,11 +409,29 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             // 6. Start speech recognition for live transcript
             startSpeechRecognition();
 
-            // 7. Auto-start recording
+            // 7. Reset transcript and auto-start recording (mix both mic + AI audio)
+            voiceTurnsRef.current = [];
+            currentAiTurnRef.current = '';
             setRecordingUrl(null);
             try {
                 recordingChunks.current = [];
-                const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                // Create a shared mix context at 48kHz for recording
+                const mixCtx = new AudioContext({ sampleRate: 48000 });
+                mixCtxRef.current = mixCtx;
+                const mixDest = mixCtx.createMediaStreamDestination();
+                mixDestRef.current = mixDest;
+
+                // Feed mic into mix destination
+                const micForMix = mixCtx.createMediaStreamSource(stream);
+                micForMix.connect(mixDest);
+
+                // MediaRecorder records the mixed stream (mic + AI)
+                const mixedStream = mixDest.stream;
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                    ? 'audio/webm;codecs=opus'
+                    : 'audio/webm';
+                const mr = new MediaRecorder(mixedStream, { mimeType });
                 mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunks.current.push(e.data); };
                 mr.onstop = () => {
                     if (recordingChunks.current.length > 0) {

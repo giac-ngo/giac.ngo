@@ -1,6 +1,5 @@
 // client/src/components/MediaLibraryPicker.tsx
 // Lightweight modal wrapper around the full MediaLibrary component.
-// Use this everywhere a native <input type="file"> was used.
 
 import React from 'react';
 import { MediaLibrary } from './admin/MediaLibrary';
@@ -15,6 +14,8 @@ interface MediaLibraryPickerProps {
     space: Space | null;
     /** Accept string hint shown in title, e.g. "ảnh" | "âm thanh" | "video" */
     acceptLabel?: string;
+    /** Pre-select file type tab: 'all' | 'image' | 'audio' | 'video' | 'document' */
+    defaultFileType?: string;
 }
 
 export const MediaLibraryPicker: React.FC<MediaLibraryPickerProps> = ({
@@ -22,6 +23,7 @@ export const MediaLibraryPicker: React.FC<MediaLibraryPickerProps> = ({
     onClose,
     space,
     acceptLabel = 'file',
+    defaultFileType,
 }) => {
     const handleSelect = (url: string) => {
         onSelect(url);
@@ -86,6 +88,7 @@ export const MediaLibraryPicker: React.FC<MediaLibraryPickerProps> = ({
                         language="vi"
                         onSelect={handleSelect}
                         selectable
+                        defaultFileType={defaultFileType}
                     />
                 </div>
             </div>

@@ -576,6 +576,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 }}
                 space={editingSpace as Space}
                 language={language}
+                defaultFileType="image"
             />
             {/* Media picker for favicon */}
             <MediaPickerModal
@@ -586,6 +587,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 }}
                 space={editingSpace as Space}
                 language={language}
+                defaultFileType="image"
             />
 
             {isModalOpen && editingSpace && (
