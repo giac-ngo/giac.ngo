@@ -46,19 +46,20 @@ const translations = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, lang: 'vi' | 'en' = 'vi'): string {
+    const t = translations[lang];
     const diff = Date.now() - new Date(dateStr).getTime();
     const s = Math.floor(diff / 1000);
-    if (s < 60) return 'Vừa xong';
+    if (s < 60) return t.justNow;
     const m = Math.floor(s / 60);
-    if (m < 60) return `${m} phút trước`;
+    if (m < 60) return `${m} ${t.minutesAgo}`;
     const h = Math.floor(m / 60);
-    if (h < 24) return `${h} giờ trước`;
+    if (h < 24) return `${h} ${t.hoursAgo}`;
     const d = Math.floor(h / 24);
-    if (d < 30) return `${d} ngày trước`;
+    if (d < 30) return `${d} ${t.daysAgo}`;
     const mo = Math.floor(d / 30);
-    if (mo < 12) return `${mo} tháng trước`;
-    return `${Math.floor(mo / 12)} năm trước`;
+    if (mo < 12) return `${mo} ${t.monthsAgo}`;
+    return `${Math.floor(mo / 12)} ${t.yearsAgo}`;
 }
 
 function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
@@ -887,11 +888,11 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                             color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 13
                         }}
                     >
-                        {currentUser.name} ơi, bạn đang nghĩ gì vậy?
+                        {currentUser ? `${currentUser.name} ${translations[language || "vi"].thinking}` : translations[language || "vi"].thinkingAnonymous}
                     </div>
                 ) : (
                     <div style={{ flex: 1, fontWeight: 700, fontSize: 13, color: 'var(--sf-text)' }}>
-                        Tạo bài viết
+                        {language === "vi" ? "Tạo bài viết" : "Create post"}
                     </div>
                 )}
             </div>
@@ -904,7 +905,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                             ref={textareaRef}
                             value={content}
                             onChange={e => setContent(e.target.value)}
-                            placeholder={currentUser ? `${currentUser.name} ${translations[language].thinking}` : translations[language].thinkingAnonymous}
+                            placeholder={currentUser ? `${currentUser.name} ${translations[language || 'vi'].thinking}` : translations[language || 'vi'].thinkingAnonymous}
                             rows={4}
                             style={{
                                 flex: 1, padding: '8px 0', background: 'none', border: 'none',
@@ -969,7 +970,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     <path d="M21 15l-5-5L5 21h16z" fill="rgba(255,255,255,0.9)"/>
                                     <path d="M14 10l5 5" fill="none"/>
                                 </svg>
-                                Ảnh/Video
+                                {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
                             </button>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
@@ -979,7 +980,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     padding: '8px 16px', borderRadius: 8, border: 'none',
                                     background: 'var(--sf-input-bg)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 12
                                 }}
-                            >Hủy</button>
+                            >{translations[language || "vi"].cancel}</button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={(!content.trim() && images.length === 0) || submitting}
@@ -990,7 +991,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     fontWeight: 700, fontSize: 12, transition: 'background 0.2s'
                                 }}
                             >
-                                {submitting ? 'Đang đăng...' : 'Đăng'}
+                                {submitting ? translations[language || "vi"].posting : translations[language || "vi"].post}
                             </button>
                         </div>
                     </div>
@@ -1015,7 +1016,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     <circle cx="8" cy="9" r="2" fill="#fff"/>
                                     <path d="M22 16L15 9 8 16" fill="rgba(255,255,255,0.85)" stroke="none"/>
                                     <path d="M22 20L13 11 2 20" fill="rgba(255,255,255,0.6)" stroke="none"/>
-                                </svg> Ảnh/Video
+                                </svg> {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
                     </button>
                     <button
                         onClick={() => { setExpanded(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
@@ -1032,7 +1033,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     <circle cx="9" cy="10" r="1.5" fill="#fff"/>
                                     <circle cx="15" cy="10" r="1.5" fill="#fff"/>
                                     <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-                                </svg> Cảm xúc
+                                </svg> {translations[language || "vi"].feeling.replace(/😊 /g, "")}
                     </button>
                 </div>
             )}
