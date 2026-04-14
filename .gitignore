@@ -41,6 +41,8 @@ dist-ssr
 
 # Uploads
 uploads/
+uploads.zip
+*.zip
 
 # Test scripts (có chứa hardcoded tokens - KHÔNG push lên Git)
 test_*.cjs
