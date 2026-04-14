@@ -538,13 +538,13 @@ export const apiService = {
     //     }).then(handleResponse);
     // },
     // initiateStripePurchase: (userId: number, merits: number): Promise<{ clientSecret: string, paymentIntentId: string }> => {
-    //     return authedFetch('/api/stripe/create-payment-intent', {
+    //     return authedFetch('/api/billing/stripe/create-payment-intent', {
     //         method: 'POST',
     //         body: JSON.stringify({ userId, merits }),
     //     }).then(handleResponse);
     // },
     // confirmStripePayment: (paymentIntentId: string): Promise<User> => {
-    //     return authedFetch('/api/stripe/confirm-payment', {
+    //     return authedFetch('/api/billing/stripe/confirm-payment', {
     //         method: 'POST',
     //         body: JSON.stringify({ paymentIntentId }),
     //     }).then(handleResponse);
@@ -553,7 +553,7 @@ export const apiService = {
     // New methods for Stripe Checkout
 
     verifyCheckoutSession: (sessionId: string): Promise<User> => {
-        return authedFetch('/api/stripe/verify-checkout-session', {
+        return authedFetch('/api/billing/stripe/verify-checkout-session', {
             method: 'POST',
             body: JSON.stringify({ sessionId }),
         }).then(handleResponse);
@@ -564,31 +564,31 @@ export const apiService = {
 
     // Stripe Connect
     createStripeConnectAccount: (spaceId: number): Promise<{ accountId: string }> => {
-        return authedFetch('/api/stripe/connect/account', {
+        return authedFetch('/api/billing/stripe/connect/account', {
             method: 'POST',
             body: JSON.stringify({ spaceId }),
         }).then(handleResponse);
     },
     createStripeAccountLink: (accountId: string, spaceId: number): Promise<{ url: string }> => {
-        return authedFetch('/api/stripe/connect/account-link', {
+        return authedFetch('/api/billing/stripe/connect/account-link', {
             method: 'POST',
             body: JSON.stringify({ accountId, spaceId }),
         }).then(handleResponse);
     },
     createStripeLoginLink: (accountId: string): Promise<{ url: string }> => {
-        return authedFetch('/api/stripe/connect/login-link', {
+        return authedFetch('/api/billing/stripe/connect/login-link', {
             method: 'POST',
             body: JSON.stringify({ accountId }),
         }).then(handleResponse);
     },
     disconnectStripeConnect: (spaceId: number): Promise<{ message: string }> => {
-        return authedFetch('/api/stripe/connect/disconnect', {
+        return authedFetch('/api/billing/stripe/connect/disconnect', {
             method: 'POST',
             body: JSON.stringify({ spaceId }),
         }).then(handleResponse);
     },
     getStripeConnectAccountStatus: (accountId: string): Promise<{ chargesEnabled: boolean, payoutsEnabled: boolean, detailsSubmitted: boolean }> => {
-        return authedFetch(`/api/stripe/connect/account/${accountId}`).then(handleResponse);
+        return authedFetch(`/api/billing/stripe/connect/account/${accountId}`).then(handleResponse);
     },
 
     
@@ -919,7 +919,7 @@ export const apiService = {
      */
 
     getEnabledPaymentMethods: (): Promise<string[]> => {
-        return authedFetch('/api/stripe/payment-methods').then(handleResponse);
+        return authedFetch('/api/billing/stripe/payment-methods').then(handleResponse);
     },
 
     // PayOS Integration
@@ -940,7 +940,7 @@ export const apiService = {
     },
     // Generic authenticated request helper
     createStripeCheckoutSession: (amount: number, message: string, spaceId: number | null, returnUrl?: string, type?: string, planId?: number): Promise<{ url: string }> => {
-        return authedFetch('/api/billing/create-checkout-session', {
+        return authedFetch('/api/billing/stripe/create-checkout-session', {
             method: 'POST',
             body: JSON.stringify({ amount, message, spaceId, returnUrl, type, planId })
         }).then(handleResponse);
