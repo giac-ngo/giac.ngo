@@ -19,13 +19,13 @@ const translations = {
     vi: {
         justNow: 'Vừa xong', minutesAgo: ' phút trước', hoursAgo: ' giờ trước', daysAgo: ' ngày trước', monthsAgo: ' tháng trước', yearsAgo: ' năm trước',
         reply: 'Phản hồi', delete: 'Xóa', readMore: 'Xem thêm ▼', showLess: 'Thu gọn ▲', readMoreContent: 'Xem thêm', deletePost: '🗑 Xóa bài viết',
-        writeComment: 'Viết bình luận...', loading: 'Đang tải...', replyingTo: 'Đang phản hồi', loginToLike: translations[language || "vi"].loginToLike,
-        deleteCommentFailed: 'Xóa bình luận thất bại.', deletePostFailed: translations[language || "vi"].deletePostFailed, sendCommentFailed: translations[language || "vi"].sendCommentFailed,
+        writeComment: 'Viết bình luận...', loading: 'Đang tải...', replyingTo: 'Đang phản hồi', loginToLike: 'Vui lòng đăng nhập để like.',
+        deleteCommentFailed: 'Xóa bình luận thất bại.', deletePostFailed: 'Xóa bài viết thất bại.', sendCommentFailed: 'Gửi bình luận thất bại.',
         thinking: 'ơi, bạn đang nghĩ gì vậy?', thinkingAnonymous: 'Bạn đang nghĩ gì vậy?', photoVideo: '📸 Ảnh/Video', feeling: '😊 Cảm xúc',
         post: 'Đăng', posting: 'Đang đăng...', postToCommunity: 'Đăng lên cộng đồng', searchPosts: 'Tìm kiếm bài viết...', loginToJoin: 'Đăng nhập để tham gia cộng đồng',
         loginReq: 'Bạn cần đăng nhập để xem, đăng bài và bình luận.', noPostsYet: 'Chưa có bài đăng nào', noUserPostsYet: 'Bạn chưa có bài đăng nào',
-        beFirst: 'Hãy là người đầu tiên chia sẻ điều gì đó!', shareSomething: 'Hãy chia sẻ điều gì đó lên cộng đồng!', loginToRepost: translations[language || "vi"].loginToRepost,
-        alreadyReposted: translations[language || "vi"].alreadyReposted, repostSuccess: translations[language || "vi"].repostSuccess, repostFailed: translations[language || "vi"].repostFailed,
+        beFirst: 'Hãy là người đầu tiên chia sẻ điều gì đó!', shareSomething: 'Hãy chia sẻ điều gì đó lên cộng đồng!', loginToRepost: 'Vui lòng đăng nhập để repost.',
+        alreadyReposted: 'Bạn đã repost bài này rồi.', repostSuccess: 'Đã repost lên tường của bạn! 🎉', repostFailed: 'Repost thất bại.',
         repostTitle: 'Chia sẻ bài viết', repostPlaceholder: 'Nhập nội dung chia sẻ...', cancel: 'Hủy', share: 'Chia sẻ', sharing: 'Đang chia sẻ...', update: 'Cập nhật',
         from: 'Từ', mediaLibrary: 'Thư Viện Media', selectImages: 'Chọn tối đa 4 ảnh', mediaLibOrDevice: 'Chọn từ Thư Viện Media hoặc tải lên từ thiết bị'
     },
