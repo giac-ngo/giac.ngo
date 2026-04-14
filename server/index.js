@@ -213,11 +213,28 @@ app.get('*', async (req, res, next) => {
     if (isCrawler) {
         try {
             const host = req.headers.host?.split(':')[0] || '';
-            // Find space by custom domain OR by main domain setting
-            const spaceRes = await pool.query(
+            const mainDomain = (process.env.MAIN_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+
+            // 1. Try to find space by exact custom domain
+            let spaceRes = await pool.query(
                 `SELECT * FROM spaces WHERE custom_domain = $1 LIMIT 1`,
                 [host]
             );
+
+            // 2. If not found and host matches main domain, get the first/default space
+            if (!spaceRes.rows[0] && (host === mainDomain || host === `www.${mainDomain}` || !mainDomain)) {
+                spaceRes = await pool.query(
+                    `SELECT * FROM spaces ORDER BY id ASC LIMIT 1`
+                );
+            }
+
+            // 3. Also try matching by slug (for subpath-based tenants)
+            if (!spaceRes.rows[0]) {
+                spaceRes = await pool.query(
+                    `SELECT * FROM spaces ORDER BY id ASC LIMIT 1`
+                );
+            }
+
             const space = spaceRes.rows[0] ? mapRowToCamelCase(spaceRes.rows[0]) : null;
 
             if (space) {
@@ -236,6 +253,8 @@ app.get('*', async (req, res, next) => {
     <meta property="og:title" content="${spaceName}">
     <meta property="og:description" content="${desc}">
     <meta property="og:image" content="${ogImg}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:locale" content="vi_VN">
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
