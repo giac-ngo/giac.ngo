@@ -223,6 +223,8 @@ function CommentItem({
     postUserId: number;
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
+    onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
+    parentComment?: SocialComment | null;
     language?: 'vi' | 'en';
 }) {
     const canDelete = currentUser && (
@@ -239,11 +241,28 @@ function CommentItem({
                     background: 'var(--sf-input-bg)', borderRadius: 18,
                     padding: '8px 12px', display: 'inline-block', maxWidth: '100%'
                 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--sf-text)', marginBottom: 2 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--sf-text)', marginBottom: 2, cursor: onUserClick ? 'pointer' : 'default' }} onClick={() => onUserClick && onUserClick(comment.userId, comment.userName, comment.userAvatarUrl)}>
                         {comment.userName}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--sf-text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {comment.content}
+                        {(() => {
+                            if (parentComment && comment.content.startsWith(`@${parentComment.userName} `)) {
+                                const prefix = `@${parentComment.userName} `;
+                                const rest = comment.content.slice(prefix.length);
+                                return (
+                                    <>
+                                        <span 
+                                            onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); }}
+                                            style={{ color: '#8b4513', fontWeight: 600, cursor: onUserClick ? 'pointer' : 'default' }}
+                                        >
+                                            {prefix.trim()}
+                                        </span>
+                                        {' '}{rest}
+                                    </>
+                                );
+                            }
+                            return comment.content;
+                        })()}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 3, paddingLeft: 8 }}>
@@ -278,15 +297,19 @@ function CommentThread({
     postUserId: number;
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
+    onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
     language?: 'vi' | 'en';
 }) {
     const replies = allComments.filter(c => c.parentCommentId === comment.id);
+    const parentComment = allComments.find(c => c.id === comment.parentCommentId);
     return (
         <div key={comment.id}>
             <CommentItem
                 comment={comment} currentUser={currentUser}
                 spaceId={spaceId} postId={postId} postUserId={postUserId}
-                onDelete={onDelete} onReply={onReply} language={language}
+                onDelete={onDelete} onReply={onReply}
+                onUserClick={onUserClick} parentComment={parentComment}
+                language={language}
             />
             {replies.length > 0 && (
                 <div style={{ paddingLeft: 38 }}>
@@ -295,6 +318,7 @@ function CommentThread({
                             key={reply.id} comment={reply} allComments={allComments}
                             currentUser={currentUser} spaceId={spaceId} postId={postId}
                             postUserId={postUserId} onDelete={onDelete} onReply={onReply}
+                            onUserClick={onUserClick}
                             language={language}
                         />
                     ))}
@@ -854,7 +878,9 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     key={c.id} comment={c} allComments={comments}
                                     currentUser={currentUser} spaceId={spaceId} postId={post.id}
                                     postUserId={post.userId ?? 0}
-                                    onDelete={handleDeleteComment} onReply={handleReply} language={language}
+                                    onDelete={handleDeleteComment} onReply={handleReply}
+                                    onUserClick={onUserClick}
+                                    language={language}
                                 />
                             ))}
                         </>
@@ -864,7 +890,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     {currentUser && (
                         <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
                             <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={32} />
-                            <div style={{ flex: 1, position: 'relative' }}>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                 {replyTo && (
                                     <div style={{ fontSize: 12, color: '#8b4513', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                                         {translations[language || "vi"].replyingTo} <strong>{replyTo.name}</strong>
@@ -872,24 +898,26 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 14, lineHeight: 1 }}>×</button>
                                     </div>
                                 )}
-                                <input
-                                    ref={commentInputRef}
-                                    value={commentText}
-                                    onChange={e => setCommentText(e.target.value)}
-                                    placeholder={translations[language || "vi"].writeComment}
-                                    style={{
-                                        width: '100%', padding: '8px 40px 8px 14px', borderRadius: 20,
-                                        border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)',
-                                        color: 'var(--sf-text)', fontSize: 12, outline: 'none',
-                                        boxSizing: 'border-box',
-                                    }}
-                                />
-                                <button type="submit" disabled={!commentText.trim() || submittingComment}
-                                    style={{
-                                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                                        background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                                        color: commentText.trim() ? '#8b4513' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
-                                    }}>↑</button>
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                    <input
+                                        ref={commentInputRef}
+                                        value={commentText}
+                                        onChange={e => setCommentText(e.target.value)}
+                                        placeholder={translations[language || "vi"].writeComment}
+                                        style={{
+                                            width: '100%', padding: '8px 40px 8px 14px', borderRadius: 20,
+                                            border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)',
+                                            color: 'var(--sf-text)', fontSize: 12, outline: 'none',
+                                            boxSizing: 'border-box',
+                                        }}
+                                    />
+                                    <button type="submit" disabled={!commentText.trim() || submittingComment}
+                                        style={{
+                                            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                            background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
+                                            color: commentText.trim() ? '#8b4513' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
+                                        }}>↑</button>
+                                </div>
                             </div>
                         </form>
                     )}
@@ -947,9 +975,27 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, marginLeft: depth * 32 }}>
                                                     <Avatar name={c.userName} url={c.userAvatarUrl} size={32} />
                                                     <div style={{ flex: 1, fontSize: 14, color: '#4a4a4a', lineHeight: 1.5 }}>
-                                                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 6 }}>{c.userName}</span>
+                                                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 6, cursor: 'pointer' }} onClick={() => { onUserClick && onUserClick(c.userId, c.userName, c.userAvatarUrl); setLightboxIdx(null); }}>{c.userName}</span>
                                                         <span style={{ cursor: 'pointer' }} onClick={() => handleReply(c.id, c.userName)} title="Nhấn để trả lời">
-                                                            {c.content}
+                                                            {(() => {
+                                                                const parentComment = comments.find(p => p.id === c.parentCommentId);
+                                                                if (parentComment && c.content.startsWith(`@${parentComment.userName} `)) {
+                                                                    const prefix = `@${parentComment.userName} `;
+                                                                    const rest = c.content.slice(prefix.length);
+                                                                    return (
+                                                                        <>
+                                                                            <span 
+                                                                                onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); setLightboxIdx(null); }}
+                                                                                style={{ color: '#8b4513', fontWeight: 600 }}
+                                                                            >
+                                                                                {prefix.trim()}
+                                                                            </span>
+                                                                            {' '}{rest}
+                                                                        </>
+                                                                    );
+                                                                }
+                                                                return c.content;
+                                                            })()}
                                                         </span>
                                                         <div style={{ fontSize: 11, color: '#a08b7a', marginTop: 4, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>
                                                             {timeAgo(c.createdAt, language || 'vi')}
