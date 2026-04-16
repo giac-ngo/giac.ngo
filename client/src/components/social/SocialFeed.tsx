@@ -287,7 +287,7 @@ function CommentItem({
 
 function CommentThread({
     comment, allComments, currentUser, spaceId, postId, postUserId,
-    onDelete, onReply, language = 'vi'
+    onDelete, onReply, onUserClick, language = 'vi'
 }: {
     comment: SocialComment;
     allComments: SocialComment[];
