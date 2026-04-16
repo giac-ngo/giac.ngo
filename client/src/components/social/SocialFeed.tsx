@@ -970,13 +970,18 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 (() => {
                                     const renderComment = (c: SocialComment, depth: number) => {
                                         const replies = comments.filter(r => r.parentCommentId === c.id);
+                                        const canDeleteComment = currentUser && (
+                                            currentUser.id === c.userId ||
+                                            currentUser.id === post.userId ||
+                                            (currentUser.roleIds && currentUser.roleIds.length > 0)
+                                        );
                                         return (
                                             <React.Fragment key={c.id}>
-                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, marginLeft: depth * 32 }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14, marginLeft: depth * 30 }}>
                                                     <Avatar name={c.userName} url={c.userAvatarUrl} size={32} />
                                                     <div style={{ flex: 1, fontSize: 14, color: '#4a4a4a', lineHeight: 1.5 }}>
                                                         <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 6, cursor: 'pointer' }} onClick={() => { onUserClick && onUserClick(c.userId, c.userName, c.userAvatarUrl); setLightboxIdx(null); }}>{c.userName}</span>
-                                                        <span style={{ cursor: 'pointer' }} onClick={() => handleReply(c.id, c.userName)} title="Nhấn để trả lời">
+                                                        <span>
                                                             {(() => {
                                                                 const parentComment = comments.find(p => p.id === c.parentCommentId);
                                                                 if (parentComment && c.content.startsWith(`@${parentComment.userName} `)) {
@@ -984,9 +989,9 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                                                     const rest = c.content.slice(prefix.length);
                                                                     return (
                                                                         <>
-                                                                            <span 
+                                                                            <span
                                                                                 onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); setLightboxIdx(null); }}
-                                                                                style={{ color: '#8b4513', fontWeight: 600 }}
+                                                                                style={{ color: '#8b4513', fontWeight: 600, cursor: 'pointer' }}
                                                                             >
                                                                                 {prefix.trim()}
                                                                             </span>
@@ -997,8 +1002,24 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                                                 return c.content;
                                                             })()}
                                                         </span>
-                                                        <div style={{ fontSize: 11, color: '#a08b7a', marginTop: 4, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>
-                                                            {timeAgo(c.createdAt, language || 'vi')}
+                                                        <div style={{ display: 'flex', gap: 12, marginTop: 4, alignItems: 'center' }}>
+                                                            <span style={{ fontSize: 11, color: '#a08b7a', fontWeight: 500 }}>{timeAgo(c.createdAt, language || 'vi')}</span>
+                                                            {currentUser && (
+                                                                <button
+                                                                    onClick={() => handleReply(c.id, c.userName)}
+                                                                    style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: 0 }}
+                                                                >
+                                                                    Phản hồi
+                                                                </button>
+                                                            )}
+                                                            {canDeleteComment && (
+                                                                <button
+                                                                    onClick={() => handleDeleteComment(c.id)}
+                                                                    style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}
+                                                                >
+                                                                    Xóa
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
