@@ -239,7 +239,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                                 {selectedFiles.size > 1 && ` (${selectedFiles.size})`}
                             </button>
                         )}
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple accept="image/*,video/*,audio/*" />
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" />
                         <button
                             onClick={handleUploadClick}
                             disabled={isUploading}
