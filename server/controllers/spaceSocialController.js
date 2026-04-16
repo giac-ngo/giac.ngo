@@ -240,6 +240,28 @@ export const toggleSocialLike = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// GET /api/spaces/:id/social/:postId/likes
+// ─────────────────────────────────────────────
+export const getPostLikers = async (req, res) => {
+    try {
+        const postId = parseInt(req.params.postId, 10);
+        if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
+        const { rows } = await pool.query(
+            `SELECT u.id, u.name, u.avatar_url as "avatarUrl"
+             FROM social_post_likes l
+             JOIN users u ON u.id = l.user_id
+             WHERE l.post_id = $1
+             ORDER BY l.created_at DESC`,
+            [postId]
+        );
+        res.json(rows);
+    } catch (err) {
+        console.error('getPostLikers error:', err);
+        res.status(500).json({ message: 'Lỗi lấy danh sách người thích.' });
+    }
+};
+
+// ─────────────────────────────────────────────
 // GET /api/spaces/:id/social/:postId/comments
 // ─────────────────────────────────────────────
 export const getSocialComments = async (req, res) => {

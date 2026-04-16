@@ -966,6 +966,9 @@ export const apiService = {
     toggleSocialLike: (spaceId: number, postId: number): Promise<{ liked: boolean; likesCount: number }> => {
         return authedFetch(`/api/spaces/${spaceId}/social/${postId}/like`, { method: 'POST' }).then(handleResponse);
     },
+    getPostLikers: (spaceId: number, postId: number): Promise<{ id: number; name: string; avatarUrl: string | null }[]> => {
+        return authedFetch(`/api/spaces/${spaceId}/social/${postId}/likes`).then(handleResponse);
+    },
     getSocialComments: (spaceId: number, postId: number): Promise<SocialComment[]> => {
         return authedFetch(`/api/spaces/${spaceId}/social/${postId}/comments`).then(handleResponse);
     },

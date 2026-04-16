@@ -27,7 +27,9 @@ const translations = {
         beFirst: 'Hãy là người đầu tiên chia sẻ điều gì đó!', shareSomething: 'Hãy chia sẻ điều gì đó lên cộng đồng!', loginToRepost: 'Vui lòng đăng nhập để repost.',
         alreadyReposted: 'Bạn đã repost bài này rồi.', repostSuccess: 'Đã repost lên tường của bạn! 🎉', repostFailed: 'Repost thất bại.',
         repostTitle: 'Chia sẻ bài viết', repostPlaceholder: 'Nhập nội dung chia sẻ...', cancel: 'Hủy', share: 'Chia sẻ', sharing: 'Đang chia sẻ...', update: 'Cập nhật',
-        from: 'Từ', mediaLibrary: 'Thư Viện Media', selectImages: 'Chọn tối đa 4 ảnh', mediaLibOrDevice: 'Chọn từ Thư Viện Media hoặc tải lên từ thiết bị'
+        from: 'Từ', mediaLibrary: 'Thư Viện Media', selectImages: 'Chọn tối đa 4 ảnh', mediaLibOrDevice: 'Chọn từ Thư Viện Media hoặc tải lên từ thiết bị',
+        likeAction: 'Thích', commentAction: 'Bình luận', shareAction: 'Chia sẻ',
+        whoLiked: 'Người đã thích', noLikesYet: 'Chưa có ai thích bài này',
     },
     en: {
         justNow: 'Just now', minutesAgo: 'm ago', hoursAgo: 'h ago', daysAgo: 'd ago', monthsAgo: 'mo ago', yearsAgo: 'y ago',
@@ -40,7 +42,9 @@ const translations = {
         beFirst: 'Be the first to share something!', shareSomething: 'Share something with the community!', loginToRepost: 'Please login to repost.',
         alreadyReposted: 'You already reposted this.', repostSuccess: 'Reposted successfully! 🎉', repostFailed: 'Failed to repost.',
         repostTitle: 'Repost', repostPlaceholder: 'Add your thoughts...', cancel: 'Cancel', share: 'Repost', sharing: 'Posting...', update: 'Update',
-        from: 'From', mediaLibrary: 'Media Library', selectImages: 'Select up to 4 images', mediaLibOrDevice: 'Select from Media Library or upload from device'
+        from: 'From', mediaLibrary: 'Media Library', selectImages: 'Select up to 4 images', mediaLibOrDevice: 'Select from Media Library or upload from device',
+        likeAction: 'Like', commentAction: 'Comment', shareAction: 'Share',
+        whoLiked: 'People who liked', noLikesYet: 'No one liked this yet',
     }
 };
 
@@ -433,6 +437,8 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     const [repostComment, setRepostComment] = useState('');
     const [repostSubmitting, setRepostSubmitting] = useState(false);
     const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+    const [likersPopup, setLikersPopup] = useState<{ loading: boolean; users: { id: number; name: string; avatarUrl: string | null }[] } | null>(null);
+    const likersPopupRef = useRef<HTMLDivElement>(null);
 
     const [isFollowed, setIsFollowed] = useState(post.isFollowedByMe || false);
     const [followLoading, setFollowLoading] = useState(false);
@@ -459,10 +465,22 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     useEffect(() => {
         const onClick = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+            if (likersPopupRef.current && !likersPopupRef.current.contains(e.target as Node)) setLikersPopup(null);
         };
         document.addEventListener('mousedown', onClick);
         return () => document.removeEventListener('mousedown', onClick);
     }, []);
+
+    const handleShowLikers = async () => {
+        if (likersCount === 0) return;
+        setLikersPopup({ loading: true, users: [] });
+        try {
+            const data = await apiService.getPostLikers(spaceId, post.id);
+            setLikersPopup({ loading: false, users: data });
+        } catch {
+            setLikersPopup({ loading: false, users: [] });
+        }
+    };
 
     const handleLike = async () => {
         if (!currentUser) return showToast('Vui lòng đăng nhập để like.', 'error');
@@ -807,38 +825,133 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                 </div>
             )}
 
+            {/* Stat row: clickable counts */}
+            {(likesCount > 0 || repostsCount > 0 || (post.commentsCount ?? 0) > 0) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '4px 16px 2px', fontSize: 13, color: 'var(--sf-muted)' }}>
+                    {/* Likes count — clickable to see who liked */}
+                    {likesCount > 0 && (
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                onClick={handleShowLikers}
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--sf-muted)', fontSize: 13, padding: '2px 4px',
+                                    borderRadius: 4, textDecoration: 'underline dotted',
+                                    transition: 'color 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#e11d48')}
+                                onMouseLeave={e => (e.currentTarget.style.color = 'var(--sf-muted)')}
+                                title={translations[language || 'vi'].whoLiked}
+                            >
+                                ❤️ {likesCount.toLocaleString()}
+                            </button>
+                            {/* Likers popup */}
+                            {likersPopup && (
+                                <div
+                                    ref={likersPopupRef}
+                                    style={{
+                                        position: 'absolute', bottom: '100%', left: 0, zIndex: 200,
+                                        background: 'var(--sf-card, #fff)', border: '1px solid var(--sf-border)',
+                                        borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                                        padding: '10px 0', minWidth: 220, maxHeight: 300, overflowY: 'auto',
+                                        marginBottom: 6,
+                                    }}
+                                >
+                                    <div style={{ padding: '4px 14px 8px', fontWeight: 700, fontSize: 12, color: 'var(--sf-muted)', borderBottom: '1px solid var(--sf-border)', marginBottom: 6 }}>
+                                        {translations[language || 'vi'].whoLiked}
+                                    </div>
+                                    {likersPopup.loading ? (
+                                        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
+                                    ) : likersPopup.users.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 13 }}>{translations[language || 'vi'].noLikesYet}</div>
+                                    ) : (
+                                        likersPopup.users.map(u => (
+                                            <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', cursor: 'default' }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-bg, #f9f5ee)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                            >
+                                                <Avatar name={u.name} url={u.avatarUrl} size={30} />
+                                                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--sf-text)' }}>{u.name}</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {repostsCount > 0 && (
+                        <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>
+                            🔁 {repostsCount.toLocaleString()} {language === 'en' ? 'shares' : 'chia sẻ'}
+                        </span>
+                    )}
+                    {(post.commentsCount ?? 0) > 0 && (
+                        <button
+                            onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 13, padding: '2px 4px', borderRadius: 4, textDecoration: 'underline dotted' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--sf-text)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--sf-muted)')}
+                        >
+                            💬 {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '6px 12px 10px', gap: 20, borderBottom: '1px solid var(--sf-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '2px 8px 8px', gap: 4, borderBottom: '1px solid var(--sf-border)' }}>
                 {/* Like */}
                 <button
                     onClick={handleLike}
                     style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
+                        display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center',
                         background: 'none', border: 'none', borderRadius: 8,
                         cursor: currentUser ? 'pointer' : 'default',
                         color: liked ? '#e11d48' : 'var(--sf-muted)',
-                        fontWeight: 500, fontSize: 13, padding: '4px 6px',
-                        transition: 'color 0.15s',
+                        fontWeight: 500, fontSize: 13, padding: '7px 4px',
+                        transition: 'color 0.15s, background 0.15s',
                     }}
+                    onMouseEnter={e => { if (currentUser) e.currentTarget.style.background = 'rgba(225,29,72,0.07)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                 >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
-                    <span>{likesCount}</span>
+                    <span>{translations[language || 'vi'].likeAction}</span>
                 </button>
 
-                {/* Retweet/Share */}
+                {/* Comment */}
+                <button
+                    onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center',
+                        background: 'none', border: 'none', borderRadius: 8,
+                        cursor: 'pointer', color: showComments ? 'var(--sf-text)' : 'var(--sf-muted)',
+                        fontWeight: 500, fontSize: 13, padding: '7px 4px',
+                        transition: 'color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>{translations[language || 'vi'].commentAction}</span>
+                </button>
+
+                {/* Repost/Share */}
                 <button
                     onClick={handleRepost}
-                    title="Repost lên tường của bạn"
+                    title={language === 'en' ? 'Share to your wall' : 'Chia sẻ lên tường của bạn'}
                     style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
+                        display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center',
                         background: 'none', border: 'none', borderRadius: 8,
                         cursor: currentUser ? 'pointer' : 'default',
                         color: reposted ? '#45bd62' : 'var(--sf-muted)',
-                        fontWeight: reposted ? 600 : 500, fontSize: 13, padding: '4px 6px',
-                        transition: 'color 0.15s',
+                        fontWeight: reposted ? 600 : 500, fontSize: 13, padding: '7px 4px',
+                        transition: 'color 0.15s, background 0.15s',
                     }}
+                    onMouseEnter={e => { if (currentUser) e.currentTarget.style.background = 'rgba(69,189,98,0.07)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                 >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17 1l4 4-4 4"/>
@@ -846,23 +959,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         <path d="M7 23l-4-4 4-4"/>
                         <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                     </svg>
-                    <span>{repostsCount}</span>
-                </button>
-
-                {/* Comment */}
-                <button
-                    onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        background: 'none', border: 'none', borderRadius: 8,
-                        cursor: 'pointer', color: showComments ? 'var(--sf-text)' : 'var(--sf-muted)',
-                        fontWeight: 500, fontSize: 13, padding: '4px 6px',
-                    }}
-                >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    <span>{post.commentsCount ?? 0}</span>
+                    <span>{translations[language || 'vi'].shareAction}</span>
                 </button>
             </div>
 

@@ -6,6 +6,7 @@ import {
     createSocialPost,
     deleteSocialPost,
     toggleSocialLike,
+    getPostLikers,
     getSocialComments,
     addSocialComment,
     deleteSocialComment,
@@ -25,8 +26,9 @@ router.get('/:id/social', getSocialPosts);
 router.post('/:id/social', postImageUpload.array('images', 4), createSocialPost);
 router.delete('/:id/social/:postId', deleteSocialPost);
 
-// Like toggle
+// Like toggle & likers
 router.post('/:id/social/:postId/like', toggleSocialLike);
+router.get('/:id/social/:postId/likes', getPostLikers);
 
 // Comments
 router.get('/:id/social/:postId/comments', getSocialComments);
