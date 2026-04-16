@@ -1302,7 +1302,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button
-                                onClick={() => { setExpanded(false); setContent(''); setImages([]); setPreviews([]); }}
+                                onClick={() => { setExpanded(false); setContent(''); setImages([]); setPreviews([]); setShowEmojiPicker(false); }}
                                 style={{
                                     padding: '8px 16px', borderRadius: 8, border: 'none',
                                     background: 'var(--sf-input-bg)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 12
