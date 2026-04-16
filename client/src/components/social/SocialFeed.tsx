@@ -1357,6 +1357,10 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
     const observerRef = useRef<IntersectionObserver | null>(null);
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [showSearchBar, setShowSearchBar] = useState(false);
+    const hasMoreRef = useRef(true);
+    const loadingMoreRef = useRef(false);
+    const pageRef = useRef(1);
+    const loadingRef = useRef(false);
 
 
     const searchQ = (externalSearch ?? internalSearch).toLowerCase().trim();
@@ -1372,20 +1376,36 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
         : basePosts;
 
     const loadPosts = useCallback(async (pg: number, append = false) => {
-        if (!currentUser) return; // Guest: skip API call
-        if (pg === 1) setLoading(true); else setLoadingMore(true);
+        if (!currentUser) return;
+        if (loadingRef.current) return; // prevent duplicate calls
+        loadingRef.current = true;
+        if (pg === 1) setLoading(true); else { setLoadingMore(true); loadingMoreRef.current = true; }
         try {
             const res = await apiService.getSocialPosts(spaceId, pg, LIMIT);
+            const newData: SocialPost[] = res.data;
             if (append) {
-                setPosts(prev => [...prev, ...res.data]);
+                setPosts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const fresh = newData.filter(p => !existingIds.has(p.id));
+                    const merged = [...prev, ...fresh];
+                    const more = newData.length === LIMIT && merged.length < res.total;
+                    hasMoreRef.current = more;
+                    setHasMore(more);
+                    return merged;
+                });
             } else {
-                setPosts(res.data);
+                setPosts(newData);
+                const more = newData.length === LIMIT && newData.length < res.total;
+                hasMoreRef.current = more;
+                setHasMore(more);
             }
-            setHasMore(res.data.length === LIMIT && posts.length + res.data.length < res.total);
+            pageRef.current = pg;
             setPage(pg);
         } catch {
             showToast('Không thể tải bài đăng.', 'error');
         } finally {
+            loadingRef.current = false;
+            loadingMoreRef.current = false;
             setLoading(false);
             setLoadingMore(false);
         }
@@ -1415,17 +1435,17 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
         return () => clearInterval(interval);
     }, [spaceId, currentUser]);
 
-    // Infinite scroll
+    // Infinite scroll — setup once, trigger via refs to avoid stale closures
     useEffect(() => {
         if (observerRef.current) observerRef.current.disconnect();
         observerRef.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore && !loadingMore) {
-                loadPosts(page + 1, true);
+            if (entries[0].isIntersecting && hasMoreRef.current && !loadingMoreRef.current && !loadingRef.current) {
+                loadPosts(pageRef.current + 1, true);
             }
-        }, { rootMargin: '200px' });
+        }, { rootMargin: '300px' });
         if (sentinelRef.current) observerRef.current.observe(sentinelRef.current);
         return () => observerRef.current?.disconnect();
-    }, [hasMore, loadingMore, page, loadPosts]);
+    }, [loadPosts]);
 
     // Toggle search bar when parent requests it (search button click)
     useEffect(() => {
