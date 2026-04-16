@@ -36,11 +36,11 @@ export const spaceModel = {
     },
 
     async create(data) {
-        const { userId, spaceSort, slug, name, nameEn, description, descriptionEn, imageUrl, locationText, locationTextEn, membersCount, views, likes, rating, tags, tagsEn, typeId, spaceColor, status, statusEn, event, eventEn, website, phoneNumber, email, stripeAccountId, hasMeditation, hasLibrary, hasDharmaTalks } = data;
+        const { userId, spaceSort, slug, name, nameEn, description, descriptionEn, imageUrl, locationText, locationTextEn, membersCount, views, likes, rating, tags, tagsEn, typeId, spaceColor, status, statusEn, event, eventEn, website, phoneNumber, email, stripeAccountId, hasMeditation, hasLibrary, hasDharmaTalks, hasCommunity } = data;
         const res = await pool.query(
-            `INSERT INTO spaces (user_id, space_sort, slug, name, name_en, description, description_en, image_url, location_text, location_text_en, members_count, views, likes, rating, tags, tags_en, type_id, space_color, status, status_en, event, event_en, website, phone_number, email, stripe_account_id, has_meditation, has_library, has_dharma_talks)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29) RETURNING *`,
-            [userId, spaceSort, slug, name, nameEn, description, descriptionEn, imageUrl, locationText, locationTextEn, membersCount, views, likes, rating, tags, tagsEn, typeId, spaceColor, status, statusEn, event, eventEn, website, phoneNumber, email, stripeAccountId, hasMeditation ?? true, hasLibrary ?? true, hasDharmaTalks ?? true]
+            `INSERT INTO spaces (user_id, space_sort, slug, name, name_en, description, description_en, image_url, location_text, location_text_en, members_count, views, likes, rating, tags, tags_en, type_id, space_color, status, status_en, event, event_en, website, phone_number, email, stripe_account_id, has_meditation, has_library, has_dharma_talks, has_community)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30) RETURNING *`,
+            [userId, spaceSort, slug, name, nameEn, description, descriptionEn, imageUrl, locationText, locationTextEn, membersCount, views, likes, rating, tags, tagsEn, typeId, spaceColor, status, statusEn, event, eventEn, website, phoneNumber, email, stripeAccountId, hasMeditation ?? true, hasLibrary ?? true, hasDharmaTalks ?? true, hasCommunity ?? true]
         );
         return mapRowToCamelCase(res.rows[0]);
     },
@@ -97,6 +97,7 @@ export const spaceModel = {
             hasMeditation: 'has_meditation',
             hasLibrary: 'has_library',
             hasDharmaTalks: 'has_dharma_talks',
+            hasCommunity: 'has_community',
             emailTemplate: 'email_template',
         };
 

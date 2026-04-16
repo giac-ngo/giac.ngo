@@ -439,6 +439,7 @@ export interface Space {
   hasMeditation?: boolean;
   hasLibrary?: boolean;
   hasDharmaTalks?: boolean;
+  hasCommunity?: boolean;
   smtpFromName?: string;
   emailTemplate?: string;
 }

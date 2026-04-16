@@ -375,7 +375,8 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 spaceColor: '#ffffff',
                 hasMeditation: false,
                 hasLibrary: false,
-                hasDharmaTalks: false
+                hasDharmaTalks: false,
+                hasCommunity: false
             });
         }
         setIsModalOpen(true);
@@ -682,41 +683,53 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                         </div>
 
                                         {/* Feature Toggles */}
-                                        <div className="border-t border-border-color pt-3">
-                                            <label className="block text-sm font-bold mb-2">✨ Tính năng Space</label>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        name="hasMeditation"
-                                                        checked={editingSpace.hasMeditation === true}
-                                                        onChange={handleInputChange}
-                                                        className="w-4 h-4 rounded accent-primary"
-                                                    />
-                                                    <span className="text-sm">🧘 Thiền</span>
-                                                </label>
-                                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        name="hasDharmaTalks"
-                                                        checked={editingSpace.hasDharmaTalks === true}
-                                                        onChange={handleInputChange}
-                                                        className="w-4 h-4 rounded accent-primary"
-                                                    />
-                                                    <span className="text-sm">🎙️ Pháp Thoại</span>
-                                                </label>
-                                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        name="hasLibrary"
-                                                        checked={editingSpace.hasLibrary === true}
-                                                        onChange={handleInputChange}
-                                                        className="w-4 h-4 rounded accent-primary"
-                                                    />
-                                                    <span className="text-sm">📚 Thư Viện</span>
-                                                </label>
+                                        {isSuperAdmin && (
+                                            <div className="border-t border-border-color pt-3">
+                                                <label className="block text-sm font-bold mb-2">✨ Tính năng Space</label>
+                                                <div className="space-y-2">
+                                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="hasMeditation"
+                                                            checked={editingSpace.hasMeditation === true}
+                                                            onChange={handleInputChange}
+                                                            className="w-4 h-4 rounded accent-primary"
+                                                        />
+                                                        <span className="text-sm">🧘 Thiền</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="hasDharmaTalks"
+                                                            checked={editingSpace.hasDharmaTalks === true}
+                                                            onChange={handleInputChange}
+                                                            className="w-4 h-4 rounded accent-primary"
+                                                        />
+                                                        <span className="text-sm">🎙️ Pháp Thoại</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="hasLibrary"
+                                                            checked={editingSpace.hasLibrary === true}
+                                                            onChange={handleInputChange}
+                                                            className="w-4 h-4 rounded accent-primary"
+                                                        />
+                                                        <span className="text-sm">📚 Thư Viện</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="hasCommunity"
+                                                            checked={editingSpace.hasCommunity === true}
+                                                            onChange={handleInputChange}
+                                                            className="w-4 h-4 rounded accent-primary"
+                                                        />
+                                                        <span className="text-sm">👥 Cộng đồng</span>
+                                                    </label>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
 
                                     {/* Contact Info Group */}

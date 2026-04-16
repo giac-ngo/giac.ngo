@@ -600,7 +600,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
 
             {/* Content */}
             <div style={{ padding: '0 16px 12px' }}>
-                {post.metadata?.type === 'ai_share' ? (
+                {post.metadata?.type === 'ai_share' || post.metadata?.type === 'library_share' ? (
                     <>
                         {/* User's personal comment */}
                         {post.content?.trim() && post.content.trim() !== ' ' && (
@@ -608,43 +608,66 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 {post.content}
                             </div>
                         )}
-                        {/* AI Quote Block */}
+                        {/* Quote Block */}
                         <div style={{
                             background: 'rgba(185, 148, 90, 0.12)',
                             border: '1px solid rgba(185, 148, 90, 0.35)',
                             borderRadius: 10,
                             padding: '12px 14px',
                         }}>
-                            {/* AI name header */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{
-                                    background: '#8b4513', color: '#fff', fontSize: 10, fontWeight: 700,
-                                    padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em'
-                                }}>AI</span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
-                                    {post.metadata.aiName}
-                                </span>
-                            </div>
-                            {/* User question (italic) */}
-                            <div style={{ fontSize: 12, color: 'var(--sf-muted)', fontStyle: 'italic', marginBottom: 8, lineHeight: 1.5 }}>
-                                "{post.metadata.userQuestion}"
-                            </div>
-                            {/* AI response with truncation */}
+                            {post.metadata.type === 'ai_share' ? (
+                                <>
+                                    {/* AI name header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <span style={{
+                                            background: '#8b4513', color: '#fff', fontSize: 10, fontWeight: 700,
+                                            padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em'
+                                        }}>AI</span>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
+                                            {post.metadata.aiName}
+                                        </span>
+                                    </div>
+                                    {/* User question (italic) */}
+                                    <div style={{ fontSize: 12, color: 'var(--sf-muted)', fontStyle: 'italic', marginBottom: 8, lineHeight: 1.5 }}>
+                                        "{post.metadata.userQuestion}"
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Library name header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 14, color: 'var(--sf-muted)' }}>📖</span>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
+                                            {post.metadata.docTitle}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'var(--sf-muted)', fontStyle: 'italic', marginBottom: 8, lineHeight: 1.5 }}>
+                                        Tác giả: {post.metadata.docAuthor}
+                                    </div>
+                                </>
+                            )}
+                            {/* Response with truncation */}
                             <div style={{ position: 'relative' }}>
                                 <div style={{
                                     color: 'var(--sf-text)',
                                     maxHeight: aiExpanded ? undefined : '240px', overflow: 'hidden',
-                                }} className="sf-ai-markdown">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{toMdParagraphs(post.metadata.aiResponse)}</ReactMarkdown>
+                                    whiteSpace: post.metadata.type === 'library_share' ? 'pre-wrap' : undefined,
+                                    lineHeight: post.metadata.type === 'library_share' ? 1.6 : undefined
+                                }} className={post.metadata.type === 'ai_share' ? "sf-ai-markdown" : ""}>
+                                    {post.metadata.type === 'ai_share' ? (
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{toMdParagraphs(post.metadata.aiResponse || '')}</ReactMarkdown>
+                                    ) : (
+                                        post.metadata.docContent || ''
+                                    )}
                                 </div>
-                                {!aiExpanded && post.metadata.aiResponse.length > 300 && (
+                                {!aiExpanded && ((post.metadata.type === 'ai_share' ? post.metadata.aiResponse : post.metadata.docContent) || '').length > 300 && (
                                     <div style={{
                                         position: 'absolute', bottom: 0, left: 0, right: 0,
                                         height: 40, background: 'linear-gradient(transparent, var(--sf-card))'
                                     }} />
                                 )}
                             </div>
-                            {post.metadata.aiResponse.length > 300 && (
+                            {((post.metadata.type === 'ai_share' ? post.metadata.aiResponse : post.metadata.docContent) || '').length > 300 && (
                                 <button
                                     onClick={() => setAiExpanded(v => !v)}
                                     style={{ background: 'none', border: 'none', color: 'var(--sf-primary, #8b4513)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '4px 0 0', display: 'block' }}

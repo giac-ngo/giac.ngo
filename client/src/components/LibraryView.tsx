@@ -18,7 +18,7 @@ interface LibraryViewProps {
     language: 'vi' | 'en';
     spaceId?: number | null;
     spaceSlug?: string | null;
-    onShare?: (text: string) => void;
+    onShare?: (text: string, libraryDoc?: { title: string; author: string; content: string }) => void;
 }
 
 const translations = {
@@ -87,14 +87,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
             const summary = stripHtml(language === 'en' && detail.summaryEn ? detail.summaryEn : detail.summary || '');
             
             const shareText = `📖 **${title}**\n👤 Tác giả: ${author}\n\n${content || summary || ''}`;
-            onShare(shareText);
+            onShare(shareText, { title, author, content: content || summary || '' });
         } catch (error) {
             console.error('Failed to get doc detail for sharing', error);
             const title = language === 'en' && doc.titleEn ? doc.titleEn : doc.title;
             const author = language === 'en' && doc.authorEn ? doc.authorEn : doc.author;
             const summary = stripHtml(language === 'en' && doc.summaryEn ? doc.summaryEn : doc.summary || '');
             const shareText = `📖 **${title}**\n👤 Tác giả: ${author}\n\n${summary || ''}`;
-            onShare(shareText);
+            onShare(shareText, { title, author, content: summary || '' });
         }
     };
 

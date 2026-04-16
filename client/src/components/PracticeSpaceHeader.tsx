@@ -35,6 +35,7 @@ interface PracticeSpaceHeaderProps {
     notificationCount?: number;
     onSearchClick?: () => void;
     isViewingUser?: boolean;
+    currentSpace?: any;
 }
 
 export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
@@ -63,6 +64,7 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
     notificationCount,
     onSearchClick,
     isViewingUser,
+    currentSpace,
 }) => {
     const handleCommunityClick = () => {
         if (!isLoggedIn && onGoToLogin) {
@@ -120,7 +122,7 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                 </div>
 
                 {/* Community center nav — shown only in community mode */}
-                {viewMode === 'community' && setCommunityTab && (
+                {viewMode === 'community' && setCommunityTab && currentSpace?.hasCommunity !== false && (
                     <div style={{
                         position: 'absolute', left: '50%', top: '50%',
                         transform: 'translate(-50%, -50%)',
@@ -246,7 +248,7 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                         </>
                     )}
                     {/* Hide Cộng Đồng button when already in community */}
-                    {viewMode !== 'community' && (
+                    {viewMode !== 'community' && currentSpace?.hasCommunity !== false && (
                         <button
                             onClick={handleCommunityClick}
                             className="header-icon-btn"

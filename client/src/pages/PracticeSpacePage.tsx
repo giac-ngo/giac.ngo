@@ -233,7 +233,7 @@ export const PracticeSpacePage: React.FC<{
     const [dailyLimitInfo, setDailyLimitInfo] = useState<{ base: number; bonus: number }>({ base: 20, bonus: 0 });
     const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
     const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
-    const [shareModal, setShareModal] = useState<{ text: string; comment: string; submitting: boolean; aiName?: string; userQuestion?: string } | null>(null);
+    const [shareModal, setShareModal] = useState<{ text: string; comment: string; submitting: boolean; aiName?: string; userQuestion?: string; libraryDoc?: { title: string; author: string; content: string } } | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const [communityTab, setCommunityTabState] = useState<'home' | 'feed'>(() => {
         const tab = searchParams.get('tab');
@@ -294,6 +294,18 @@ export const PracticeSpacePage: React.FC<{
     const [viewingUserPostCount, setViewingUserPostCount] = useState(0);
     const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
     const [followLoading, setFollowLoading] = useState(false);
+
+    const [currentUserFollowersCount, setCurrentUserFollowersCount] = useState(0);
+    const [currentUserFollowingCount, setCurrentUserFollowingCount] = useState(0);
+
+    useEffect(() => {
+        if (communityTab === 'home' && user?.id && currentSpace?.id && !viewingUser) {
+            apiService.getUserSocialStats(currentSpace.id as number, user.id as number).then(stats => {
+                setCurrentUserFollowersCount(stats.followersCount);
+                setCurrentUserFollowingCount(stats.followingCount);
+            }).catch(console.error);
+        }
+    }, [communityTab, user?.id, currentSpace?.id, viewingUser]);
 
     const handleToggleNotifications = async () => {
         if (!showNotifications && currentSpace?.id) {
@@ -1035,12 +1047,12 @@ export const PracticeSpacePage: React.FC<{
         URL.revokeObjectURL(url);
     };
 
-    const handleShare = (text: string, aiName?: string, userQuestion?: string) => {
+    const handleShare = (text: string, aiName?: string, userQuestion?: string, libraryDoc?: { title: string; author: string; content: string }) => {
         if (!user) {
             showToast(language === 'vi' ? 'Vui lòng đăng nhập để chia sẻ lên cộng đồng.' : 'Please login to share to community.', 'info');
             return;
         }
-        setShareModal({ text, comment: '', submitting: false, aiName, userQuestion });
+        setShareModal({ text, comment: '', submitting: false, aiName, userQuestion, libraryDoc });
     };
 
     const handleShareSubmit = async () => {
@@ -1056,6 +1068,14 @@ export const PracticeSpacePage: React.FC<{
                     aiName: shareModal.aiName,
                     userQuestion: shareModal.userQuestion,
                     aiResponse: shareModal.text,
+                }));
+            } else if (shareModal.libraryDoc) {
+                fd.append('content', shareModal.comment || ' ');
+                fd.append('metadata', JSON.stringify({
+                    type: 'library_share',
+                    docTitle: shareModal.libraryDoc.title,
+                    docAuthor: shareModal.libraryDoc.author,
+                    docContent: shareModal.libraryDoc.content,
                 }));
             } else {
                 const content = shareModal.comment
@@ -1169,6 +1189,7 @@ export const PracticeSpacePage: React.FC<{
                         setFeedSearchTrigger(t => t + 1);
                     }}
                     isViewingUser={!!viewingUser}
+                    currentSpace={currentSpace as any}
                 />
 
                 <div className="main-view-wrapper">
@@ -1454,7 +1475,7 @@ export const PracticeSpacePage: React.FC<{
                                 </div>
                             </div>
                         ) : viewMode === 'meditationtimer' ? <MeditationTimer language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : undefined} />
-                            : viewMode === 'library' ? <LibraryView filters={libraryFilters} onFiltersChange={setLibraryFilters} language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} spaceSlug={spaceSlug} onShare={(text) => handleShare(text)} />
+                            : viewMode === 'library' ? <LibraryView filters={libraryFilters} onFiltersChange={setLibraryFilters} language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} spaceSlug={spaceSlug} onShare={(text, doc) => handleShare(text, undefined, undefined, doc)} />
                                 : viewMode === 'dharmatalks' ? <DharmaTalksView language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} />
                                     : viewMode === 'about' ? <SpaceDetailPage user={user} onUserUpdate={onUserUpdate} />
                                         : viewMode === 'community' ? (
@@ -1585,7 +1606,7 @@ export const PracticeSpacePage: React.FC<{
                                                                 </div>
                                                                 {/* Stats row */}
                                                                 <div style={{ display: 'flex', gap: 32, borderTop: '1px solid var(--color-border-color)', paddingTop: 14, marginTop: 2 }}>
-                                                                    {[{ val: viewingUserPostCount, label: 'B\u00e0i vi\u1ebft' }, { val: viewingUserFollowersCount, label: 'Ng\u01b0\u1eddi theo d\u00f5i' }, { val: viewingUserFollowingCount, label: '\u0110ang theo d\u00f5i' }].map((s, i) => (
+                                                                    {[{ val: viewingUserPostCount, label: language === 'en' ? 'Posts' : 'Bài viết' }, { val: viewingUserFollowersCount, label: language === 'en' ? 'Followers' : 'Người theo dõi' }, { val: viewingUserFollowingCount, label: language === 'en' ? 'Following' : 'Đang theo dõi' }].map((s, i) => (
                                                                         <div key={i} style={{ textAlign: 'left' }}>
                                                                             <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif" }}>{s.val}</div>
                                                                             <div style={{ fontSize: 12, color: 'var(--color-text-light)' }}>{s.label}</div>
@@ -1726,9 +1747,9 @@ export const PracticeSpacePage: React.FC<{
                                                                 {/* Stats row */}
                                                                 <div style={{ display: 'flex', gap: 24, borderTop: '1px solid var(--color-border-color)', paddingTop: 14 }}>
                                                                     {[
-                                                                        { label: 'Bài viết', value: myPostsCount },
-                                                                        { label: 'Người theo dõi', value: (user as any).followersCount ?? 0 },
-                                                                        { label: 'Đang theo dõi', value: (user as any).followingCount ?? 0 },
+                                                                        { label: language === 'en' ? 'Posts' : 'Bài viết', value: myPostsCount },
+                                                                        { label: language === 'en' ? 'Followers' : 'Người theo dõi', value: currentUserFollowersCount },
+                                                                        { label: language === 'en' ? 'Following' : 'Đang theo dõi', value: currentUserFollowingCount },
                                                                     ].map((s, i) => (
                                                                         <div key={i} style={{ textAlign: 'left' }}>
                                                                             <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif" }}>{s.value}</div>
@@ -1936,7 +1957,7 @@ export const PracticeSpacePage: React.FC<{
                                 }}
                             />
 
-                            {/* AI Quote block */}
+                            {/* AI / Library Quote block */}
                             <div style={{ margin: '0 10px 10px', background: 'rgba(185,148,90,0.12)', border: '1px solid rgba(185,148,90,0.3)', borderRadius: 10, padding: '10px 12px' }}>
                                 {shareModal.aiName && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -1946,8 +1967,16 @@ export const PracticeSpacePage: React.FC<{
                                         </span>
                                     </div>
                                 )}
-                                <div style={{ fontSize: 13, color: 'var(--color-text-main)', lineHeight: 1.65, display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
-                                    {shareModal.text}
+                                {shareModal.libraryDoc && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 13, color: 'var(--color-text-light)' }}>📖</span>
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
+                                            {shareModal.libraryDoc.title}
+                                        </span>
+                                    </div>
+                                )}
+                                <div style={{ fontSize: 13, color: 'var(--color-text-main)', lineHeight: 1.65, display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                    {shareModal.libraryDoc ? shareModal.libraryDoc.content : shareModal.text}
                                 </div>
                             </div>
 
