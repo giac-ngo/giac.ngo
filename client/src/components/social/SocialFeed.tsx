@@ -1107,11 +1107,29 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
     const [content, setContent] = useState('');
     const [images, setImages] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
-    const [libraryUrls, setLibraryUrls] = useState<string[]>([]); // URLs from media library
+    const [libraryUrls, setLibraryUrls] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [showMediaPicker, setShowMediaPicker] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [currentSpace, setCurrentSpace] = useState<any>(null);
+
+    const EMOJIS = [
+        '😊','😄','😂','🥰','😍','🤩','😎','🥳','🙏','❤️',
+        '💕','✨','🌸','🌺','🌻','🍀','🌙','☀️','🌈','🔥',
+        '💯','👏','🤝','🙌','💪','🧘','🕊️','⚡','🎯','🎉',
+    ];
+
+    const insertEmoji = (emoji: string) => {
+        const ta = textareaRef.current;
+        if (!ta) { setContent(prev => prev + emoji); setShowEmojiPicker(false); return; }
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const newVal = content.slice(0, start) + emoji + content.slice(end);
+        setContent(newVal);
+        setShowEmojiPicker(false);
+        setTimeout(() => { ta.focus(); ta.setSelectionRange(start + emoji.length, start + emoji.length); }, 0);
+    };
 
     // Fetch space info for media library scope
     useEffect(() => {
@@ -1246,7 +1264,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
 
                     {/* Add to post row */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
+                         <div style={{ display: 'flex', gap: 4, position: 'relative' }}>
                             <button
                                 onClick={() => setShowMediaPicker(true)}
                                 disabled={totalImages >= 4}
@@ -1261,9 +1279,25 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                     <rect x="3" y="3" width="18" height="18" rx="3"/>
                                     <circle cx="8.5" cy="8.5" r="1.5" fill="#fff"/>
                                     <path d="M21 15l-5-5L5 21h16z" fill="rgba(255,255,255,0.9)"/>
-                                    <path d="M14 10l5 5" fill="none"/>
                                 </svg>
                                 {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
+                            </button>
+                            <button
+                                onClick={() => setShowEmojiPicker(v => !v)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+                                    background: showEmojiPicker ? 'var(--sf-hover)' : 'none',
+                                    border: 'none', borderRadius: 8, cursor: 'pointer',
+                                    color: '#8b4513', fontSize: 13, fontWeight: 600,
+                                }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="11" fill="#8b4513"/>
+                                    <circle cx="9" cy="10" r="1.5" fill="#fff"/>
+                                    <circle cx="15" cy="10" r="1.5" fill="#fff"/>
+                                    <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                                </svg>
+                                {translations[language || "vi"].feeling.replace(/😊 /g, "")}
                             </button>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
@@ -1295,7 +1329,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
             {!expanded && (
                 <div style={{ display: 'flex', gap: 4, marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
                     <button
-                        onClick={() => { setExpanded(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                        onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowMediaPicker(true); }, 80); }}
                         style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
@@ -1312,7 +1346,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                 </svg> {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
                     </button>
                     <button
-                        onClick={() => { setExpanded(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                        onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowEmojiPicker(true); }, 80); }}
                         style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
@@ -1331,6 +1365,27 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                 </div>
             )}
         </div>
+        {showEmojiPicker && (
+            <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                    background: 'var(--sf-card)', borderRadius: 12, padding: 12,
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.18)', zIndex: 100,
+                    display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4,
+                    marginTop: 4, border: '1px solid var(--sf-border)',
+                }}
+            >
+                {EMOJIS.map(e => (
+                    <button
+                        key={e}
+                        onClick={() => insertEmoji(e)}
+                        style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4, borderRadius: 6 }}
+                        onMouseEnter={el => (el.currentTarget.style.background = 'var(--sf-hover)')}
+                        onMouseLeave={el => (el.currentTarget.style.background = 'none')}
+                    >{e}</button>
+                ))}
+            </div>
+        )}
         {showMediaPicker && (
             <MediaLibraryPicker
                 space={currentSpace}
