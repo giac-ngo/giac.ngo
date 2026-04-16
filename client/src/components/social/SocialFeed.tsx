@@ -471,8 +471,9 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
         return () => document.removeEventListener('mousedown', onClick);
     }, []);
 
-    const handleShowLikers = async () => {
-        if (likersCount === 0) return;
+    const handleShowLikers = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (likesCount === 0) return;
         setLikersPopup({ loading: true, users: [] });
         try {
             const data = await apiService.getPostLikers(spaceId, post.id);
