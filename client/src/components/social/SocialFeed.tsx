@@ -1709,3 +1709,198 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
 };
 
 export default SocialFeed;
+
+// ─── User Photo Gallery ────────────────────────────────────────────────────────
+
+interface PhotoItem { url: string; postId: number; post: SocialPost; }
+
+export const UserPhotoGallery: React.FC<{
+    spaceId: number;
+    userId: number;
+    currentUser: User | null;
+    language?: 'vi' | 'en';
+}> = ({ spaceId, userId, currentUser, language = 'vi' }) => {
+    const { showToast } = useToast();
+    const [photos, setPhotos] = useState<PhotoItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selected, setSelected] = useState<PhotoItem | null>(null);
+
+    // Comments for selected photo post
+    const [comments, setComments] = useState<SocialComment[]>([]);
+    const [commentText, setCommentText] = useState('');
+    const [replyTo, setReplyTo] = useState<{ id: number; name: string } | null>(null);
+    const [submittingComment, setSubmittingComment] = useState(false);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const commentInputRef = useRef<HTMLInputElement>(null);
+
+    const t = {
+        vi: { noPhotos: 'Chưa có ảnh nào', writeComment: 'Viết bình luận...', replyingTo: 'Đang phản hồi', send: 'Gửi', reply: 'Phản hồi', delete: 'Xóa', close: 'Đóng' },
+        en: { noPhotos: 'No photos yet', writeComment: 'Write a comment...', replyingTo: 'Replying to', send: 'Send', reply: 'Reply', delete: 'Delete', close: 'Close' },
+    }[language];
+
+    useEffect(() => {
+        setLoading(true);
+        apiService.getSocialPosts(spaceId, 1, 100)
+            .then(res => {
+                const items: PhotoItem[] = [];
+                (res.data as SocialPost[]).filter(p => p.userId === userId).forEach(post => {
+                    (post.imageUrls || []).forEach(url => items.push({ url, postId: post.id, post }));
+                });
+                setPhotos(items);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [spaceId, userId]);
+
+    const openPhoto = async (item: PhotoItem) => {
+        setSelected(item);
+        setComments([]);
+        setLoadingComments(true);
+        try {
+            const data = await apiService.getSocialComments(spaceId, item.postId);
+            setComments(data);
+        } catch { /* silent */ }
+        finally { setLoadingComments(false); }
+    };
+
+    const handleSubmitComment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!commentText.trim() || !currentUser || !selected) return;
+        setSubmittingComment(true);
+        try {
+            const nc = await apiService.addSocialComment(spaceId, selected.postId, commentText.trim(), replyTo?.id);
+            setComments(prev => [...prev, nc]);
+            setCommentText('');
+            setReplyTo(null);
+        } catch { showToast('Gửi bình luận thất bại.', 'error'); }
+        finally { setSubmittingComment(false); }
+    };
+
+    const handleDeleteComment = async (cid: number) => {
+        if (!selected) return;
+        try {
+            await apiService.deleteSocialComment(spaceId, selected.postId, cid);
+            setComments(prev => prev.filter(c => c.id !== cid));
+        } catch { /* silent */ }
+    };
+
+    const topLevel = comments.filter(c => !c.parentCommentId);
+    const renderComment = (c: SocialComment, depth: number): React.ReactNode => {
+        const replies = comments.filter(r => r.parentCommentId === c.id);
+        const canDel = currentUser && (currentUser.id === c.userId || currentUser.id === selected?.post.userId || (currentUser.roleIds?.length ?? 0) > 0);
+        return (
+            <React.Fragment key={c.id}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, marginLeft: depth * 20 }}>
+                    <Avatar name={c.userName} url={c.userAvatarUrl} size={28} />
+                    <div style={{ flex: 1, fontSize: 13, color: '#4a4a4a' }}>
+                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 4 }}>{c.userName}</span>
+                        {c.content}
+                        <div style={{ display: 'flex', gap: 10, marginTop: 3, alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, color: '#a08b7a' }}>{timeAgo(c.createdAt, language)}</span>
+                            {currentUser && <button onClick={() => { setReplyTo({ id: c.id, name: c.userName }); commentInputRef.current?.focus(); }} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: 0 }}>{t.reply}</button>}
+                            {canDel && <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}>{t.delete}</button>}
+                        </div>
+                    </div>
+                </div>
+                {replies.map(r => renderComment(r, depth + 1))}
+            </React.Fragment>
+        );
+    };
+
+    if (loading) return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+            {[...Array(9)].map((_, i) => <div key={i} className="sf-skeleton" style={{ aspectRatio: '1', borderRadius: 6, background: 'var(--sf-skeleton)' }} />)}
+        </div>
+    );
+
+    if (photos.length === 0) return (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--sf-muted)', fontSize: 14 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🖼️</div>
+            {t.noPhotos}
+        </div>
+    );
+
+    return (
+        <>
+            {/* Photo Grid */}
+            {!selected && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+                    {photos.map((item, i) => (
+                        <div
+                            key={i}
+                            onClick={() => openPhoto(item)}
+                            style={{ aspectRatio: '1', cursor: 'pointer', overflow: 'hidden', borderRadius: 4, position: 'relative' }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                        >
+                            <img src={item.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.2s' }} />
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Inline Photo + Comment Viewer */}
+            {selected && (
+                <div style={{ display: 'flex', gap: 0, background: 'var(--sf-card)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
+                    {/* Left: Image */}
+                    <div style={{ flex: '0 0 55%', maxWidth: '55%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 320 }}>
+                        <button
+                            onClick={() => setSelected(null)}
+                            style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                        >←</button>
+                        <img src={selected.url} alt="" style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }} />
+                    </div>
+
+                    {/* Right: Comments */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, maxHeight: 480, overflowY: 'auto' }}>
+                        {/* Author info */}
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--sf-border)' }}>
+                            <Avatar name={selected.post.userName} url={selected.post.userAvatarUrl} size={36} />
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>{selected.post.userName}</div>
+                                <div style={{ fontSize: 11, color: '#a08b7a' }}>{timeAgo(selected.post.createdAt, language)}</div>
+                            </div>
+                        </div>
+
+                        {/* Comments list */}
+                        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
+                            {loadingComments ? (
+                                <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 13 }}>...</div>
+                            ) : topLevel.length === 0 ? (
+                                <div style={{ color: 'var(--sf-muted)', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
+                                    {language === 'vi' ? 'Chưa có bình luận' : 'No comments yet'}
+                                </div>
+                            ) : topLevel.map(c => renderComment(c, 0))}
+                        </div>
+
+                        {/* Comment input */}
+                        {currentUser && (
+                            <form onSubmit={handleSubmitComment} style={{ borderTop: '1px solid var(--sf-border)', paddingTop: 10 }}>
+                                {replyTo && (
+                                    <div style={{ fontSize: 11, color: '#8b4513', marginBottom: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <span>{t.replyingTo} <strong>{replyTo.name}</strong></span>
+                                        <button type="button" onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 13 }}>×</button>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        ref={commentInputRef}
+                                        value={commentText}
+                                        onChange={e => setCommentText(e.target.value)}
+                                        placeholder={t.writeComment}
+                                        style={{ flex: 1, padding: '7px 12px', borderRadius: 20, border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)', fontSize: 13, outline: 'none', color: 'var(--sf-text)' }}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!commentText.trim() || submittingComment}
+                                        style={{ padding: '7px 14px', borderRadius: 20, border: 'none', background: commentText.trim() ? '#8b4513' : 'var(--sf-border)', color: '#fff', cursor: commentText.trim() ? 'pointer' : 'default', fontWeight: 700, fontSize: 12 }}
+                                    >{t.send}</button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};

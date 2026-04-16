@@ -15,7 +15,7 @@ import { DonateForLimitModal } from '../components/DonateForLimitModal';
 import { PricingModal } from '../components/PricingModal';
 import { PracticeSpaceHeader } from '../components/PracticeSpaceHeader';
 import { SpaceDetailPage } from './SpaceDetailPage';
-import { SocialFeed } from '../components/social/SocialFeed';
+import { SocialFeed, UserPhotoGallery } from '../components/social/SocialFeed';
 import { VoiceChat } from '../components/social/VoiceChat';
 import { MediaLibraryPicker } from '../components/MediaLibraryPicker';
 
@@ -281,6 +281,7 @@ export const PracticeSpacePage: React.FC<{
     const [notifLoading, setNotifLoading] = useState(false);
     const notifCount = notifications.filter(n => n.unread !== false).length;
     const [myPostsCount, setMyPostsCount] = useState(0);
+    const [myHomeTab, setMyHomeTab] = useState<'posts' | 'photos'>('posts');
     const [editProfileOpen, setEditProfileOpen] = useState(false);
     const [editBio, setEditBio] = useState('');
     const [editAvatarUrl, setEditAvatarUrl] = useState('');
@@ -1758,19 +1759,58 @@ export const PracticeSpacePage: React.FC<{
                                                                     ))}
                                                                 </div>
                                                             </div>
-                                                            {/* My posts */}
+
+                                                            {/* ── Home sub-tabs ── */}
                                                             {currentSpace?.id && (
-                                                                <SocialFeed
-                                                                    spaceId={currentSpace.id as number}
-                                                                    currentUser={user}
-                                                                    filterUserId={typeof user.id === 'number' ? user.id : null}
-                                                                    onPostsLoaded={(count: number) => setMyPostsCount(count)}
-                                                                    onUserClick={(uid, uname, uavatar) => {
-                                                                        if (typeof user?.id === 'number' && uid === user.id) return;
-                                                                        openUserProfile(uid, uname, uavatar);
-                                                                    }}
-                                                                    language={language}
-                                                                />
+                                                                <>
+                                                                    {/* Tab switcher */}
+                                                                    <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--color-border-color)', marginBottom: 16 }}>
+                                                                        {[
+                                                                            { key: 'posts', labelVi: 'Bài viết', labelEn: 'Posts' },
+                                                                            { key: 'photos', labelVi: 'Thư viện ảnh', labelEn: 'Photo Library' },
+                                                                        ].map(tab => (
+                                                                            <button
+                                                                                key={tab.key}
+                                                                                onClick={() => setMyHomeTab(tab.key as 'posts' | 'photos')}
+                                                                                style={{
+                                                                                    padding: '8px 18px', border: 'none', background: 'none',
+                                                                                    fontWeight: myHomeTab === tab.key ? 700 : 500,
+                                                                                    fontSize: 13, cursor: 'pointer',
+                                                                                    color: myHomeTab === tab.key ? 'var(--color-primary)' : 'var(--color-text-light)',
+                                                                                    borderBottom: myHomeTab === tab.key ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                                                                    marginBottom: -2, transition: 'all 0.15s',
+                                                                                }}
+                                                                            >
+                                                                                {language === 'en' ? tab.labelEn : tab.labelVi}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+
+                                                                    {/* Posts tab */}
+                                                                    {myHomeTab === 'posts' && (
+                                                                        <SocialFeed
+                                                                            spaceId={currentSpace.id as number}
+                                                                            currentUser={user}
+                                                                            filterUserId={typeof user.id === 'number' ? user.id : null}
+                                                                            onPostsLoaded={(count: number) => setMyPostsCount(count)}
+                                                                            onUserClick={(uid, uname, uavatar) => {
+                                                                                if (typeof user?.id === 'number' && uid === user.id) return;
+                                                                                openUserProfile(uid, uname, uavatar);
+                                                                            }}
+                                                                            language={language}
+                                                                        />
+                                                                    )}
+
+                                                                    {/* Photos tab */}
+                                                                    {myHomeTab === 'photos' && (
+                                                                        <UserPhotoGallery
+                                                                            spaceId={currentSpace.id as number}
+                                                                            userId={typeof user.id === 'number' ? user.id : 0}
+                                                                            currentUser={user}
+                                                                            language={language}
+                                                                        />
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                     ) : (
