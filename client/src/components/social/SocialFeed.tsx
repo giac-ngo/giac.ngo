@@ -214,7 +214,7 @@ function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx
 function CommentItem({
     language = 'vi',
     comment, currentUser, spaceId, postId, postUserId,
-    onDelete, onReply
+    onDelete, onReply, onUserClick, parentComment
 }: {
     comment: SocialComment;
     currentUser: User | null;
