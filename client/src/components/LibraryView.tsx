@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { Link } from 'react-router-dom';
 import { Document } from '../types';
-import { SearchIcon, BookOpenIcon, EyeIcon, ThumbsUpIcon, SpinnerIcon } from './Icons';
+import { SearchIcon, BookOpenIcon, EyeIcon, ThumbsUpIcon, SpinnerIcon, ShareIcon } from './Icons';
 
 interface LibraryFilters {
     typeId?: number;
@@ -18,6 +18,7 @@ interface LibraryViewProps {
     language: 'vi' | 'en';
     spaceId?: number | null;
     spaceSlug?: string | null;
+    onShare?: (text: string) => void;
 }
 
 const translations = {
@@ -51,7 +52,7 @@ const DocumentCardSkeleton = () => (
 
 const PAGE_SIZE = 6;
 
-export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChange, language, spaceId, spaceSlug }) => {
+export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChange, language, spaceId, spaceSlug, onShare }) => {
     const t = translations[language];
     const [documents, setDocuments] = useState<Document[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +61,42 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
     const [hasMore, setHasMore] = useState(true);
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const debounceTimeoutRef = useRef<number | null>(null);
+
+    const handleShareClick = async (e: React.MouseEvent, doc: Document) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!onShare) return;
+        
+        const stripHtml = (html: string) => {
+            if (!html) return '';
+            const formattedHtml = html
+                .replace(/<br\s*[\/]?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n\n')
+                .replace(/<\/h[1-6]>/gi, '\n\n')
+                .replace(/<\/div>/gi, '\n');
+            const tmp = document.createElement("DIV");
+            tmp.innerHTML = formattedHtml;
+            return (tmp.textContent || tmp.innerText || "").replace(/\n{3,}/g, '\n\n').trim();
+        };
+
+        try {
+            const detail = await apiService.getDocumentDetail(doc.id);
+            const title = language === 'en' && detail.titleEn ? detail.titleEn : detail.title;
+            const author = language === 'en' && detail.authorEn ? detail.authorEn : detail.author;
+            const content = stripHtml(language === 'en' && detail.contentEn ? detail.contentEn : detail.content || '');
+            const summary = stripHtml(language === 'en' && detail.summaryEn ? detail.summaryEn : detail.summary || '');
+            
+            const shareText = `📖 **${title}**\n👤 Tác giả: ${author}\n\n${content || summary || ''}`;
+            onShare(shareText);
+        } catch (error) {
+            console.error('Failed to get doc detail for sharing', error);
+            const title = language === 'en' && doc.titleEn ? doc.titleEn : doc.title;
+            const author = language === 'en' && doc.authorEn ? doc.authorEn : doc.author;
+            const summary = stripHtml(language === 'en' && doc.summaryEn ? doc.summaryEn : doc.summary || '');
+            const shareText = `📖 **${title}**\n👤 Tác giả: ${author}\n\n${summary || ''}`;
+            onShare(shareText);
+        }
+    };
 
     const fetchDocuments = useCallback(async (pageNum: number, currentFilters: LibraryFilters, currentSpaceId: number | null | undefined, currentSpaceSlug: string | null | undefined, abortSignal: AbortSignal) => {
         if (pageNum === 1) {
@@ -183,6 +220,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
                                 <div className="doc-card-stats">
                                     <span><EyeIcon className="w-4 h-4" /> {doc.views || 0}</span>
                                     <span><ThumbsUpIcon className="w-4 h-4" /> {doc.likes || 0}</span>
+                                    {onShare && (
+                                        <button 
+                                            className="share-btn-library hover:text-primary transition-colors"
+                                            onClick={(e) => handleShareClick(e, doc)} 
+                                            title={language === 'vi' ? 'Chia sẻ' : 'Share'}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', marginLeft: 6 }}
+                                        >
+                                            <ShareIcon className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </Link>

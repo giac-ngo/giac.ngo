@@ -1220,8 +1220,12 @@ export const PracticeSpacePage: React.FC<{
                                                     if (rawSegs.length <= 1) return rawSegs;
 
                                                     // A short single-line segment (likely a kệ/verse line)
+                                                    // Exclude: numbered list items (1. 2. ...), bullets (- * •), headings (#)
                                                     const isKeLine = (seg: string): boolean =>
-                                                        !seg.includes('\n') && seg.length >= 4 && seg.length <= 140;
+                                                        !seg.includes('\n') && seg.length >= 4 && seg.length <= 140
+                                                        && !/^\d+\.\s/.test(seg)
+                                                        && !/^[-*•]\s/.test(seg)
+                                                        && !/^#+\s/.test(seg);
 
                                                     // Strategy 1: Numbered sections (e.g. "1. TAM VÕ", "2. THẤY MÌNH")
                                                     // → group each section's content together, join kệ lines with \n (no blank line)
@@ -1262,13 +1266,14 @@ export const PracticeSpacePage: React.FC<{
                                                             return parts.join('\n\n');
                                                         });
 
-                                                        if (sectionTexts.length <= 3) return sectionTexts;
-                                                        const gSize = Math.ceil(sectionTexts.length / 3);
-                                                        const result: string[] = [];
-                                                        for (let gi = 0; gi < sectionTexts.length; gi += gSize) {
-                                                            result.push(sectionTexts.slice(gi, gi + gSize).join('\n\n'));
-                                                        }
-                                                        return result;
+                                                        // Max 2 bubbles for numbered sections
+                                                        const sTotal = sectionTexts.join('').length;
+                                                        if (sTotal < 1200 || sectionTexts.length <= 2) return [sectionTexts.join('\n\n')];
+                                                        const sHalf = Math.ceil(sectionTexts.length / 2);
+                                                        return [
+                                                            sectionTexts.slice(0, sHalf).join('\n\n'),
+                                                            sectionTexts.slice(sHalf).join('\n\n'),
+                                                        ].filter((s: string) => s.trim().length > 0);
                                                     }
 
                                                     // Strategy 2: No numbered sections
@@ -1292,21 +1297,30 @@ export const PracticeSpacePage: React.FC<{
 
                                                     if (merged.length <= 1) return merged;
                                                     const totalChars = merged.join('').length;
-                                                    if (totalChars < 600) return [merged.join('\n\n')];
-                                                    if (merged.length <= 3) return merged;
-                                                    const groupSize = Math.ceil(merged.length / 3);
-                                                    const grouped: string[] = [];
-                                                    for (let gi = 0; gi < merged.length; gi += groupSize) {
-                                                        grouped.push(merged.slice(gi, gi + groupSize).join('\n\n'));
-                                                    }
+                                                    // For short-to-medium responses → single bubble
+                                                    if (totalChars < 1200) return [merged.join('\n\n')];
+                                                    // For long responses → max 2 bubbles (less scattered)
+                                                    const half = Math.ceil(merged.length / 2);
+                                                    const grouped: string[] = [
+                                                        merged.slice(0, half).join('\n\n'),
+                                                        merged.slice(half).join('\n\n'),
+                                                    ].filter((s: string) => s.trim().length > 0);
                                                     return grouped;
                                                 })();
 
-                                                return segments.map((segText: string, segIndex: number) => (
+                                                return segments.filter((s: string) => s.trim().length > 0).map((segText: string, segIndex: number) => (
                                                     <div key={`${msg.id || index}-${segIndex}`} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>
                                                         <div className="chat-message-content group">
                                                             <div className={`chat-message-bubble ${msg.sender}`}>
-                                                                <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{segText}</ReactMarkdown></div>
+                                                                <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{
+                                                                    // Nếu segment có dòng mới đơn (kệ thơ, không phải list/heading) → convert thành markdown hard break
+                                                                    segText.includes('\n') && !segText.includes('\n\n')
+                                                                        && !/^\d+\.\s/m.test(segText)
+                                                                        && !/^[-*•]\s/m.test(segText)
+                                                                        && !/^#+\s/m.test(segText)
+                                                                        ? segText.replace(/\n/g, '  \n')
+                                                                        : segText
+                                                                }</ReactMarkdown></div>
                                                                 {msg.imageUrl && segIndex === 0 && <img src={msg.imageUrl} alt="Uploaded content" className="mt-2 rounded-lg max-w-full h-auto" />}
                                                             </div>
                                                             {msg.sender === 'ai' && !isTyping && !isAiThinking && msg.id && (
@@ -1420,10 +1434,10 @@ export const PracticeSpacePage: React.FC<{
                                                     onClick={() => setIsVoiceChatOpen(true)}
                                                     title={language === 'vi' ? 'Trò chuyện trực tiếp bằng giọng nói' : 'Live voice chat'}
                                                     className="chat-input-icon-btn"
-                                                    style={{ color: '#1877f2' }}
+                                                    style={{ color: '#8b4513' }}
                                                 >
                                                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                                                        <circle cx="11" cy="11" r="11" fill="#1a1a1a"/>
+                                                        <circle cx="11" cy="11" r="11" fill="#8b4513"/>
                                                         <rect x="4"  y="9"  width="2" height="4" rx="1" fill="white"/>
                                                         <rect x="7"  y="6"  width="2" height="10" rx="1" fill="white"/>
                                                         <rect x="10" y="4"  width="2" height="14" rx="1" fill="white"/>
@@ -1440,7 +1454,7 @@ export const PracticeSpacePage: React.FC<{
                                 </div>
                             </div>
                         ) : viewMode === 'meditationtimer' ? <MeditationTimer language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : undefined} />
-                            : viewMode === 'library' ? <LibraryView filters={libraryFilters} onFiltersChange={setLibraryFilters} language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} spaceSlug={spaceSlug} />
+                            : viewMode === 'library' ? <LibraryView filters={libraryFilters} onFiltersChange={setLibraryFilters} language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} spaceSlug={spaceSlug} onShare={(text) => handleShare(text)} />
                                 : viewMode === 'dharmatalks' ? <DharmaTalksView language={language} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : null} />
                                     : viewMode === 'about' ? <SpaceDetailPage user={user} onUserUpdate={onUserUpdate} />
                                         : viewMode === 'community' ? (
@@ -1924,12 +1938,14 @@ export const PracticeSpacePage: React.FC<{
 
                             {/* AI Quote block */}
                             <div style={{ margin: '0 10px 10px', background: 'rgba(185,148,90,0.12)', border: '1px solid rgba(185,148,90,0.3)', borderRadius: 10, padding: '10px 12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                                    <span style={{ fontSize: 13, color: 'var(--color-text-light)' }}>☆</span>
-                                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
-                                        {shareModal.aiName ? `Agent: ${shareModal.aiName}` : (language === 'vi' ? 'Phản hồi AI' : 'AI Response')}
-                                    </span>
-                                </div>
+                                {shareModal.aiName && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 13, color: 'var(--color-text-light)' }}>☆</span>
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
+                                            Agent: {shareModal.aiName}
+                                        </span>
+                                    </div>
+                                )}
                                 <div style={{ fontSize: 13, color: 'var(--color-text-main)', lineHeight: 1.65, display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
                                     {shareModal.text}
                                 </div>

@@ -456,7 +456,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                 </div>
                                 <div className="user-info-actions">
                                     <button onClick={onOpenMeritPurchase} className="btn-cta-new">
-                                        <CryptoIcon className="w-4 h-4" /> {t.donation}
+                                        <img src="/themes/giacngo/nhang.png" alt="Donation" style={{width: 16, height: 16, objectFit: 'contain'}} /> {t.donation}
                                     </button>
                                     <div className="w-full flex items-center justify-between gap-2">
                                         <div className="user-menu-language-switcher !p-0" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

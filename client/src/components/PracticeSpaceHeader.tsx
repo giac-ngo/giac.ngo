@@ -237,11 +237,9 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                                 )}
                             </div>
                             <button onClick={() => setIsMarketplaceModalOpen(true)} className="header-icon-btn" title={t.marketplace} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 10px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:44 }}>
-                                {/* Sparkle / AI icon */}
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M12 3 10.5 8.5 5 10l5.5 1.5L12 17l1.5-5.5L19 10l-5.5-1.5Z"/>
-                                    <path d="M5.5 3 4.7 5.7 2 6.5l2.7.8.8 2.7.8-2.7 2.7-.8-2.7-.8Z"/>
-                                    <path d="M19 14l-.8 2.7-2.7.8 2.7.8.8 2.7.8-2.7 2.7-.8-2.7-.8Z"/>
+                                {/* Magnifying glass icon */}
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                                    <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
                                 </svg>
                                 <span className="header-icon-label" style={{ fontSize:'0.5rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
                             </button>

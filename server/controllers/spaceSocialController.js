@@ -55,6 +55,7 @@ export const getSocialPosts = async (req, res) => {
                 COALESCE(u.name, p.user_name)           AS user_name,
                 COALESCE(u.avatar_url, p.user_avatar_url) AS user_avatar_url,
                 CASE WHEN pl.user_id IS NOT NULL THEN true ELSE false END AS is_liked_by_me,
+                CASE WHEN sfo.id IS NOT NULL THEN true ELSE false END AS is_followed_by_me,
                 -- Quoted post data (for reposts)
                 qp.id            AS qp_id,
                 qp.user_id       AS qp_user_id,
@@ -67,6 +68,7 @@ export const getSocialPosts = async (req, res) => {
             FROM social_posts p
             LEFT JOIN users u  ON u.id = p.user_id
             LEFT JOIN social_post_likes pl ON pl.post_id = p.id AND pl.user_id = $3
+            LEFT JOIN social_follows sfo ON sfo.space_id = p.space_id AND sfo.follower_id = $3 AND sfo.following_id = p.user_id
             LEFT JOIN social_posts qp ON qp.id = p.quoted_post_id
             LEFT JOIN users qu ON qu.id = qp.user_id
             WHERE p.space_id = $1

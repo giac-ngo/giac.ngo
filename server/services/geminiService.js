@@ -310,12 +310,17 @@ Summary:`;
 
             const languageName = language === 'vi' ? 'Vietnamese' : 'English';
 
-            // Simplified instructions - No more thought blocks
+            // Language instruction goes FIRST to take highest priority over training content
+            const languageInstruction = language === 'en'
+                ? `**CRITICAL LANGUAGE RULE:** You MUST respond ONLY in English. Do NOT use Vietnamese under any circumstances, regardless of any other instructions below. This overrides all other language settings.`
+                : `**QUY TẮC NGÔN NGỮ:** Hãy trả lời bằng tiếng Việt.`;
+
             const systemInstruction = [
+                languageInstruction,
                 ragContext,
                 aiConfig.trainingContent,
                 additionalTrainingText,
-                `**SYSTEM INSTRUCTION:** You are a helpful AI assistant. Respond in ${languageName}. Use Markdown for formatting.`
+                `Use Markdown for formatting.`
             ].filter(Boolean).join('\n\n---\n\n');
 
             const contents = toGeminiContent(history);

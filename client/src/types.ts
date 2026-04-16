@@ -345,6 +345,7 @@ export interface SocialPost {
   commentsCount: number;
   retweetsCount?: number;
   isLikedByMe?: boolean;
+  isFollowedByMe?: boolean;
   createdAt: string;
   updatedAt: string;
   quotedPost?: QuotedPost | null;

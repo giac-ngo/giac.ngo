@@ -58,7 +58,7 @@ function base64PcmToFloat32(base64: string): Float32Array {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
-function Waveform({ active, color = '#1877f2', bars = 7 }: { active: boolean; color?: string; bars?: number }) {
+function Waveform({ active, color = '#991b1b', bars = 7 }: { active: boolean; color?: string; bars?: number }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 40 }}>
             {[...Array(bars)].map((_, i) => (
@@ -514,7 +514,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
     const inputBg   = isGiacngoDark ? 'hsl(28, 18%, 18%)'
                     : isGiacngo     ? '#efe0bd'
                     : isDark        ? '#2c2c2e' : '#f0f2f5';
-    const primary   = isGiacngo ? '#991b1b' : '#1877f2';
+    const primary   = isGiacngo ? '#991b1b' : '#991b1b';
 
 
     const cfg = {

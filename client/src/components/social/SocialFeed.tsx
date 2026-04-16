@@ -93,14 +93,18 @@ function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; s
     );
 }
 
-function PhotoGrid({ urls }: { urls: string[] }) {
+function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx: number) => void }) {
     const [lightboxIdx, setLightboxIdx] = React.useState<number | null>(null);
     if (!urls.length) return null;
     const count = urls.length;
 
     const openLightbox = (i: number, e: React.MouseEvent) => {
         e.stopPropagation();
-        setLightboxIdx(i);
+        if (onImageClick) {
+            onImageClick(i);
+        } else {
+            setLightboxIdx(i);
+        }
     };
     const closeLightbox = () => setLightboxIdx(null);
     const prev = (e: React.MouseEvent) => { e.stopPropagation(); setLightboxIdx(i => i != null && i > 0 ? i - 1 : i); };
@@ -260,6 +264,46 @@ function CommentItem({
     );
 }
 
+// ─── Comment Thread ────────────────────────────────────────────────────────────
+
+function CommentThread({
+    comment, allComments, currentUser, spaceId, postId, postUserId,
+    onDelete, onReply, language = 'vi'
+}: {
+    comment: SocialComment;
+    allComments: SocialComment[];
+    currentUser: User | null;
+    spaceId: number;
+    postId: number;
+    postUserId: number;
+    onDelete: (id: number) => void;
+    onReply: (parentId: number, userName: string) => void;
+    language?: 'vi' | 'en';
+}) {
+    const replies = allComments.filter(c => c.parentCommentId === comment.id);
+    return (
+        <div key={comment.id}>
+            <CommentItem
+                comment={comment} currentUser={currentUser}
+                spaceId={spaceId} postId={postId} postUserId={postUserId}
+                onDelete={onDelete} onReply={onReply} language={language}
+            />
+            {replies.length > 0 && (
+                <div style={{ paddingLeft: 38 }}>
+                    {replies.map(reply => (
+                        <CommentThread
+                            key={reply.id} comment={reply} allComments={allComments}
+                            currentUser={currentUser} spaceId={spaceId} postId={postId}
+                            postUserId={postUserId} onDelete={onDelete} onReply={onReply}
+                            language={language}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Quoted Post Body ────────────────────────────────────────────────────────────
 // Renders a quoted/reposted post's content exactly like the original, handles
 // both regular posts and ai_share posts (with AI metadata block).
@@ -364,6 +408,24 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     const [repostModalOpen, setRepostModalOpen] = useState(false);
     const [repostComment, setRepostComment] = useState('');
     const [repostSubmitting, setRepostSubmitting] = useState(false);
+    const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+    const [isFollowed, setIsFollowed] = useState(post.isFollowedByMe || false);
+    const [followLoading, setFollowLoading] = useState(false);
+
+    const handleFollowToggle = async () => {
+        if (!currentUser) return showToast('Vui lòng đăng nhập để theo dõi.', 'error');
+        if (!post.userId) return;
+        setFollowLoading(true);
+        try {
+            const res = await apiService.toggleSocialFollow(spaceId, post.userId);
+            setIsFollowed(res.following);
+        } catch {
+            showToast('Lỗi khi thao tác theo dõi.', 'error');
+        } finally {
+            setFollowLoading(false);
+        }
+    };
 
     useEffect(() => {
         const el = contentRef.current;
@@ -486,28 +548,54 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
                         style={{ fontWeight: 600, fontSize: 14, color: 'var(--sf-text)', cursor: onUserClick ? 'pointer' : 'default', display: 'inline-block' }}
                     >{post.userName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.createdAt, language || 'vi')}</div>
-                </div>
-                {canDelete && (
-                    <div style={{ position: 'relative' }} ref={menuRef}>
-                        <button
-                            onClick={() => setMenuOpen(v => !v)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', padding: '4px 8px', borderRadius: 6, fontSize: 20, lineHeight: 1 }}
-                        >···</button>
-                        {menuOpen && (
-                            <div style={{
-                                position: 'absolute', right: 0, top: '110%', background: 'var(--sf-card)',
-                                borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-                                zIndex: 100, minWidth: 160, overflow: 'hidden'
-                            }}>
-                                <button
-                                    onClick={() => { onDelete(post.id); setMenuOpen(false); }}
-                                    style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: '#e74c3c', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
-                                >{translations[language || "vi"].deletePost}</button>
-                            </div>
-                        )}
+                    <div style={{ fontSize: 11, color: 'var(--sf-muted)' }}>
+                        <span>{timeAgo(post.createdAt, language || 'vi')}</span>
                     </div>
-                )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {(!currentUser || currentUser.id !== post.userId) && (
+                        <button
+                            onClick={handleFollowToggle}
+                            disabled={followLoading}
+                            style={{ 
+                                background: 'none', 
+                                border: isFollowed ? '1px solid var(--sf-border)' : '1px solid currentColor', 
+                                borderRadius: 14, 
+                                padding: '3px 10px', 
+                                fontSize: 11, 
+                                cursor: followLoading ? 'default' : 'pointer', 
+                                color: isFollowed ? 'var(--sf-muted)' : '#8b4513',
+                                fontWeight: 500,
+                                opacity: followLoading ? 0.7 : 1,
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {isFollowed ? 'Đang theo dõi' : 'Theo dõi'}
+                        </button>
+                    )}
+
+                    {canDelete && (
+                        <div style={{ position: 'relative' }} ref={menuRef}>
+                            <button
+                                onClick={() => setMenuOpen(v => !v)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', padding: '4px 8px', borderRadius: 6, fontSize: 20, lineHeight: 1 }}
+                            >···</button>
+                            {menuOpen && (
+                                <div style={{
+                                    position: 'absolute', right: 0, top: '110%', background: 'var(--sf-card)',
+                                    borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                                    zIndex: 100, minWidth: 160, overflow: 'hidden'
+                                }}>
+                                    <button
+                                        onClick={() => { onDelete(post.id); setMenuOpen(false); }}
+                                        style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: '#e74c3c', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                    >{translations[language || "vi"].deletePost}</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Content */}
@@ -530,7 +618,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             {/* AI name header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                 <span style={{
-                                    background: '#991b1b', color: '#fff', fontSize: 10, fontWeight: 700,
+                                    background: '#8b4513', color: '#fff', fontSize: 10, fontWeight: 700,
                                     padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em'
                                 }}>AI</span>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
@@ -559,7 +647,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             {post.metadata.aiResponse.length > 300 && (
                                 <button
                                     onClick={() => setAiExpanded(v => !v)}
-                                    style={{ background: 'none', border: 'none', color: 'var(--sf-primary, #991b1b)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '4px 0 0', display: 'block' }}
+                                    style={{ background: 'none', border: 'none', color: 'var(--sf-primary, #8b4513)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '4px 0 0', display: 'block' }}
                                 >
                                     {aiExpanded ? 'Thu gọn ▲' : 'Xem thêm ▼'}
                                 </button>
@@ -583,7 +671,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 </div>
                                 {isTruncated && !expanded && (
                                     <button onClick={() => setExpanded(true)}
-                                        style={{ background: 'none', border: 'none', color: '#1877f2', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, marginTop: 4 }}>
+                                        style={{ background: 'none', border: 'none', color: '#8b4513', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, marginTop: 4 }}>
                                         Xem thêm
                                     </button>
                                 )}
@@ -594,7 +682,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             </div>
 
             {/* Photos */}
-            {post.imageUrls?.length > 0 && <PhotoGrid urls={post.imageUrls} />}
+            {post.imageUrls?.length > 0 && <PhotoGrid urls={post.imageUrls} onImageClick={i => { setLightboxIdx(i); if (comments.length === 0) loadComments(); }} />}
 
             {/* Quoted post card (for reposts) */}
             {post.quotedPost && (
@@ -625,7 +713,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             {/* Repost comment modal */}
             {repostModalOpen && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
                     onClick={() => !repostSubmitting && setRepostModalOpen(false)}
                 >
                     <div style={{ background: 'var(--sf-card)', borderRadius: 14, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
@@ -663,7 +751,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     {translations[language || "vi"].cancel}
                                 </button>
                                 <button onClick={handleRepostSubmit} disabled={repostSubmitting}
-                                    style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#991b1b', color: '#fff', cursor: repostSubmitting ? 'default' : 'pointer', fontWeight: 700, fontSize: 13, opacity: repostSubmitting ? 0.7 : 1 }}>
+                                    style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#8b4513', color: '#fff', cursor: repostSubmitting ? 'default' : 'pointer', fontWeight: 700, fontSize: 13, opacity: repostSubmitting ? 0.7 : 1 }}>
                                     {repostSubmitting ? translations[language || "vi"].sharing : translations[language || "vi"].share}
                                 </button>
                             </div>
@@ -739,24 +827,12 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     ) : (
                         <>
                             {topLevel.map(c => (
-                                <div key={c.id}>
-                                    <CommentItem
-                                        comment={c} currentUser={currentUser}
-                                        spaceId={spaceId} postId={post.id}
-                                        postUserId={post.userId ?? 0}
-                                        onDelete={handleDeleteComment} onReply={handleReply}
-                                    />
-                                    {getReplies(c.id).map(reply => (
-                                        <div key={reply.id} style={{ paddingLeft: 38 }}>
-                                            <CommentItem
-                                                comment={reply} currentUser={currentUser}
-                                                spaceId={spaceId} postId={post.id}
-                                                postUserId={post.userId ?? 0}
-                                                onDelete={handleDeleteComment} onReply={handleReply}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
+                                <CommentThread
+                                    key={c.id} comment={c} allComments={comments}
+                                    currentUser={currentUser} spaceId={spaceId} postId={post.id}
+                                    postUserId={post.userId ?? 0}
+                                    onDelete={handleDeleteComment} onReply={handleReply} language={language}
+                                />
                             ))}
                         </>
                     )}
@@ -767,7 +843,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={32} />
                             <div style={{ flex: 1, position: 'relative' }}>
                                 {replyTo && (
-                                    <div style={{ fontSize: 12, color: '#1877f2', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <div style={{ fontSize: 12, color: '#8b4513', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                                         {translations[language || "vi"].replyingTo} <strong>{replyTo.name}</strong>
                                         <button onClick={() => { setReplyTo(null); setCommentText(''); }}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 14, lineHeight: 1 }}>×</button>
@@ -777,7 +853,6 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     ref={commentInputRef}
                                     value={commentText}
                                     onChange={e => setCommentText(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(e as any); } }}
                                     placeholder={translations[language || "vi"].writeComment}
                                     style={{
                                         width: '100%', padding: '8px 40px 8px 14px', borderRadius: 20,
@@ -790,11 +865,139 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     style={{
                                         position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
                                         background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                                        color: commentText.trim() ? '#1877f2' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
+                                        color: commentText.trim() ? '#8b4513' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
                                     }}>↑</button>
                             </div>
                         </form>
                     )}
+                </div>
+            )}
+            {/* Post Lightbox with Comments */}
+            {lightboxIdx !== null && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', background: 'rgba(0,0,0,0.92)' }}>
+                    {/* Left side: Image Box */}
+                    <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setLightboxIdx(null)}>
+                        <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(null); }} style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 22, cursor: 'pointer', zIndex: 10 }}>×</button>
+                        {lightboxIdx > 0 && (
+                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! - 1); }} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer' }}>‹</button>
+                        )}
+                        <img src={post.imageUrls[lightboxIdx]} alt="" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain', userSelect: 'none' }} onClick={e => e.stopPropagation()} />
+                        {lightboxIdx < post.imageUrls.length - 1 && (
+                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! + 1); }} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer' }}>›</button>
+                        )}
+                    </div>
+                    {/* Right side: Comments Sidebar (Styled like the screenshot) */}
+                    <div style={{ width: 360, background: '#fdfbf7', display: 'flex', flexDirection: 'column', height: '100%', borderLeft: '1px solid #ebdcc5', fontFamily: 'Lora, Georgia, serif' }}>
+                        {/* Scrollable Area for Post AND Comments */}
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {/* Original Post inline */}
+                            <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid #ebdcc5' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                    <Avatar name={post.userName} url={post.userAvatarUrl} size={38} />
+                                    <div style={{ flex: 1, fontSize: 15, color: '#4a4a4a', lineHeight: 1.6 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
+                                            <span style={{ fontWeight: 700, color: '#1a1a1a' }}>{post.userName}</span>
+                                            <span style={{ fontSize: 11, color: '#a08b7a', marginTop: 2, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>{timeAgo(post.createdAt, language || 'vi')}</span>
+                                        </div>
+                                        <div style={{ whiteSpace: 'pre-wrap' }}>
+                                            {post.content}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Comments Title */}
+                            <div style={{ padding: '20px 20px 0' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: '#c4a482', textTransform: 'uppercase', marginBottom: 12 }}>BÌNH LUẬN</div>
+                            </div>
+
+                            {/* Comments List */}
+                            <div style={{ padding: '0 20px 16px' }}>
+                            {loadingComments ? (
+                                <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 14 }}>{translations[language || "vi"].loading}</div>
+                            ) : (
+                                (() => {
+                                    const renderComment = (c: SocialComment, depth: number) => {
+                                        const replies = comments.filter(r => r.parentCommentId === c.id);
+                                        return (
+                                            <React.Fragment key={c.id}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, marginLeft: depth * 32 }}>
+                                                    <Avatar name={c.userName} url={c.userAvatarUrl} size={32} />
+                                                    <div style={{ flex: 1, fontSize: 14, color: '#4a4a4a', lineHeight: 1.5 }}>
+                                                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 6 }}>{c.userName}</span>
+                                                        <span style={{ cursor: 'pointer' }} onClick={() => handleReply(c.id, c.userName)} title="Nhấn để trả lời">
+                                                            {c.content}
+                                                        </span>
+                                                        <div style={{ fontSize: 11, color: '#a08b7a', marginTop: 4, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>
+                                                            {timeAgo(c.createdAt, language || 'vi')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {replies.map(r => renderComment(r, depth + 1))}
+                                            </React.Fragment>
+                                        );
+                                    };
+                                    return topLevel.map(c => renderComment(c, 0));
+                                })()
+                            )}
+                            </div>
+                        </div>
+
+                        {/* Action buttons mirroring screenshot */}
+                        <div style={{ flexShrink: 0, padding: '16px 20px 24px', borderTop: '1px solid #ebdcc5', background: '#fdfbf7' }}>
+                            <div style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
+                                <button onClick={handleLike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: liked ? '#8b4513' : '#a08b7a' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? '#8b4513' : 'none'} stroke={liked ? '#8b4513' : '#a08b7a'} strokeWidth="2">
+                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                                    </svg>
+                                </button>
+                                <button onClick={() => commentInputRef.current?.focus()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#a08b7a' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                </button>
+                                <button onClick={handleRepost} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: reposted ? '#45bd62' : '#a08b7a' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M17 1l4 4-4 4"/>
+                                        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                                        <path d="M7 23l-4-4 4-4"/>
+                                        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a1a' }}>
+                                {likesCount} lượt thích
+                            </div>
+
+                            {/* Standard comment input embedded */}
+                            {currentUser && (
+                                <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
+                                    <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={30} />
+                                    <div style={{ flex: 1, position: 'relative' }}>
+                                        <input
+                                            ref={commentInputRef}
+                                            value={commentText}
+                                            onChange={e => setCommentText(e.target.value)}
+                                            placeholder={translations[language || "vi"].writeComment}
+                                            style={{
+                                                width: '100%', padding: '10px 40px 10px 14px', borderRadius: 20,
+                                                border: '1px solid #ebdcc5', background: '#fff',
+                                                color: '#1a1a1a', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        />
+                                        <button type="submit" disabled={!commentText.trim() || submittingComment}
+                                            style={{
+                                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                                background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
+                                                color: commentText.trim() ? '#8b4513' : '#c4a482', fontSize: 18, lineHeight: 1
+                                            }}
+                                        >↑</button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -960,11 +1163,11 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
                                     background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer',
-                                    color: totalImages >= 4 ? 'var(--sf-muted)' : '#45bd62', fontSize: 12, fontWeight: 600,
+                                    color: totalImages >= 4 ? 'var(--sf-muted)' : '#8b4513', fontSize: 13, fontWeight: 600,
                                     opacity: totalImages >= 4 ? 0.5 : 1
                                 }}
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="#45bd62">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
                                     <rect x="3" y="3" width="18" height="18" rx="3"/>
                                     <circle cx="8.5" cy="8.5" r="1.5" fill="#fff"/>
                                     <path d="M21 15l-5-5L5 21h16z" fill="rgba(255,255,255,0.9)"/>
@@ -986,7 +1189,7 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                                 disabled={(!content.trim() && images.length === 0) || submitting}
                                 style={{
                                     padding: '8px 20px', borderRadius: 8, border: 'none',
-                                    background: (content.trim() || images.length > 0) && !submitting ? '#1877f2' : 'var(--sf-border)',
+                                    background: (content.trim() || images.length > 0) && !submitting ? '#8b4513' : 'var(--sf-border)',
                                     color: '#fff', cursor: (content.trim() || images.length > 0) && !submitting ? 'pointer' : 'default',
                                     fontWeight: 700, fontSize: 12, transition: 'background 0.2s'
                                 }}
@@ -1006,12 +1209,12 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                         style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
-                            cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 12, fontWeight: 600
+                            cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
                         }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#45bd62">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
                                     <rect x="1" y="1" width="22" height="22" rx="4"/>
                                     <circle cx="8" cy="9" r="2" fill="#fff"/>
                                     <path d="M22 16L15 9 8 16" fill="rgba(255,255,255,0.85)" stroke="none"/>
@@ -1023,13 +1226,13 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
                         style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
-                            cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 12, fontWeight: 600
+                            cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
                         }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="11" fill="#f7b928"/>
+                                    <circle cx="12" cy="12" r="11" fill="#8b4513"/>
                                     <circle cx="9" cy="10" r="1.5" fill="#fff"/>
                                     <circle cx="15" cy="10" r="1.5" fill="#fff"/>
                                     <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
@@ -1328,7 +1531,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
 
                 {loadingMore && (
                     <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                        <div style={{ display: 'inline-block', width: 28, height: 28, border: '3px solid var(--sf-border)', borderTopColor: '#1877f2', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        <div style={{ display: 'inline-block', width: 28, height: 28, border: '3px solid var(--sf-border)', borderTopColor: '#8b4513', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                     </div>
                 )}
 
