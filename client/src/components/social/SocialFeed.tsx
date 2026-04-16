@@ -851,30 +851,51 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     ref={likersPopupRef}
                                     style={{
                                         position: 'absolute', bottom: '100%', left: 0, zIndex: 200,
-                                        background: 'var(--sf-card, #fff)', border: '1px solid var(--sf-border)',
+                                        background: 'var(--sf-card, #f4ecd8)', border: '1px solid var(--sf-border)',
                                         borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                                        padding: '10px 0', minWidth: 220, maxHeight: 300, overflowY: 'auto',
-                                        marginBottom: 6,
+                                        minWidth: 260, maxHeight: 350, display: 'flex', flexDirection: 'column',
+                                        marginBottom: 6, overflow: 'hidden'
                                     }}
                                 >
-                                    <div style={{ padding: '4px 14px 8px', fontWeight: 700, fontSize: 12, color: 'var(--sf-muted)', borderBottom: '1px solid var(--sf-border)', marginBottom: 6 }}>
-                                        {translations[language || 'vi'].whoLiked}
-                                    </div>
-                                    {likersPopup.loading ? (
-                                        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
-                                    ) : likersPopup.users.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 13 }}>{translations[language || 'vi'].noLikesYet}</div>
-                                    ) : (
-                                        likersPopup.users.map(u => (
-                                            <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', cursor: 'default' }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-bg, #f9f5ee)')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                            >
-                                                <Avatar name={u.name} url={u.avatarUrl} size={30} />
-                                                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--sf-text)' }}>{u.name}</span>
+                                    {!likersPopup.loading && likersPopup.users.length > 0 && (
+                                        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--sf-card, #f4ecd8)' }}>
+                                            {/* Avatar Stack */}
+                                            <div style={{ display: 'flex', position: 'relative', width: Math.min(likersPopup.users.length, 3) * 18 + 14, height: 32 }}>
+                                                {likersPopup.users.slice(0, 3).map((u, i) => (
+                                                    <div key={u.id} style={{ position: 'absolute', left: i * 16, zIndex: 3 - i, border: '2px solid var(--sf-card, #f4ecd8)', borderRadius: '50%' }}>
+                                                        <Avatar name={u.name} url={u.avatarUrl} size={28} />
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))
+                                            {/* Header Text */}
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
+                                                    {likersPopup.users[0].name} {likersPopup.users.length > 1 ? `& ${likersPopup.users.length - 1} ng...` : ''}
+                                                </span>
+                                                <span style={{ fontSize: 12, color: 'var(--sf-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <span style={{ color: '#e11d48', fontSize: 10 }}>❤️</span> yêu thích bài viết này
+                                                </span>
+                                            </div>
+                                        </div>
                                     )}
+                                    
+                                    <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0', background: 'var(--sf-card, #f4ecd8)' }}>
+                                        {likersPopup.loading ? (
+                                            <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
+                                        ) : likersPopup.users.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 13 }}>{translations[language || 'vi'].noLikesYet}</div>
+                                        ) : (
+                                            likersPopup.users.map(u => (
+                                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', cursor: 'default' }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                                >
+                                                    <Avatar name={u.name} url={u.avatarUrl} size={36} />
+                                                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--sf-text)' }}>{u.name}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
