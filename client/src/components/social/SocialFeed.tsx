@@ -826,109 +826,102 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                 </div>
             )}
 
-            {/* Stat row: clickable counts */}
-            {(likesCount > 0 || repostsCount > 0 || (post.commentsCount ?? 0) > 0) && (
-                <div style={{ display: 'flex', alignItems: 'center', padding: '4px 16px 8px', fontSize: 13, color: 'var(--sf-muted)' }}>
-                    {/* Likes count — clickable to see who liked */}
-                    {likesCount > 0 && (
-                        <div style={{ position: 'relative' }}>
-                            <button
-                                onClick={handleShowLikers}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 4,
-                                    background: 'none', border: 'none', cursor: 'pointer',
-                                    color: 'var(--sf-muted)', fontSize: 13, padding: 0,
-                                    transition: 'color 0.15s',
-                                }}
-                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                                title={translations[language || 'vi'].whoLiked}
-                            >
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="#e11d48" stroke="#e11d48" strokeWidth="1.8">
-                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                                </svg>
-                                {likesCount.toLocaleString()}
-                            </button>
-                            {/* Likers popup */}
-                            {likersPopup && (
-                                <div
-                                    ref={likersPopupRef}
-                                    style={{
-                                        position: 'absolute', bottom: '100%', left: 0, zIndex: 200,
-                                        background: 'var(--sf-card, #f4ecd8)', border: '1px solid var(--sf-border)',
-                                        borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                                        minWidth: 260, maxHeight: 350, display: 'flex', flexDirection: 'column',
-                                        marginBottom: 6, overflow: 'hidden'
-                                    }}
-                                >
-                                    {!likersPopup.loading && likersPopup.users.length > 0 && (
-                                        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--sf-card, #f4ecd8)' }}>
-                                            {/* Avatar Stack */}
-                                            <div style={{ display: 'flex', position: 'relative', width: Math.min(likersPopup.users.length, 3) * 18 + 14, height: 32 }}>
-                                                {likersPopup.users.slice(0, 3).map((u, i) => (
-                                                    <div key={u.id} style={{ position: 'absolute', left: i * 16, zIndex: 3 - i, border: '2px solid var(--sf-card, #f4ecd8)', borderRadius: '50%' }}>
-                                                        <Avatar name={u.name} url={u.avatarUrl} size={28} />
-                                                    </div>
-                                                ))}
+            {/* Stat row: always show clickable counts */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '4px 16px 8px', fontSize: 13, color: 'var(--sf-muted)' }}>
+                {/* Likes count — clickable to see who liked */}
+                <div style={{ position: 'relative' }}>
+                    <button
+                        onClick={handleShowLikers}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--sf-muted)', fontSize: 13, padding: 0,
+                            transition: 'color 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                        title={translations[language || 'vi'].whoLiked}
+                    >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="#e11d48" stroke="#e11d48" strokeWidth="1.8">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                        {likesCount.toLocaleString()}
+                    </button>
+                    {/* Likers popup */}
+                    {likersPopup && (
+                        <div
+                            ref={likersPopupRef}
+                            style={{
+                                position: 'absolute', bottom: '100%', left: 0, zIndex: 200,
+                                background: 'var(--sf-card, #f4ecd8)', border: '1px solid var(--sf-border)',
+                                borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                                minWidth: 260, maxHeight: 350, display: 'flex', flexDirection: 'column',
+                                marginBottom: 6, overflow: 'hidden'
+                            }}
+                        >
+                            {!likersPopup.loading && likersPopup.users.length > 0 && (
+                                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--sf-border)', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--sf-card, #f4ecd8)' }}>
+                                    {/* Avatar Stack */}
+                                    <div style={{ display: 'flex', position: 'relative', width: Math.min(likersPopup.users.length, 3) * 18 + 14, height: 32 }}>
+                                        {likersPopup.users.slice(0, 3).map((u, i) => (
+                                            <div key={u.id} style={{ position: 'absolute', left: i * 16, zIndex: 3 - i, border: '2px solid var(--sf-card, #f4ecd8)', borderRadius: '50%' }}>
+                                                <Avatar name={u.name} url={u.avatarUrl} size={28} />
                                             </div>
-                                            {/* Header Text */}
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
-                                                    {likersPopup.users[0].name} {likersPopup.users.length > 1 ? `& ${likersPopup.users.length - 1} ng...` : ''}
-                                                </span>
-                                                <span style={{ fontSize: 12, color: 'var(--sf-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <span style={{ color: '#e11d48', fontSize: 10 }}>❤️</span> yêu thích bài viết này
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0', background: 'var(--sf-card, #f4ecd8)' }}>
-                                        {likersPopup.loading ? (
-                                            <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
-                                        ) : likersPopup.users.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 13 }}>{translations[language || 'vi'].noLikesYet}</div>
-                                        ) : (
-                                            likersPopup.users.map(u => (
-                                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', cursor: 'default' }}
-                                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
-                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                                >
-                                                    <Avatar name={u.name} url={u.avatarUrl} size={36} />
-                                                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--sf-text)' }}>{u.name}</span>
-                                                </div>
-                                            ))
-                                        )}
+                                        ))}
+                                    </div>
+                                    {/* Header Text */}
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sf-text)' }}>
+                                            {likersPopup.users[0].name} {likersPopup.users.length > 1 ? `& ${likersPopup.users.length - 1} ng...` : ''}
+                                        </span>
+                                        <span style={{ fontSize: 12, color: 'var(--sf-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <span style={{ color: '#e11d48', fontSize: 10 }}>❤️</span> yêu thích bài viết này
+                                        </span>
                                     </div>
                                 </div>
                             )}
+                            
+                            <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0', background: 'var(--sf-card, #f4ecd8)' }}>
+                                {likersPopup.loading ? (
+                                    <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
+                                ) : likersPopup.users.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 13 }}>{translations[language || 'vi'].noLikesYet}</div>
+                                ) : (
+                                    likersPopup.users.map(u => (
+                                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', cursor: 'default' }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                        >
+                                            <Avatar name={u.name} url={u.avatarUrl} size={36} />
+                                            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--sf-text)' }}>{u.name}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     )}
-                    
-                    <div style={{ flex: 1 }} />
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {(post.commentsCount ?? 0) > 0 && (
-                            <button
-                                onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 13, padding: 0 }}
-                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                            >
-                                {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
-                            </button>
-                        )}
-                        {repostsCount > 0 && (
-                            <span style={{ color: 'var(--sf-muted)', fontSize: 13, cursor: 'pointer' }}
-                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                            >
-                                {repostsCount.toLocaleString()} {language === 'en' ? 'shares' : 'lượt chia sẻ'}
-                            </span>
-                        )}
-                    </div>
                 </div>
-            )}
+                
+                <div style={{ flex: 1 }} />
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                        onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 13, padding: 0 }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                        {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
+                    </button>
+                    
+                    <span style={{ color: 'var(--sf-muted)', fontSize: 13, cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                        {repostsCount.toLocaleString()} {language === 'en' ? 'shares' : 'lượt chia sẻ'}
+                    </span>
+                </div>
+            </div>
 
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', padding: '2px 8px 8px', gap: 4, borderBottom: '1px solid var(--sf-border)' }}>
