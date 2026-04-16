@@ -1122,11 +1122,14 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
 
     const insertEmoji = (emoji: string) => {
         const ta = textareaRef.current;
-        if (!ta) { setContent(prev => prev + emoji); setShowEmojiPicker(false); return; }
+        if (!ta) {
+            setContent(prev => prev + emoji);
+            setShowEmojiPicker(false);
+            return;
+        }
         const start = ta.selectionStart;
         const end = ta.selectionEnd;
-        const newVal = content.slice(0, start) + emoji + content.slice(end);
-        setContent(newVal);
+        setContent(prev => prev.slice(0, start) + emoji + prev.slice(end));
         setShowEmojiPicker(false);
         setTimeout(() => { ta.focus(); ta.setSelectionRange(start + emoji.length, start + emoji.length); }, 0);
     };
@@ -1367,12 +1370,11 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
         </div>
         {showEmojiPicker && (
             <div
-                onClick={e => e.stopPropagation()}
                 style={{
                     background: 'var(--sf-card)', borderRadius: 12, padding: 12,
                     boxShadow: '0 4px 24px rgba(0,0,0,0.18)', zIndex: 100,
                     display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4,
-                    marginTop: 4, border: '1px solid var(--sf-border)',
+                    marginTop: 4, marginBottom: 16, border: '1px solid var(--sf-border)',
                 }}
             >
                 {EMOJIS.map(e => (
