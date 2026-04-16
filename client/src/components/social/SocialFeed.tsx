@@ -828,23 +828,24 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
 
             {/* Stat row: clickable counts */}
             {(likesCount > 0 || repostsCount > 0 || (post.commentsCount ?? 0) > 0) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '4px 16px 2px', fontSize: 13, color: 'var(--sf-muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '4px 16px 8px', fontSize: 13, color: 'var(--sf-muted)' }}>
                     {/* Likes count — clickable to see who liked */}
                     {likesCount > 0 && (
                         <div style={{ position: 'relative' }}>
                             <button
                                 onClick={handleShowLikers}
                                 style={{
+                                    display: 'flex', alignItems: 'center', gap: 4,
                                     background: 'none', border: 'none', cursor: 'pointer',
-                                    color: 'var(--sf-muted)', fontSize: 13, padding: '2px 4px',
-                                    borderRadius: 4, textDecoration: 'underline dotted',
+                                    color: 'var(--sf-muted)', fontSize: 13, padding: 0,
                                     transition: 'color 0.15s',
                                 }}
-                                onMouseEnter={e => (e.currentTarget.style.color = '#e11d48')}
-                                onMouseLeave={e => (e.currentTarget.style.color = 'var(--sf-muted)')}
+                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
                                 title={translations[language || 'vi'].whoLiked}
                             >
-                                ❤️ {likesCount.toLocaleString()}
+                                <span style={{ background: '#e11d48', borderRadius: '50%', color: '#fff', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9 }}>❤️</span>
+                                {likesCount.toLocaleString()}
                             </button>
                             {/* Likers popup */}
                             {likersPopup && (
@@ -901,21 +902,29 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             )}
                         </div>
                     )}
-                    {repostsCount > 0 && (
-                        <span style={{ color: 'var(--sf-muted)', fontSize: 13 }}>
-                            🔁 {repostsCount.toLocaleString()} {language === 'en' ? 'shares' : 'chia sẻ'}
-                        </span>
-                    )}
-                    {(post.commentsCount ?? 0) > 0 && (
-                        <button
-                            onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 13, padding: '2px 4px', borderRadius: 4, textDecoration: 'underline dotted' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--sf-text)')}
-                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--sf-muted)')}
-                        >
-                            💬 {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
-                        </button>
-                    )}
+                    
+                    <div style={{ flex: 1 }} />
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {(post.commentsCount ?? 0) > 0 && (
+                            <button
+                                onClick={() => { setShowComments(v => !v); if (!showComments && comments.length === 0) loadComments(); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 13, padding: 0 }}
+                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                            >
+                                {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
+                            </button>
+                        )}
+                        {repostsCount > 0 && (
+                            <span style={{ color: 'var(--sf-muted)', fontSize: 13, cursor: 'pointer' }}
+                                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                            >
+                                {repostsCount.toLocaleString()} {language === 'en' ? 'shares' : 'lượt chia sẻ'}
+                            </span>
+                        )}
+                    </div>
                 </div>
             )}
 
