@@ -16,6 +16,7 @@ import DocumentDetailPage from './pages/DocumentDetailPage';
 import { User, SystemConfig } from './types';
 import { apiService } from './services/apiService';
 import { ToastProvider } from './components/ToastProvider';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { UserBillingManagement } from './components/admin/UserBillingManagement'; // Added import
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
@@ -158,14 +159,48 @@ const App: React.FC = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // Auto-refresh user permissions từ server mỗi khi app load
+  // Tránh trường hợp permissions cache cũ trong localStorage sau khi admin thay đổi role
+  // Đồng thời kiểm tra isActive — nếu tài khoản bị vô hiệu hóa thì force logout
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (!savedUser) return; // Chưa đăng nhập, bỏ qua
+    apiService.getCurrentUserProfile()
+      .then((freshUser: User) => {
+        if (!freshUser?.id) return;
+        // Nếu tài khoản đã bị vô hiệu hóa → force logout
+        if (!freshUser.isActive) {
+          setUser(null);
+          localStorage.removeItem('user');
+          navigate('/login?error=account_disabled', { replace: true });
+          return;
+        }
+        // Merge: giữ lại refreshToken từ local, cập nhật phần còn lại từ server
+        setUser(currentUser => {
+          if (!currentUser) return null;
+          const merged = { ...freshUser, refreshToken: (currentUser as any).refreshToken };
+          localStorage.setItem('user', JSON.stringify(merged));
+          return merged;
+        });
+      })
+      .catch(() => {
+        // Nếu API trả 401/403 (token hết hạn hoặc bị revoke) thì refresh interceptor sẽ xử lý
+        // Nếu refresh cũng fail → interceptor sẽ redirect về /login
+      });
+  }, []); // Chỉ chạy 1 lần khi app mount
+
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
+    if (loggedInUser.apiToken) {
+      localStorage.setItem('apiToken', loggedInUser.apiToken);
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('apiToken');
     // Save current path to redirect back after login
     navigate('/login', { state: { from: location } });
   };
@@ -203,8 +238,9 @@ const App: React.FC = () => {
     <ToastProvider>
       <div className="App">
         {systemConfig ? (
-          <Routes>
-            {/* Static & Auth Routes */}
+          <ErrorBoundary>
+            <Routes>
+              {/* Static & Auth Routes */}
             <Route path="/about" element={<AboutPage language={language} />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
@@ -323,6 +359,7 @@ const App: React.FC = () => {
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         ) : (
           <div className="page-loader">Loading configuration...</div>
         )}

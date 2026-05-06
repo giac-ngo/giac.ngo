@@ -60,6 +60,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
   const fromQuery = searchParams.get('from');
   const from = fromQuery ? decodeURIComponent(fromQuery) : ((location.state as any)?.from?.pathname || '/');
 
+  // Show error message if redirected here due to account issues
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'account_disabled') {
+      showToast(language === 'vi' ? 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.' : 'Your account has been disabled. Please contact the administrator.', 'error');
+    } else if (errorParam === 'session_expired') {
+      showToast(language === 'vi' ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' : 'Your session has expired. Please log in again.', 'error');
+    }
+  }, []);
+
   useEffect(() => {
     const host = window.location.hostname;
     const isCustomDomain = host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io';

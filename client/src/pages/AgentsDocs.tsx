@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { DocsNav } from "@/components/DocsNav";
 import { CompactAgentCard } from "@/components/CompactAgentCard";
 import { AgentDialog } from "@/components/AgentDialog";
@@ -6,34 +6,15 @@ import { PricingTable } from "@/components/PricingTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, DollarSign, BookOpen, Zap, Download, Share2, Menu, X, Code2 } from "lucide-react";
-import { buddhistAgents, modelPricing, type BuddhistAgent } from "@/shared/buddhistAgents";
+import { Sparkles, Zap, Download, Share2, Menu, X, Code2 } from "lucide-react";
+import { buddhistAgents, type BuddhistAgent } from "@/shared/buddhistAgents";
 
 export default function AgentsDocs() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<BuddhistAgent | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [docsLanguage, setDocsLanguage] = useState<'vi' | 'en'>('en');
 
-  const navigation = [
-    {
-      id: "agents",
-      title: "Agents",
-      icon: Sparkles,
-      children: [
-        { id: "overview", title: "Overview", href: "#overview" },
-        { id: "models", title: "Agent Models", href: "#models" },
-        { id: "quick-start", title: "Quick Start", href: "#quick-start" },
-      ],
-    },
-    {
-      id: "pricing",
-      title: "Pricing",
-      icon: DollarSign,
-      children: [
-        { id: "pricing-overview", title: "Token Pricing", href: "#pricing" },
-      ],
-    },
-  ];
 
   const handleViewDetails = (agent: BuddhistAgent) => {
     setSelectedAgent(agent);
@@ -73,7 +54,7 @@ export default function AgentsDocs() {
       <div className="flex pt-[57px]">
         {(sidebarOpen || window.innerWidth >= 1024) && (
           <aside className="fixed top-[57px] left-0 h-[calc(100vh-57px)] w-80 bg-sidebar border-r overflow-y-auto z-30 lg:block">
-            <DocsNav navigation={navigation} />
+            <DocsNav language={docsLanguage} setLanguage={setDocsLanguage} onLinkClick={() => setSidebarOpen(false)} />
           </aside>
         )}
 

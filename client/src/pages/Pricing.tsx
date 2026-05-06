@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useCustomer } from "@/lib/autumn-stub";
 import { useSession } from "@/lib/auth-client";
 import { useLocation, Link } from "@/lib/wouter-stub";
@@ -108,7 +108,7 @@ interface SubscriptionData {
 export default function Pricing() {
   useDocumentTitle("Pricing Plans", "Affordable subscription plans for Buddhist temples and organizations.");
   const { data: session } = useSession();
-  const { attach, cancel, openBillingPortal } = useCustomer();
+  const { attach, openBillingPortal } = useCustomer();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -167,7 +167,7 @@ export default function Pricing() {
     }
   };
 
-  const handleCancelSubscription = async () => {
+  /* const handleCancelSubscription = async () => {
     if (!currentPlanId) return;
     
     setLoadingPlan("cancel");
@@ -187,7 +187,7 @@ export default function Pricing() {
     } finally {
       setLoadingPlan(null);
     }
-  };
+  }; */
 
   const handleManageBilling = async () => {
     try {
@@ -198,26 +198,6 @@ export default function Pricing() {
         description: err?.message || "Could not open billing portal.",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleAddOnPurchase = async (productId: string) => {
-    if (!session) {
-      setLocation("/login");
-      return;
-    }
-
-    setLoadingPlan(productId);
-    try {
-      await attach({ productId, successUrl: `${window.location.origin}/dashboard` });
-    } catch (err: any) {
-      toast({
-        title: "Checkout Error",
-        description: err?.message || "Could not start checkout. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingPlan(null);
     }
   };
 
@@ -239,7 +219,7 @@ export default function Pricing() {
               </button>
             )}
             <Link
-              href={backHref}
+              to={backHref}
               className="flex items-center gap-2 px-4 py-2 bg-[#991b1b] text-white rounded-lg font-serif text-sm hover:bg-[#7a1515] transition-all"
             >
               <ArrowLeft className="w-4 h-4" /> Back
@@ -376,7 +356,7 @@ export default function Pricing() {
         </div>
 
         {/* Cancel Subscription */}
-        {currentPlanId && !subscription?.cancelAtPeriodEnd && (
+        {/* {currentPlanId && !subscription?.cancelAtPeriodEnd && (
           <div className="text-center">
             <button
               onClick={handleCancelSubscription}
@@ -389,7 +369,7 @@ export default function Pricing() {
               You'll keep access until the end of your billing period
             </p>
           </div>
-        )}
+        )} */}
       </main>
     </div>
   );

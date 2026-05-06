@@ -746,6 +746,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
 
     // TTS for test chat
     const [testSpeakingId, setTestSpeakingId] = useState<string | number | null>(null);
+    const [testLoadingTtsId, setTestLoadingTtsId] = useState<string | number | null>(null);
     const testAudioRef = useRef<HTMLAudioElement | null>(null);
     const testTtsCacheRef = useRef<Map<number, { url: string; mime: string; chunks?: string[] }>>(new Map());
     const testSpeakingQueueRef = useRef<string | number | null>(null);
@@ -1250,7 +1251,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                 const { id, ...payload } = { ...selectedAi, avatarUrl: finalAvatarUrl };
                 savedAi = await apiService.createAiConfig(payload);
             } else {
-                savedAi = await apiService.updateAiConfig({ ...selectedAi, avatarUrl: finalAvatarUrl } as AIConfig);
+                savedAi = await apiService.updateAiConfig(selectedAi.id as number | string, { ...selectedAi, avatarUrl: finalAvatarUrl });
             }
 
             let newSources: TrainingDataSource[] = [];
@@ -1403,10 +1404,10 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                 setAllMessages(prev => updateMessage(prev));
                 setDisplayedMessages(prev => updateMessage(prev));
             },
-            onEnd: (newConversationId, _updatedUser, finalMessage) => {
+            onEnd: (newConversationId: number | string, _updatedUser: any, finalMessage: any) => {
                 setIsTyping(false);
                 if (newConversationId && testConversationId === null) {
-                    setTestConversationId(newConversationId);
+                    setTestConversationId(Number(newConversationId));
                 }
 
                 if (finalMessage) {
@@ -1425,7 +1426,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                 setDisplayedMessages(prev => updateMessage(prev));
                 setIsTyping(false);
             }
-        }, true, language, aiMessageId);
+        });
     };
 
     const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1738,42 +1739,48 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
 
     const handleTestSpeak = async (text: string, msgId: string | number) => {
         const cacheKey = testHashText(text);
-        if (testSpeakingId === msgId) {
+        if (testSpeakingId === msgId || testLoadingTtsId === msgId) {
             if (testAudioRef.current) { testAudioRef.current.pause(); testAudioRef.current.currentTime = 0; testAudioRef.current.onended = null; }
-            setTestSpeakingId(null); testSpeakingQueueRef.current = null; return;
+            setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return;
         }
         if (testAudioRef.current) { testAudioRef.current.pause(); testAudioRef.current.currentTime = 0; testAudioRef.current.onended = null; }
-        setTestSpeakingId(msgId); testSpeakingQueueRef.current = msgId;
+        setTestLoadingTtsId(msgId); setTestSpeakingId(null); testSpeakingQueueRef.current = msgId;
         try {
-            if (!user?.apiKeys) { showToast('Cần đăng nhập để dùng TTS', 'error'); setTestSpeakingId(null); testSpeakingQueueRef.current = null; return; }
+            if (!user?.apiKeys) { showToast('Cần đăng nhập để dùng TTS', 'error'); setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
             const provider = selectedAi?.modelType || 'gemini';
-            const ttsModel = provider === 'gemini' ? 'gemini-2.5-flash-preview-tts' : 'tts-1';
+            const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
             const voiceConfig = provider === 'gpt' ? 'alloy' : (user.apiKeys?.geminiVoice || 'Algieba');
             const geminiStyle = (user.apiKeys as any)?.geminiStyle || '';
             const fetchChunkUrl = async (chunkText: string): Promise<string | null> => {
                 try {
-                    const resp = await apiService.generateTtsAudio(chunkText, provider, ttsModel, voiceConfig, language, user.id as number, provider === 'gemini' ? geminiStyle : undefined);
+                    const resp = await apiService.generateTtsAudio(
+                        chunkText, provider, ttsModel, voiceConfig, language, user.id as number, 
+                        provider === 'gemini' ? geminiStyle : undefined, 
+                        undefined, 
+                        selectedAi?.id // Pass aiId
+                    );
                     if (!resp?.audioContent) return null;
                     return `data:${resp.mimeType || 'audio/wav'};base64,${resp.audioContent}`;
                 } catch { return null; }
             };
             const cached = testTtsCacheRef.current.get(cacheKey);
             const playUrls = async (urls: string[], idx: number) => {
-                if (testSpeakingQueueRef.current !== msgId || idx >= urls.length) { setTestSpeakingId(null); testSpeakingQueueRef.current = null; return; }
+                if (testSpeakingQueueRef.current !== msgId || idx >= urls.length) { setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
                 if (!testAudioRef.current) testAudioRef.current = new Audio();
                 const el = testAudioRef.current;
                 el.src = urls[idx];
                 el.onended = () => playUrls(urls, idx + 1);
-                el.onerror = () => { setTestSpeakingId(null); testSpeakingQueueRef.current = null; };
-                try { await el.play(); } catch { setTestSpeakingId(null); testSpeakingQueueRef.current = null; }
+                el.onerror = () => { setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; };
+                try { await el.play(); } catch { setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; }
             };
-            if (cached) { await playUrls((cached as any).chunks || [cached.url], 0); return; }
+            if (cached) { setTestLoadingTtsId(null); setTestSpeakingId(msgId); await playUrls((cached as any).chunks || [cached.url], 0); return; }
             // Simple single-chunk for test chat
             const url = await fetchChunkUrl(text);
-            if (!url || testSpeakingQueueRef.current !== msgId) { setTestSpeakingId(null); testSpeakingQueueRef.current = null; return; }
+            if (!url || testSpeakingQueueRef.current !== msgId) { setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
             testTtsCacheRef.current.set(cacheKey, { url, mime: 'audio/wav', chunks: [url] });
+            setTestLoadingTtsId(null); setTestSpeakingId(msgId);
             await playUrls([url], 0);
-        } catch { setTestSpeakingId(null); testSpeakingQueueRef.current = null; }
+        } catch { setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; }
     };
 
     const handleTestDownloadVoice = async (text: string, msgId: string | number) => {
@@ -1787,10 +1794,15 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
         if (!user?.apiKeys) { showToast('Cần đăng nhập để tải voice', 'error'); return; }
         try {
             const provider = selectedAi?.modelType || 'gemini';
-            const ttsModel = provider === 'gemini' ? 'gemini-2.5-flash-preview-tts' : 'tts-1';
+            const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
             const voiceConfig = provider === 'gpt' ? 'alloy' : (user.apiKeys?.geminiVoice || 'Algieba');
             const geminiStyle = (user.apiKeys as any)?.geminiStyle || '';
-            const resp = await apiService.generateTtsAudio(text, provider, ttsModel, voiceConfig, language, user.id as number, provider === 'gemini' ? geminiStyle : undefined);
+            const resp = await apiService.generateTtsAudio(
+                text, provider, ttsModel, voiceConfig, language, user.id as number, 
+                provider === 'gemini' ? geminiStyle : undefined, 
+                undefined, 
+                selectedAi?.id // Pass aiId
+            );
             if (!resp?.audioContent) { showToast('Không thể tạo audio', 'error'); return; }
             const url = `data:${resp.mimeType || 'audio/wav'};base64,${resp.audioContent}`;
             testTtsCacheRef.current.set(cacheKey, { url, mime: resp.mimeType || 'audio/wav', chunks: [url] });
@@ -1959,8 +1971,8 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                         )}
                         {(!canEdit && !isApiKeyMissing) && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center"><p className="p-4 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200">{t.readOnly}</p></div>}
 
-                        <div className="flex-grow overflow-y-auto p-6">
-                            <div className="flex items-start space-x-6">
+                        <div className="flex-grow overflow-y-auto p-6 flex flex-col">
+                            <div className="flex items-start space-x-6 shrink-0">
                                 <div className="flex-shrink-0 flex flex-col items-center space-y-2">
                                     {selectedAi.avatarUrl ? (
                                         <img src={selectedAi.avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full object-cover bg-background-light" />
@@ -1995,18 +2007,19 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                 </div>
                             </div>
 
-                            <div className="border-b border-border-color my-6">
+                            <div className="border-b border-border-color my-6 shrink-0">
                                 <nav className="-mb-px flex space-x-6">
                                     <button onClick={() => setActiveTab('configuration')} className={`py-3 px-1 font-semibold border-b-2 ${activeTab === 'configuration' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t.tabConfiguration}</button>
                                     <button onClick={() => setActiveTab('training')} className={`py-3 px-1 font-semibold border-b-2 ${activeTab === 'training' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t.tabTraining}</button>
                                     <button onClick={() => setActiveTab('tags')} className={`py-3 px-1 font-semibold border-b-2 ${activeTab === 'tags' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t.tabTagsAndSuggestions}</button>
+                                    <button onClick={() => setActiveTab('tts')} className={`py-3 px-1 font-semibold border-b-2 ${activeTab === 'tts' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>Giọng nói (TTS)</button>
                                     <button onClick={() => setActiveTab('api')} className={`py-3 px-1 font-semibold border-b-2 ${activeTab === 'api' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t.apiEndpoint}</button>
                                 </nav>
                             </div>
 
                             {activeTab === 'configuration' && (
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="space-y-6 flex flex-col flex-1">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 shrink-0">
                                         <div>
                                             <label className="block text-sm font-medium text-text-main">{t.provider}</label>
                                             <select name="modelType" value={selectedAi.modelType} onChange={handleInputChange} disabled={isFormDisabled} className={inputClasses}>
@@ -2046,9 +2059,167 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                             <p className="text-xs text-text-light mt-1">{t.baseDailyLimitDesc}</p>
                                         </div>
                                     </div>
+                                    <div className="border-t border-border-color pt-6 mt-6 flex flex-col flex-1 min-h-0">
+                                        <label className="block text-sm font-medium text-text-main mb-2 shrink-0">{t.trainingContent}</label>
+                                        <textarea name="trainingContent" value={selectedAi.trainingContent} onChange={handleInputChange} disabled={isFormDisabled} className={`${textareaClasses} flex-1 resize-none min-h-[200px]`} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'tts' && (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-1">Nhà cung cấp (Provider - Voice)</label>
+                                            <select name="ttsProvider" value={selectedAi.ttsProvider || 'gemini'} onChange={handleInputChange} disabled={isFormDisabled} className={inputClasses}>
+                                                <option value="gemini">Gemini</option>
+                                                <option value="gpt">GPT (OpenAI)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-1">Model - Voice</label>
+                                            <select name="ttsModel" value={selectedAi.ttsModel || 'gemini-3.1-flash-tts-preview'} onChange={handleInputChange} disabled={isFormDisabled} className={inputClasses}>
+                                                {selectedAi.ttsProvider === 'gpt' ? (
+                                                    <option value="tts-1">tts-1</option>
+                                                ) : (
+                                                    <option value="gemini-3.1-flash-tts-preview">Gemini 3.1 Flash TTS (Preview)</option>
+                                                )}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-1">Giọng đọc (Voice Name)</label>
+                                            <select name="ttsVoice" value={selectedAi.ttsVoice || ''} onChange={handleInputChange} disabled={isFormDisabled} className={inputClasses}>
+                                                <option value="">{t.selectPlaceholder || 'Chọn giọng...'}</option>
+                                                {selectedAi.ttsProvider === 'gpt' ? (
+                                                    <>
+                                                        <option value="alloy">Alloy</option>
+                                                        <option value="echo">Echo</option>
+                                                        <option value="fable">Fable</option>
+                                                        <option value="onyx">Onyx</option>
+                                                        <option value="nova">Nova</option>
+                                                        <option value="shimmer">Shimmer</option>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <optgroup label="👨 Nam (Male)">
+                                                            <option value="Puck">Puck — Vui vẻ, năng động</option>
+                                                            <option value="Charon">Charon — Rõ ràng, đáng tin</option>
+                                                            <option value="Fenrir">Fenrir — Sôi nổi, nhiệt huyết</option>
+                                                            <option value="Algieba">Algieba — Trầm ấm, tự tin</option>
+                                                            <option value="Enceladus">Enceladus — Điềm tĩnh, uy quyền</option>
+                                                            <option value="Orus">Orus — Chắc chắn, mạnh mẽ</option>
+                                                            <option value="Iapetus">Iapetus — Rõ ràng, sáng sủa</option>
+                                                        </optgroup>
+                                                        <optgroup label="👩 Nữ (Female)">
+                                                            <option value="Kore">Kore — Tự tin, khúc chiết</option>
+                                                            <option value="Aoede">Aoede — Nhẹ nhàng, tự nhiên</option>
+                                                            <option value="Zephyr">Zephyr — Tươi sáng, nhiệt tình</option>
+                                                            <option value="Leda">Leda — Ấm áp, trò chuyện</option>
+                                                            <option value="Callirrhoe">Callirrhoe — Thoải mái, dễ chịu</option>
+                                                            <option value="Autonoe">Autonoe — Sáng, tươi vui</option>
+                                                        </optgroup>
+                                                    </>
+                                                )}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-1">Nhiệt độ (Temperature)</label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="range"
+                                                    name="ttsTemperature"
+                                                    min={0} max={2} step={0.1}
+                                                    value={selectedAi.ttsTemperature ?? 1}
+                                                    onChange={handleInputChange}
+                                                    disabled={isFormDisabled}
+                                                    className="flex-1 h-2 rounded-lg appearance-none cursor-pointer accent-primary"
+                                                />
+                                                <span className="w-10 text-center text-sm font-mono font-bold">
+                                                    {parseFloat(String(selectedAi.ttsTemperature ?? 1)).toFixed(1)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-1">Mẫu phong cách</label>
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    value={selectedAi.ttsStyle || ''}
+                                                    onChange={(e) => {
+                                                        if (!selectedAi) return;
+                                                        setSelectedAi(prev => prev ? { ...prev, ttsStyle: e.target.value } : null);
+                                                    }}
+                                                    disabled={isFormDisabled}
+                                                    className={`${inputClasses} flex-1`}
+                                                >
+                                                    <option value="">— Chọn mẫu —</option>
+                                                    <optgroup label="🇻🇳 Vùng miền">
+                                                        <option value="Speak with the warm, gentle tone of Southern Vietnam. Use a relaxed pace and friendly, easy-going delivery:">Miền Nam</option>
+                                                        <option value="Speak with the distinctive tonal patterns of the Huế region. Use a calm, measured pace with a scholarly and refined tone:">Miền Trung</option>
+                                                        <option value="Speak clearly and precisely with the standard Hanoi accent. Use a formal yet warm delivery with proper enunciation:">Miền Bắc</option>
+                                                    </optgroup>
+                                                    <optgroup label="🎭 Phong cách">
+                                                        <option value="Speak in a deep, warm and resonant voice. Speak slowly and thoughtfully, as if sharing ancient wisdom. Use a calming, meditative tone:">Trầm ấm</option>
+                                                        <option value="Speak in a soft, gentle and compassionate voice. Speak as a kind teacher guiding a student, with patience and understanding:">Nhẹ nhàng, từ bi</option>
+                                                        <option value="Speak in a lively, enthusiastic and energetic voice. Speak with excitement and passion, engaging the listener:">Sôi nổi, nhiệt huyết</option>
+                                                        <option value="Speak in a solemn, reverent voice suitable for sacred texts. Speak with deep respect and gravitas, pausing meaningfully:">Trang nghiêm</option>
+                                                        <option value="Speak in a warm, friendly and conversational tone. Speak naturally as if chatting with a close friend:">Thân thiện, gần gũi</option>
+                                                        <option value="Speak as a wise elder sharing stories with grandchildren. Use a gentle, nostalgic tone full of love and life experience:">Kể chuyện (Ông/Bà)</option>
+                                                    </optgroup>
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    disabled={isFormDisabled || !selectedAi.ttsStyle || testLoadingTtsId === 'style-preview'}
+                                                    onClick={async () => {
+                                                        if (!user?.id || !selectedAi) return;
+                                                        const sampleText = 'Hãy buông bỏ mọi phiền não, trở về nương tựa nơi Tự Tánh thanh tịnh của chính mình. Nơi đó không có sự phân biệt, không có đối gian, chỉ có sự bình yên hằng hữu.';
+                                                        const provider = selectedAi.ttsProvider || 'gemini';
+                                                        const model = selectedAi.ttsModel || 'gemini-3.1-flash-tts-preview';
+                                                        const voice = selectedAi.ttsVoice || 'Algieba';
+                                                        const style = selectedAi.ttsStyle || '';
+                                                        const temp = selectedAi.ttsTemperature ?? 1;
+
+                                                        setTestLoadingTtsId('style-preview');
+                                                        try {
+                                                            const resp = await apiService.generateTtsAudio(
+                                                                sampleText, provider, model, voice, language, user.id as number, style, temp, selectedAi.id
+                                                            );
+                                                            if (resp?.audioContent) {
+                                                                if (testAudioRef.current) { testAudioRef.current.pause(); }
+                                                                const audio = new Audio(`data:${resp.mimeType || 'audio/wav'};base64,${resp.audioContent}`);
+                                                                testAudioRef.current = audio;
+                                                                audio.onended = () => setTestLoadingTtsId(null);
+                                                                audio.onerror = () => setTestLoadingTtsId(null);
+                                                                setTestLoadingTtsId('style-playing');
+                                                                await audio.play();
+                                                            }
+                                                        } catch (err) {
+                                                            showToast('Lỗi tạo audio thử: ' + (err as Error).message, 'error');
+                                                        } finally {
+                                                            if (testLoadingTtsId === 'style-preview') setTestLoadingTtsId(null);
+                                                        }
+                                                    }}
+                                                    className="flex-shrink-0 flex items-center justify-center w-10 h-10 bg-primary text-text-on-primary rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Nghe thử phong cách đọc hiện tại"
+                                                >
+                                                    {testLoadingTtsId === 'style-preview' ? (
+                                                        <SpinnerIcon className="w-4 h-4 animate-spin" />
+                                                    ) : testLoadingTtsId === 'style-playing' ? (
+                                                        <SpeakerWaveIcon className="w-4 h-4 animate-pulse" />
+                                                    ) : (
+                                                        <SpeakerWaveIcon className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-text-main">{t.trainingContent}</label>
-                                        <textarea name="trainingContent" value={selectedAi.trainingContent} onChange={handleInputChange} disabled={isFormDisabled} rows={8} className={textareaClasses} />
+                                        <label className="block text-sm font-medium text-text-main mb-1">Phong cách đọc (Style)</label>
+                                        <textarea name="ttsStyle" value={selectedAi.ttsStyle || ''} onChange={handleInputChange} disabled={isFormDisabled} rows={3} placeholder="Chọn mẫu ở trên hoặc tự viết style..." className={textareaClasses} />
+                                        <p className="text-xs text-text-light mt-1">Có thể chỉnh sửa tay sau khi chọn mẫu. Nhấn "Nghe thử" để kiểm tra.</p>
                                     </div>
                                 </div>
                             )}
@@ -2476,7 +2647,12 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                             {msg.sender === 'user' ? (
                                                                 <p style={{ margin: 0 }}>{segText}</p>
                                                             ) : (
-                                                                <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{segText}</ReactMarkdown></div>
+                                                                <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{
+                                                                    segText
+                                                                        .replace(/\n\n/g, '\x00PARA\x00')
+                                                                        .replace(/\n/g, '  \n')
+                                                                        .replace(/\x00PARA\x00/g, '\n\n')
+                                                                }</ReactMarkdown></div>
                                                             )}
                                                             {msg.sender === 'ai' && msg.thought && segIndex === segments.length - 1 && (
                                                                 <details className="mt-2 text-xs">
@@ -2495,7 +2671,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                                                 const cur = testFeedbackStatus[String(msg.id)];
                                                                                 const next = cur === 'liked' ? null : 'liked';
                                                                                 setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: next }));
-                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
+                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next as string); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
                                                                             }}
                                                                             title={language === 'vi' ? 'Thích' : 'Like'}
                                                                             className={`p-1.5 rounded-full hover:bg-background-light ${testFeedbackStatus[String(msg.id)] === 'liked' ? 'text-primary' : 'text-text-light'}`}
@@ -2506,7 +2682,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                                                 const cur = testFeedbackStatus[String(msg.id)];
                                                                                 const next = cur === 'disliked' ? null : 'disliked';
                                                                                 setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: next }));
-                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
+                                                                                try { await apiService.setMessageFeedback(testConversationId, msg.id, next as string); } catch { setTestFeedbackStatus(prev => ({ ...prev, [String(msg.id)]: cur })); }
                                                                             }}
                                                                             title={language === 'vi' ? 'Không thích' : 'Dislike'}
                                                                             className={`p-1.5 rounded-full hover:bg-background-light ${testFeedbackStatus[String(msg.id)] === 'disliked' ? 'text-accent-red' : 'text-text-light'}`}
@@ -2514,7 +2690,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                                     </>
                                                                 )}
                                                                 <button onClick={() => navigator.clipboard.writeText(segText).then(() => showToast(t.copied, 'success'))} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
-                                                                <button onClick={() => handleTestSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${testSpeakingId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}><SpeakerWaveIcon className="w-4 h-4" /></button>
+                                                                <button onClick={() => handleTestSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${testSpeakingId === `${msg.id}-${segIndex}` ? 'text-primary' : testLoadingTtsId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}>{testLoadingTtsId === `${msg.id}-${segIndex}` ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <SpeakerWaveIcon className="w-4 h-4" />}</button>
                                                                 <button onClick={() => handleTestDownloadVoice(segText, `${msg.id}-${segIndex}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
                                                                 {segIndex === segments.length - 1 && (
                                                                     <button

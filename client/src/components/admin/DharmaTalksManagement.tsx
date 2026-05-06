@@ -165,7 +165,7 @@ const DharmaTalkModal: React.FC<{
         setFormData(prev => ({ ...prev, [name]: processedValue }));
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'audioVi' | 'audioEn') => {
+    /* const _handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'audioVi' | 'audioEn') => {
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const previewUrl = URL.createObjectURL(file);
@@ -173,11 +173,11 @@ const DharmaTalkModal: React.FC<{
         if (type === 'audioVi') {
             setAudioFileVi(file);
             setFormData(prev => ({ ...prev, url: previewUrl }));
-        } else if (type === 'audioEn') {
+        } else {
             setAudioFileEn(file);
             setFormData(prev => ({ ...prev, urlEn: previewUrl }));
         }
-    };
+    }; */
 
     const handleAvatarSelect = (url: string) => {
         setFormData(prev => ({ ...prev, speakerAvatarUrl: url }));

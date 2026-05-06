@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { Space } from '../types';
 
@@ -15,6 +16,7 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback }) => {
     const [status, setStatus] = useState<'loading' | 'found' | 'fallback'>('loading');
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [space, setSpace] = useState<Space | null>(null);
+    const navigate = useNavigate();
 
     // Listen for postMessage from iframe (navigation, etc.)
     useEffect(() => {
@@ -26,14 +28,14 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback }) => {
                 if (data.aiId) {
                     localStorage.setItem('lastSelectedAiId', String(data.aiId));
                 }
-                // Full navigation to ensure it works from any context
-                window.location.href = data.path;
+                // Use React Router navigate for SPA routing instead of full reload
+                navigate(data.path);
             }
         };
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, []);
+    }, [navigate]);
 
     useEffect(() => {
         const host = window.location.hostname;
@@ -90,7 +92,7 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback }) => {
 
     return (
         <iframe
-            title={`${space?.name || 'Space'} - Home`}
+            title={space?.name || 'Space'}
             srcDoc={htmlContent || ''}
             className="w-full h-screen border-none block m-0 p-0"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"

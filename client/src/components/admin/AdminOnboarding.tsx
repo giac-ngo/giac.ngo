@@ -4,7 +4,6 @@ import {
   ClipboardList,
   ChevronDown,
   ChevronUp,
-  Eye,
   X,
   Loader2,
   ExternalLink,

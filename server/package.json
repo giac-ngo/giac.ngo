@@ -2,12 +2,13 @@
   "name": "ai-chat-server",
   "version": "1.0.0",
   "description": "Backend for AI Chat Platform",
-  "main": "index.js",
+  "main": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "db:init": "node initDb.js"
+    "start": "node --import tsx/esm index.ts",
+    "dev": "nodemon --exec \"node --import tsx/esm\" index.ts",
+    "build": "tsc --noEmit",
+    "db:init": "node --import tsx/esm initDb.ts"
   },
   "dependencies": {
     "@google/genai": "1.22.0",
@@ -17,7 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "express-rate-limit": "^8.3.2",
+    "express-rate-limit": "^8.4.1",
     "graphql": "^16.13.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
@@ -28,12 +29,23 @@
     "pdf-parse": "^1.1.1",
     "pg": "^8.17.2",
     "sharp": "^0.34.5",
+    "socket.io": "^4.8.3",
     "stripe": "^16.2.0",
     "weaviate-ts-client": "^2.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.6.0",
+    "@types/node-fetch": "^2.6.13",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
+    "nodemon": "^3.1.0",
+    "tsx": "^4.21.0"
   },
   "author": "",
   "license": "ISC"

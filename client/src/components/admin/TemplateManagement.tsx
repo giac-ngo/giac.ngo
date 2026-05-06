@@ -10,7 +10,7 @@ interface TemplateManagementProps {
     user?: any; // passed from AdminPage
 }
 
-export const TemplateManagement: React.FC<TemplateManagementProps> = ({ space, language, user }) => {
+export const TemplateManagement: React.FC<TemplateManagementProps> = ({ space, language: _language, user: _user }) => {
     const isSuperAdmin = !space; // super admin has no associated space
 
     // For super admin: list of all spaces + selected space

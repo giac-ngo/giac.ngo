@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import lotusIcon from "../assets/lotus-icon.webp";
 import bellIcon from "../assets/bell-icon.webp";
 import buddhaIcon from "../assets/buddha-icon.webp";

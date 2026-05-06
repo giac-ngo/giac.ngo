@@ -7,7 +7,6 @@ import {
   DollarSign,
   Activity,
   MessageCircle,
-  HardDrive,
   Loader2,
   CheckCircle,
   XCircle,

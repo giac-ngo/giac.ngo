@@ -123,14 +123,15 @@ const translations = {
 const ITEMS_PER_PAGE = 10;
 
 // FIX: Destructure onUserUpdate from props to update global user state
-export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUserUpdate: (data: Partial<User>) => void, space?: Space | null }> = ({ user: adminUser, language, onUserUpdate, space }) => {
+export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUserUpdate: (data: Partial<User>) => void, space?: Space | null, isGlobalAdmin?: boolean }> = ({ user: adminUser, language, onUserUpdate, space, isGlobalAdmin: isGlobalAdminProp }) => {
     const t = translations[language];
     const { showToast } = useToast();
 
-    // Global Admin = người có permission 'roles' (theo isAdmin() trong authMiddleware)
-    // Space Owner = có space context NHƯNG không phải Global Admin
-    const isGlobalAdmin = adminUser.permissions?.includes('roles') ?? false;
-    const isSpaceOwner = !!space?.id && !isGlobalAdmin;
+    // Global Admin = được truyền prop isGlobalAdmin=true (chỉ từ route /admin trên root domain)
+    // KHÔNG tự suy từ permissions để tránh nhầm Space Admin có nhiều quyền thành Global Admin
+    // Nếu có space?.id → luôn là Space Owner context, bất kể permissions
+    // const _isGlobalAdmin = !!isGlobalAdminProp && !space?.id;
+    const isSpaceOwner = !!space?.id;
 
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
@@ -152,20 +153,29 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
     useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
     useEffect(() => {
-        // Space Owner không có quyền gọi /roles và /spaces
-        if (!isSpaceOwner) {
+        // CHỈ gọi /roles và /spaces khi là confirmed Global Admin
+        // isGlobalAdminProp là prop đồng bộ — không phụ thuộc vào async space load
+        if (isGlobalAdminProp) {
             apiService.getAllRoles().then(setRoles).catch(err => showToast(err.message, 'error'));
             apiService.getSpaces().then(setSpaces).catch(console.error);
         }
-    }, [showToast, isSpaceOwner]);
+    }, [showToast, isGlobalAdminProp]);
 
     const fetchUsers = useCallback(async () => {
+        // Nếu là Space Owner/Admin: CHỜ đến khi space?.id có giá trị mới fetch
+        // Tránh race condition khi space chưa load → bị rơi vào nhánh sai
+        if (!isGlobalAdminProp && !space?.id) {
+            // space chưa load xong, không làm gì cả
+            return;
+        }
         setIsLoading(true);
         try {
             if (space?.id) {
+                // Space Owner: chỉ load thành viên của space này
                 const spaceUsers = await apiService.getSpaceMembers(space.id as number);
                 setUsers(spaceUsers);
-            } else {
+            } else if (isGlobalAdminProp) {
+                // Global Admin: load theo filter space hoặc tất cả
                 if (spaceFilter) {
                     const spaceUsers = await apiService.getSpaceMembers(Number(spaceFilter));
                     setUsers(spaceUsers);
@@ -179,7 +189,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         } finally {
             setIsLoading(false);
         }
-    }, [language, showToast, space?.id, spaceFilter]);
+    }, [language, showToast, space?.id, spaceFilter, isGlobalAdminProp]);
 
     useEffect(() => {
         fetchUsers();
@@ -274,7 +284,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                 }
             } else {
                 if (payload.password === '') delete payload.password;
-                savedUser = await apiService.updateUser(payload);
+                savedUser = await apiService.updateUser(payload as any);
             }
 
             // FIX: If the updated user is the currently logged-in admin, propagate the changes globally
@@ -357,7 +367,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
             </div>
 
             <div className={`mb-4 grid grid-cols-1 ${!space?.id ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 p-4 border rounded-lg bg-background-light border-border-color flex-shrink-0`}>
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t.searchPlaceholder} autoComplete="off" className="p-2 border rounded-md bg-background-panel border-border-color" />
+                <input type="text" name="user-search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t.searchPlaceholder} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} className="p-2 border rounded-md bg-background-panel border-border-color" />
                 <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="p-2 border rounded-md bg-background-panel border-border-color"><option value="">{t.allRoles}</option>{roles.map(r => <option key={r.id as number} value={r.id as number}>{r.name}</option>)}</select>
                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="p-2 border rounded-md bg-background-panel border-border-color"><option value="">{t.allStatuses}</option><option value="true">{t.active}</option><option value="false">{t.inactive}</option></select>
                 {!space?.id && (
@@ -461,14 +471,12 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                     <div className="bg-background-panel rounded-lg shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold p-4 border-b border-border-color">{editingUser.id === 'new' ? t.modal.createTitle : t.modal.editTitle}</h2>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                            {/* Avatar: Global Admin có thể đổi, Space Owner chỉ xem */}
+                            {/* Avatar: cả Space Owner và Global Admin đều có thể đổi */}
                             <div className="flex items-center gap-4">
                                 <img src={editingUser.avatarUrl || `https://i.pravatar.cc/150?u=${editingUser.email}`} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
                                 <div>
                                     <label className="block text-sm font-medium">{t.modal.avatar}</label>
-                                    {!isSpaceOwner && (
-                                        <button type="button" onClick={() => setIsMediaPickerOpen(true)} className="text-sm text-primary hover:underline">{t.modal.changeAvatar}</button>
-                                    )}
+                                    <button type="button" onClick={() => setIsMediaPickerOpen(true)} className="text-sm text-primary hover:underline">{t.modal.changeAvatar}</button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -491,6 +499,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                 <label className="block text-sm font-medium">{t.modal.password}</label>
                                 <input type="password" name="password" value={editingUser.password || ''} onChange={handleFormChange}
                                     placeholder={editingUser.id === 'new' ? t.modal.passwordNew : t.modal.passwordEdit}
+                                    autoComplete="new-password"
                                     className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" />
                             </div>
                             {/* Merits: chỉ Global Admin */}

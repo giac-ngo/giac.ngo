@@ -1,8 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { DocsNav } from "@/components/DocsNav";
 import { Button } from "@/components/ui/button";
 import { TracingBeam } from "@/components/TracingBeam";
-import { Download, Share2, Menu, X, BookOpen, Coins, Server, Bot } from "lucide-react";
+import { Download, Share2, Menu, X } from "lucide-react";
 import sutraIcon from "@/assets/sutra-icon.webp";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -16,47 +16,6 @@ export function DocsLayout({ children }: DocsLayoutProps) {
   const { language } = useLanguage();
   const t = docsTranslations[language];
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const navigation = [
-    {
-      id: "overview",
-      title: t.layout.navigation.overview.title,
-      icon: BookOpen,
-      children: [
-        { id: "mission", title: t.layout.navigation.overview.sections.mission, href: "/docs/overview#mission" },
-        { id: "principles", title: t.layout.navigation.overview.sections.principles, href: "/docs/overview#principles" },
-        { id: "methods", title: t.layout.navigation.overview.sections.methods, href: "/docs/overview#methods" },
-        { id: "capabilities", title: t.layout.navigation.overview.sections.capabilities, href: "/docs/overview#capabilities" },
-        { id: "why-partner", title: t.layout.navigation.overview.sections.whyPartner, href: "/docs/overview#why-partner" },
-        { id: "infrastructure", title: t.layout.navigation.overview.sections.infrastructure, href: "/docs/overview#infrastructure" },
-        { id: "join", title: t.layout.navigation.overview.sections.join, href: "/docs/overview#join" },
-        { id: "fourth-grace", title: t.layout.navigation.overview.sections.fourthGrace, href: "/docs/overview#fourth-grace" },
-      ],
-    },
-    {
-      id: "tech-stack",
-      title: t.layout.navigation.techStack.title,
-      icon: Server,
-      children: [
-        { id: "vision", title: t.layout.navigation.techStack.sections.vision, href: "/docs/tech-stack#vision-mission" },
-        { id: "compute", title: t.layout.navigation.techStack.sections.compute, href: "/docs/tech-stack#compute-mandala" },
-        { id: "ledger", title: t.layout.navigation.techStack.sections.ledger, href: "/docs/tech-stack#mandala-ledger" },
-        { id: "protocol", title: t.layout.navigation.techStack.sections.protocol, href: "/docs/tech-stack#merit-protocol" },
-        { id: "primitives", title: t.layout.navigation.techStack.sections.primitives, href: "/docs/tech-stack#primitives" },
-        { id: "privacy", title: t.layout.navigation.techStack.sections.privacy, href: "/docs/tech-stack#privacy-dharma" },
-      ],
-    },
-    {
-      id: "agents",
-      title: t.layout.navigation.agents.title,
-      icon: Bot,
-      children: [
-        { id: "models", title: t.layout.navigation.agents.sections.models, href: "/docs/models" },
-        { id: "quick-start", title: t.layout.navigation.agents.sections.quickStart, href: "/docs/quick-start" },
-        { id: "pricing", title: t.layout.navigation.agents.sections.pricing, href: "/docs/pricing" },
-      ],
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -91,7 +50,7 @@ export function DocsLayout({ children }: DocsLayoutProps) {
 
       <div className="flex pt-[57px]">
         <aside className={`fixed top-[57px] left-0 h-[calc(100vh-57px)] w-80 bg-sidebar border-r overflow-y-auto z-30 lg:block ${sidebarOpen ? 'block' : 'hidden lg:block'}`}>
-          <DocsNav navigation={navigation} />
+          <DocsNav language="vi" setLanguage={() => {}} />
         </aside>
 
         {sidebarOpen && (

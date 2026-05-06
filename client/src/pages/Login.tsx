@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signIn, signUp, sendVerificationEmail } from "@/lib/auth-client";
 import { Redirect, Link, useLocation } from "@/lib/wouter-stub";
 import { Lock, ArrowLeft, Loader2, UserPlus, Mail, CheckCircle, RefreshCw } from "lucide-react";
@@ -96,48 +96,54 @@ export default function Login() {
           password,
           name: name || email.split("@")[0],
           callbackURL: "/login?verified=true",
-        }, {
-          onSuccess: async () => {
-            // Send verification email manually (Better Auth's sendOnSignUp is unreliable)
-            try {
-              await sendVerificationEmail({
-                email,
-                callbackURL: "/login?verified=true",
-              });
-            } catch (err) {
-              // Ignore errors - email might already be sent by Better Auth
-              console.log("[Login] sendVerificationEmail result:", err);
-            }
-            
-            setSuccess(t.accountCreated);
-            setMode("signin");
-            setPassword("");
-          },
-          onError: (ctx) => {
-            setError(ctx.error.message || t.couldNotCreate);
-          },
+          fetchOptions: {
+            onSuccess: async () => {
+              // Send verification email manually (Better Auth's sendOnSignUp is unreliable)
+              try {
+                await sendVerificationEmail({
+                  email,
+                  callbackURL: "/login?verified=true",
+                });
+              } catch (err) {
+                // Ignore errors - email might already be sent by Better Auth
+                console.log("[Login] sendVerificationEmail result:", err);
+              }
+              
+              setSuccess(t.accountCreated);
+              setMode("signin");
+              setPassword("");
+            },
+            onError: (ctx: any) => {
+              setError(ctx.error.message || t.couldNotCreate);
+            },
+          }
         });
       } else {
-        await signIn.email({ email, password }, {
-          onSuccess: (ctx) => {
-            const userRole = (ctx.data?.user as any)?.role;
-            if (userRole === "bodhi_admin") {
-              setLocation("/admin");
-            } else {
-              setLocation("/dashboard");
-            }
-          },
-          onError: (ctx) => {
-            const errorMessage = ctx.error.message?.toLowerCase() || "";
-            if (errorMessage.includes("verify") || errorMessage.includes("verification") || errorMessage.includes("not verified")) {
-              setError(t.verifyEmail);
-              setResendEmail(email);
-              setShowResendVerification(true);
-            } else {
-              setError(ctx.error.message || t.invalidCredentials);
-              setShowResendVerification(false);
-            }
-          },
+        await signIn.email({ 
+          email, 
+          password,
+          callbackURL: '/dashboard',
+          fetchOptions: {
+            onSuccess: (ctx: { data?: { user?: { role?: string } } }) => {
+              const userRole = (ctx.data?.user as { role?: string })?.role;
+              if (userRole === "bodhi_admin") {
+                setLocation("/admin");
+              } else {
+                setLocation("/dashboard");
+              }
+            },
+            onError: (ctx: { error: { message?: string } }) => {
+              const errorMessage = ctx.error.message?.toLowerCase() || "";
+              if (errorMessage.includes("verify") || errorMessage.includes("verification") || errorMessage.includes("not verified")) {
+                setError(t.verifyEmail);
+                setResendEmail(email);
+                setShowResendVerification(true);
+              } else {
+                setError(ctx.error.message || t.invalidCredentials);
+                setShowResendVerification(false);
+              }
+            },
+          }
         });
       }
     } catch (err: any) {
@@ -265,7 +271,7 @@ export default function Login() {
               </label>
               {mode === "signin" && (
                 <Link
-                  href="/forgot-password"
+                  to="/forgot-password"
                   className="font-serif text-xs text-[#991b1b] hover:text-[#7a1515] transition-colors"
                 >
                   {t.forgotPassword}
@@ -328,7 +334,7 @@ export default function Login() {
         </button>
 
         <Link
-          href="/"
+          to="/"
           className="flex items-center justify-center gap-2 mt-6 text-[#8B4513]/60 hover:text-[#991b1b] transition-colors font-serif text-sm"
         >
           <ArrowLeft className="w-4 h-4" />

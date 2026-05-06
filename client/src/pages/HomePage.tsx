@@ -501,8 +501,8 @@ export const HomePage: React.FC<HomePageProps> = ({ user, language, setLanguage,
                 // Flatten the results if it returns an object with arrays, or use directly if array
                 // Based on apiService types: { topKe: Document[], topTruyen: Document[] }
                 const combined = [
-                    ...(recommended.topKe || []),
-                    ...(recommended.topTruyen || [])
+                    ...((recommended as any).topKe || []),
+                    ...((recommended as any).topTruyen || [])
                 ];
                 setLibraryItems(combined.slice(0, 5)); // Limit to 5 items
             } catch (error) {

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { resetPassword } from "@/lib/auth-client";
 import { Link, useLocation } from "@/lib/wouter-stub";
 import { Lock, ArrowLeft, Loader2, CheckCircle, XCircle } from "lucide-react";
@@ -58,21 +58,22 @@ export default function ResetPassword() {
       await resetPassword({
         newPassword: password,
         token,
-      }, {
-        onSuccess: () => {
-          setSuccess(true);
-        },
-        onError: (ctx) => {
-          const msg = ctx.error.message || "";
-          // If the token is invalid/expired, show the dedicated error page
-          if (msg.toLowerCase().includes("invalid") && msg.toLowerCase().includes("token")) {
-            setTokenError(true);
-          } else if (msg === "INVALID_TOKEN" || ctx.error.code === "INVALID_TOKEN") {
-            setTokenError(true);
-          } else {
-            setError(msg || t.resetFailed);
-          }
-        },
+        fetchOptions: {
+          onSuccess: () => {
+            setSuccess(true);
+          },
+          onError: (ctx: any) => {
+            const msg = ctx.error.message || "";
+            // If the token is invalid/expired, show the dedicated error page
+            if (msg.toLowerCase().includes("invalid") && msg.toLowerCase().includes("token")) {
+              setTokenError(true);
+            } else if (msg === "INVALID_TOKEN" || ctx.error.code === "INVALID_TOKEN") {
+              setTokenError(true);
+            } else {
+              setError(msg || t.resetFailed);
+            }
+          },
+        }
       });
     } catch (err: any) {
       setError(err?.message || t.resetFailed);
@@ -95,7 +96,7 @@ export default function ResetPassword() {
             {t.invalidTokenMessage}
           </p>
           <Link
-            href="/forgot-password"
+            to="/forgot-password"
             className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#991b1b] text-white rounded-xl font-serif font-semibold hover:bg-[#7a1515] transition-all duration-300 shadow-md"
           >
             {t.requestNew}
@@ -119,7 +120,7 @@ export default function ResetPassword() {
             {t.successMessage}
           </p>
           <Link
-            href="/login"
+            to="/login"
             className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#991b1b] text-white rounded-xl font-serif font-semibold hover:bg-[#7a1515] transition-all duration-300 shadow-md"
           >
             {t.signIn}
@@ -208,7 +209,7 @@ export default function ResetPassword() {
         </form>
 
         <Link
-          href="/login"
+          to="/login"
           className="flex items-center justify-center gap-2 mt-6 text-[#8B4513]/60 hover:text-[#991b1b] transition-colors font-serif text-sm"
         >
           <ArrowLeft className="w-4 h-4" />

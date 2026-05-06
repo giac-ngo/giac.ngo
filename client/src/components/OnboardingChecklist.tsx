@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -22,8 +22,6 @@ import {
   FileText,
   Building2,
   CheckCircle2,
-  Clock,
-  Circle,
 } from "lucide-react";
 
 interface OnboardingData {

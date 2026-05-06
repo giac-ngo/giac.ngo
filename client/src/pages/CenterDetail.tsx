@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useParams, Link } from "@/lib/wouter-stub";
 import { motion } from "framer-motion";
 import {
@@ -8,25 +8,18 @@ import {
   Globe,
   Phone,
   Mail,
-  CalendarIcon,
-  BookOpen,
-  Bot,
   Heart,
   ArrowLeft,
   Clock,
-  Video,
   FileText,
   Briefcase,
-  Sparkles,
-  HandHeart,
-  Calendar,
   CreditCard,
   Landmark,
 } from "lucide-react";
 import { SiCashapp, SiApplepay } from "react-icons/si";
-import { buddhistCenters } from "../../shared/buddhistCenters";
+import { buddhistCenters } from "@/shared/buddhistCenters";
 import { TracingBeam } from "@/components/TracingBeam";
-import { apiRequest } from "@/lib/queryClient";
+// apiRequest unused — this page uses demo simulation only
 import { useToast } from "@/hooks/use-toast";
 import lotusIcon from "../assets/lotus-icon.webp";
 import bellIcon from "../assets/bell-icon.webp";
@@ -223,7 +216,7 @@ export default function CenterDetail() {
                     <div className="flex flex-wrap gap-6 mb-6">
                       <div className="flex items-center gap-2 text-[#2c2c2c]">
                         <Users className="w-5 h-5" />
-                        <span className="font-serif font-semibold">{center.members.toLocaleString()} thành viên</span>
+                        <span className="font-serif font-semibold">{(center.members ?? 0).toLocaleString()} thành viên</span>
                       </div>
                       <div className="flex items-center gap-2 text-[#2c2c2c]">
                         <Star className="w-5 h-5 fill-[#d4af37] text-[#d4af37]" />
@@ -238,7 +231,7 @@ export default function CenterDetail() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {center.tags.map((tag, index) => (
+                      {(center.tags ?? []).map((tag, index) => (
                         <span
                           key={index}
                           className="px-3 py-1.5 rounded-lg text-sm font-serif font-semibold"

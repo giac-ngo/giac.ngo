@@ -1,9 +1,8 @@
-﻿import {
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
@@ -57,7 +56,7 @@ export function AgentDialog({ agent, open, onOpenChange }: AgentDialogProps) {
           <div>
             <h3 className="font-serif text-lg font-semibold mb-3">Key Capabilities</h3>
             <ul className="space-y-2">
-              {agent.capabilities.map((capability, idx) => (
+              {(agent.capabilities ?? []).map((capability, idx) => (
                 <li key={idx} className="flex items-start gap-3">
                   <span
                     className="inline-block w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"

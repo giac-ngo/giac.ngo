@@ -144,7 +144,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
             setIsLoading(true);
             try {
                 const [convos, ais, spaces] = await Promise.all([
-                    apiService.getAllConversations(user),
+                    apiService.getAllConversations(),
                     apiService.getManageableAiConfigs(user),
                     apiService.getSpaces()
                 ]);

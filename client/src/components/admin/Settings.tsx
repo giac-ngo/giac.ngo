@@ -110,44 +110,6 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
     const [isSaving, setIsSaving] = useState(false);
     const [showToken, setShowToken] = useState(false);
     const [showKeys, setShowKeys] = useState<Record<string, boolean>>({ gemini: false, gpt: false });
-    const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
-    const [lastAudioBlob, setLastAudioBlob] = useState<{ blob: Blob; voice: string } | null>(null);
-
-    const handlePreviewVoice = async () => {
-        const geminiKey = (localUser.apiKeys as any)?.gemini || '';
-        if (!geminiKey) {
-            showToast('Vui lòng nhập AiStudio API Key trước.', 'error');
-            return;
-        }
-        setIsPreviewingVoice(true);
-        try {
-            const voice = (localUser.apiKeys as any)?.geminiVoice || 'Algieba';
-            const styleInstruction = (localUser.apiKeys as any)?.geminiStyle || '';
-            const temperature = parseFloat((localUser.apiKeys as any)?.geminiTemperature ?? '1') || 1;
-            const res = await apiService.generateTtsAudio(
-                'Kính chào quý vị. Đây là giọng đọc ' + voice + '.',
-                'gemini',
-                'gemini-2.5-flash-preview-tts',
-                voice,
-                'vi',
-                localUser.id as number,
-                styleInstruction,
-                temperature
-            );
-            const audio = new Audio(`data:${res.mimeType};base64,${res.audioContent}`);
-            audio.play();
-            // Save blob for download
-            const byteChars = atob(res.audioContent);
-            const byteArr = new Uint8Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-            const blob = new Blob([byteArr], { type: res.mimeType });
-            setLastAudioBlob({ blob, voice });
-        } catch (e: any) {
-            showToast('Không thể phát thử: ' + (e?.message || String(e)), 'error');
-        } finally {
-            setIsPreviewingVoice(false);
-        }
-    };
 
     useEffect(() => { setLocalSystemConfig(systemConfig); }, [systemConfig]);
     useEffect(() => { setLocalUser(user); }, [user]);
@@ -178,7 +140,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
                 id: localUser.id,
                 apiKeys: localUser.apiKeys || {},
             };
-            promises.push(apiService.updateUser(userPayload).then(onUserUpdate));
+            promises.push(apiService.updateUser(userPayload as any).then(onUserUpdate));
 
             await Promise.all(promises);
             showToast(t.saveSuccess, 'success');
@@ -289,78 +251,6 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
                                         {showKeys['gemini'] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                                     </button>
                                 </div>
-                            </div>
-                            {/* Gemini Style Instruction */}
-                            <div>
-                                <label className="block text-sm font-bold text-text-main mb-1.5">{t.geminiStyle}</label>
-                                <textarea
-                                    value={(localUser.apiKeys as any)?.geminiStyle || ''}
-                                    onChange={e => handleKeyChange('geminiStyle', e.target.value)}
-                                    rows={2}
-                                    placeholder={t.geminiStylePlaceholder}
-                                    className="w-full p-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 resize-none font-mono"
-                                />
-                                <p className="text-xs text-text-light mt-1.5 italic">{t.geminiStyleDesc}</p>
-                            </div>
-                            {/* Temperature */}
-                            <div>
-                                <label className="block text-sm font-bold text-text-main mb-1.5">{t.geminiTemperature}</label>
-                                <div className="flex items-center gap-3">
-                                    <input
-                                        type="range"
-                                        min={0} max={2} step={0.1}
-                                        value={(localUser.apiKeys as any)?.geminiTemperature ?? 1}
-                                        onChange={e => handleKeyChange('geminiTemperature', String(parseFloat(e.target.value)))}
-                                        className="flex-1 h-2 rounded-lg appearance-none cursor-pointer accent-primary"
-                                    />
-                                    <span className="w-10 text-center text-sm font-mono font-bold">
-                                        {parseFloat((localUser.apiKeys as any)?.geminiTemperature ?? '1').toFixed(1)}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-text-light mt-1.5 italic">{t.geminiTemperatureDesc}</p>
-                            </div>
-                            {/* Gemini Voice Selector */}
-                            <div>
-                                <label className="block text-sm font-bold text-text-main mb-1.5">{t.geminiVoice}</label>
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        value={(localUser.apiKeys as any)?.geminiVoice || 'Algieba'}
-                                        onChange={e => handleKeyChange('geminiVoice', e.target.value)}
-                                        className="flex-1 p-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20"
-                                    >
-                                        {GEMINI_VOICES.map(voice => (
-                                            <option key={voice} value={voice}>{voice}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={handlePreviewVoice}
-                                        disabled={isPreviewingVoice}
-                                        title="Nghe thử giọng đọc"
-                                        className="flex-shrink-0 p-2.5 border border-border-color rounded-lg hover:bg-primary hover:text-text-on-primary hover:border-primary disabled:opacity-50 transition-colors"
-                                    >
-                                        {isPreviewingVoice
-                                            ? <SpinnerIcon className="w-5 h-5 animate-spin" />
-                                            : <SpeakerWaveIcon className="w-5 h-5" />
-                                        }
-                                    </button>
-                                    {lastAudioBlob && (
-                                        <button
-                                            onClick={() => {
-                                                const url = URL.createObjectURL(lastAudioBlob.blob);
-                                                const a = document.createElement('a');
-                                                a.href = url;
-                                                a.download = `tts_${lastAudioBlob.voice}_preview.wav`;
-                                                a.click();
-                                                URL.revokeObjectURL(url);
-                                            }}
-                                            title="Tải xuống audio vừa nghe thử"
-                                            className="flex-shrink-0 p-2.5 border border-border-color rounded-lg hover:bg-green-600 hover:text-white hover:border-green-600 transition-colors"
-                                        >
-                                            ⬇️
-                                        </button>
-                                    )}
-                                </div>
-                                <p className="text-xs text-text-light mt-1.5 italic">{t.geminiVoiceDesc}</p>
                             </div>
                         </div>
 

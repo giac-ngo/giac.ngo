@@ -74,7 +74,7 @@ export default function ApiKeyManager() {
     }
   };
 
-  const activeKeys = keys.filter((k) => !k.revokedAt);
+  // const _activeKeys = keys.filter((k) => !k.revokedAt);
 
   return (
     <Card className="bg-white/80 backdrop-blur-md border-[#8B4513]/20 p-6 col-span-1 md:col-span-2">

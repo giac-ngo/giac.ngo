@@ -29,6 +29,8 @@ interface VoiceChatProps {
     onClose: () => void;
     /** Called when session ends with the list of transcript turns (may be empty if no text extracted) */
     onSaveSession?: (turns: VoiceTurn[]) => void;
+    /** Owner voice config fetched from AI config's owner — provides voice/style/temperature for TTS and Live */
+    ownerVoiceConfig?: { geminiKey?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null;
 }
 
 // ─── Audio Helpers ─────────────────────────────────────────────────────────────
@@ -99,6 +101,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
     onNewConversationId: _onNewConversationId,
     onClose,
     onSaveSession,
+    ownerVoiceConfig,
 }) => {
     const { showToast } = useToast();
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -129,7 +132,17 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
     useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
     const geminiKey = (user?.apiKeys as any)?.gemini;
-    const geminiVoice = (user?.apiKeys as any)?.geminiVoice || 'Algieba';
+    // Voice priority: AI config TTS voice → owner voice config → user personal config → default
+    const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
+
+    // ─── Flush playback queue (stop all scheduled audio immediately) ────────
+    const flushPlaybackQueue = useCallback(() => {
+        try {
+            playbackCtxRef.current?.close();
+        } catch { /* already closed */ }
+        playbackCtxRef.current = null;
+        nextPlayTimeRef.current = 0;
+    }, []);
 
     // ─── Schedule audio playback (seamless queue) ───────────────────────────
     const scheduleAudio = useCallback((base64Data: string, mimeType: string) => {
@@ -358,6 +371,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                                 voiceTurnsRef.current.push({ role: 'ai', text: currentAiTurnRef.current.trim() });
                                 currentAiTurnRef.current = '';
                             }
+                            // Flush any remaining queued audio to prevent jitter/overlap on next turn
+                            flushPlaybackQueue();
                             setTimeout(() => {
                                 if (liveSessionRef.current) {
                                     setVoiceState('listening');
@@ -458,7 +473,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                     : `⚠️ ${err?.message || 'Không thể kết nối Gemini Live.'}`
             );
         }
-    }, [geminiKey, geminiVoice, currentAiConfig, language, scheduleAudio, cleanup, showToast, startSpeechRecognition]);
+    }, [geminiKey, geminiVoice, currentAiConfig, language, scheduleAudio, cleanup, showToast, startSpeechRecognition, flushPlaybackQueue]);
 
     // ─── Mic button click ────────────────────────────────────────────────────
     const handleMicClick = () => {

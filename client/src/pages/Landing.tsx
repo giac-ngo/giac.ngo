@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { Search, ArrowRight, Sparkles, Users, Heart, Briefcase, FileText, Shield, BookOpen, MessageCircle, Calendar, HandHeart, Check, Workflow, Bot, Target, Award, Database, Mail, Menu, X, LogIn } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Sparkles, Users, Briefcase, BookOpen, MessageCircle, Calendar, HandHeart, Check, Workflow, Bot, Target, Award, Database, Mail, Menu, X, LogIn } from "lucide-react";
 import { SiFacebook } from "react-icons/si";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSession } from "@/lib/auth-client";
-import { buddhistAgents } from "@/shared/buddhistAgents";
+// buddhistAgents unused — agents displayed via static data
 import { TracingBeam } from "@/components/TracingBeam";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -14,65 +14,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Turnstile } from "../lib/turnstile-stub";
 
 // Buddhist artwork for agent cards (optimized WebP format)
-import agentArt1 from "../assets/agent-tam-an-artwork.webp";
-import agentArt2 from "../assets/agent-giac-ngo-artwork.webp";
-import agentArt3 from "../assets/agent-don-ngo-artwork.webp";
-import agentArt4 from "../assets/agent-tinh-thuc-artwork.webp";
-import agentArt5 from "../assets/agent-ke-van-ngo-artwork.webp";
-import agentArt6 from "../assets/agent-van-tinh-artwork.webp";
+// Agent artwork imports removed — section uses static content
 import heroBackgroundImage from "../assets/hero-buddhist-temple-background.webp";
 import bodhiLogo from "../assets/bodhi-technology-lab-logo.webp";
 
 // Mapping of agent IDs to artwork images (first 6 featured agents)
-const agentArtwork: Record<string, string> = {
-  "tam-an": agentArt1,
-  "giac-ngo": agentArt2,
-  "don-ngo": agentArt3,
-  "tinh-thuc": agentArt4,
-  "ke-van-ngo": agentArt5,
-  "van-tinh": agentArt6,
-};
+// agentArtwork unused — section replaced
 
-function AnimatedPlaceholder({ texts }: { texts: string[] }) {
-  const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [currentText, setCurrentText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [typingSpeed, setTypingSpeed] = useState(80);
-
-  useEffect(() => {
-    const text = texts[currentTextIndex];
-
-    const timeout = setTimeout(() => {
-      if (!isDeleting) {
-        if (currentText.length < text.length) {
-          setCurrentText(text.substring(0, currentText.length + 1));
-          setTypingSpeed(80);
-        } else {
-          setIsDeleting(true);
-          setTypingSpeed(1000);
-        }
-      } else {
-        if (currentText.length > 0) {
-          setCurrentText(text.substring(0, currentText.length - 1));
-          setTypingSpeed(40);
-        } else {
-          setIsDeleting(false);
-          setCurrentTextIndex((currentTextIndex + 1) % texts.length);
-          setTypingSpeed(500);
-        }
-      }
-    }, typingSpeed);
-
-    return () => clearTimeout(timeout);
-  }, [currentText, currentTextIndex, isDeleting, texts, typingSpeed]);
-
-  return (
-    <span>
-      {currentText}
-      <span className="animate-pulse">|</span>
-    </span>
-  );
-}
+// AnimatedPlaceholder defined but unused — kept for future search feature
 
 
 export default function Landing() {
@@ -133,9 +82,8 @@ export default function Landing() {
     }
   };
   
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Search state (used in hero section animation)
+  const [searchFocused] = useState(false);
 
   // Subscription checkout state
   const { attach } = useCustomer();
@@ -167,12 +115,6 @@ export default function Landing() {
     }
   };
 
-  const handleSearch = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (searchQuery.trim()) {
-      console.log("Searching for:", searchQuery);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[#EFE0BD] text-[#8B4513] overflow-x-hidden">
@@ -261,7 +203,7 @@ export default function Landing() {
                 {t.header.nav.services}
               </a>
               <Link 
-                href="/pricing"
+                to="/pricing"
                 className="font-serif text-[#8B4513]/70 hover:text-[#991b1b] px-4 py-2 rounded-full hover:bg-[#8B4513]/5 transition-colors" 
                 data-testid="link-pricing"
               >
@@ -279,7 +221,7 @@ export default function Landing() {
               <LanguageSwitcher />
               {session?.user ? (
                 <Link
-                  href={(session.user as any)?.role === "bodhi_admin" ? "/admin" : "/dashboard"}
+                  to={(session.user as any)?.role === "bodhi_admin" ? "/admin" : "/dashboard"}
                   className="font-serif px-4 py-2 rounded-full bg-[#991b1b] text-white hover:bg-[#7a1515] transition-colors text-sm font-semibold"
                   data-testid="link-dashboard"
                 >
@@ -287,7 +229,7 @@ export default function Landing() {
                 </Link>
               ) : (
                 <Link
-                  href="/login"
+                  to="/login"
                   className="font-serif px-4 py-2 rounded-full bg-[#991b1b] text-white hover:bg-[#7a1515] transition-colors text-sm font-semibold flex items-center gap-1.5"
                   data-testid="link-signin"
                 >
@@ -337,7 +279,7 @@ export default function Landing() {
               <div className="pt-2 border-t border-[#8B4513]/20">
                 {session?.user ? (
                   <Link
-                    href={(session.user as any)?.role === "bodhi_admin" ? "/admin" : "/dashboard"}
+                    to={(session.user as any)?.role === "bodhi_admin" ? "/admin" : "/dashboard"}
                     onClick={() => setMobileMenuOpen(false)}
                     className="block text-center font-serif px-4 py-3 rounded-xl bg-[#991b1b] text-white hover:bg-[#7a1515] transition-colors font-semibold"
                   >
@@ -345,7 +287,7 @@ export default function Landing() {
                   </Link>
                 ) : (
                   <Link
-                    href="/login"
+                    to="/login"
                     onClick={() => setMobileMenuOpen(false)}
                     className="block text-center font-serif px-4 py-3 rounded-xl bg-[#991b1b] text-white hover:bg-[#7a1515] transition-colors font-semibold"
                   >

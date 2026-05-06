@@ -1,6 +1,7 @@
 // Stub: replaces wouter with react-router-dom equivalents
 import React from 'react';
 export { Link, useNavigate, useParams } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 
 // useLocation from wouter returns the pathname string (not an object like react-router)
 export function useLocation(): [string, (to: string) => void] {
@@ -20,4 +21,9 @@ export function Switch({ children }: { children: React.ReactNode }) {
 export function Route({ component: C, children }: { component?: React.ComponentType; path?: string; children?: React.ReactNode }) {
   if (C) return <C />;
   return <>{children}</>;
+}
+
+// Redirect: wouter-compatible redirect using react-router Navigate
+export function Redirect({ to }: { to: string }) {
+  return <Navigate to={to} replace />;
 }

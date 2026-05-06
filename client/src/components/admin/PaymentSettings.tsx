@@ -147,9 +147,10 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({ space, languag
             if (!accountId) {
                 const res = await apiService.createStripeConnectAccount(space.id);
                 accountId = res.accountId;
-                setFormData(prev => ({ ...prev, stripeAccountId: accountId }));
+                setFormData(prev => ({ ...prev, stripeAccountId: accountId ?? '' }));
                 onSpaceUpdate({ ...space, stripeAccountId: accountId });
             }
+            if (!accountId) throw new Error("Could not create Stripe account ID");
             const linkRes = await apiService.createStripeAccountLink(accountId, space.id);
             window.location.href = linkRes.url;
         } catch (error: any) {
@@ -198,7 +199,7 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({ space, languag
         if (!space || typeof space.id !== 'number') return;
         setIsSaving(true);
         try {
-            const updatedSpace = await apiService.updateSpace({ id: space.id, spaceData: formData });
+            const updatedSpace = await apiService.updateSpace(space.id, formData);
             onSpaceUpdate(updatedSpace);
             showToast(t.success, 'success');
         } catch (error: any) {

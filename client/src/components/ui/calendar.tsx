@@ -52,13 +52,14 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
+        IconLeft: (props: React.HTMLAttributes<SVGElement>) => (
+          <ChevronLeft className={cn("h-4 w-4", props.className)} />
         ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
+        IconRight: (props: React.HTMLAttributes<SVGElement>) => (
+          <ChevronRight className={cn("h-4 w-4", props.className)} />
         ),
-      }}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any}
       {...props}
     />
   )

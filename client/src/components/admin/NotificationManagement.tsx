@@ -215,11 +215,6 @@ interface NotificationLog {
     createdAt: string;
 }
 
-interface RecipientPreview {
-    count: number;
-    preview: { name: string; email: string }[];
-}
-
 const TARGET_GROUP_LABELS: Record<string, string> = {
     test: 'Gửi Test (Nhập Email)'
 };
@@ -237,7 +232,7 @@ interface NotificationManagementProps {
 }
 
 export const NotificationManagement: React.FC<NotificationManagementProps> = ({ user, space, language, onSpaceUpdate }) => {
-    const isSuperAdmin = user.permissions?.includes('users') || user.permissions?.includes('roles');
+    void (user.permissions?.includes('users') || user.permissions?.includes('roles')); // isSuperAdmin check for future use
     const { showToast } = useToast();
     
     const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'smtp' | 'template'>('compose');
@@ -251,7 +246,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
         if (!space || typeof space.id !== 'number') return;
         setIsSavingSmtp(true);
         try {
-            const updatedSpace = await apiService.updateSpace({ id: space.id, spaceData: localSpaceData });
+            const updatedSpace = await apiService.updateSpace(space.id, localSpaceData);
             onSpaceUpdate(updatedSpace);
             showToast('Lưu Cấu hình SMTP thành công!', 'success');
         } catch (e: any) {
@@ -265,12 +260,9 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
     const [targetGroup, setTargetGroup] = useState<'space_owners' | 'test' | 'custom'>('custom');
-    const [testEmails, setTestEmails] = useState('');
+    const [testEmails, _setTestEmails] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [sendResult, setSendResult] = useState<{ success: boolean; message: string; sent?: number; failed?: number } | null>(null);
-    const [recipientPreview, setRecipientPreview] = useState<RecipientPreview | null>(null);
-    const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-    const [showPreview, setShowPreview] = useState(false);
 
     // Member picker state
     const [showMemberPicker, setShowMemberPicker] = useState(false);
@@ -305,32 +297,6 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
     const [logsPage, setLogsPage] = useState(1);
     const [logsTotalPages, setLogsTotalPages] = useState(1);
 
-    // Lấy preview số người nhận khi đổi targetGroup
-    useEffect(() => {
-        setRecipientPreview(null);
-        setShowPreview(false);
-    }, [targetGroup]);
-
-    const fetchRecipientPreview = useCallback(async () => {
-        setIsLoadingPreview(true);
-        try {
-            let url = `/notifications/recipients-preview?targetGroup=${targetGroup}`;
-            if (space?.id) {
-                url += `&spaceId=${space.id}`;
-            }
-            if (targetGroup === 'test') {
-                const emailsList = testEmails.split(',').map(e => e.trim()).filter(e => e);
-                url += `&testEmails=${encodeURIComponent(JSON.stringify(emailsList))}`;
-            }
-            const data = await apiService.request(url);
-            setRecipientPreview(data);
-            setShowPreview(true);
-        } catch (err) {
-            console.error('Failed to load preview:', err);
-        } finally {
-            setIsLoadingPreview(false);
-        }
-    }, [targetGroup]);
 
     const fetchLogs = useCallback(async (page = 1) => {
         setIsLoadingLogs(true);
@@ -733,7 +699,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
             {/* Modal chọn thành viên */}
             {showMemberPicker && (
                 <MemberPickerModal
-                    spaceId={space?.id ?? null}
+                    spaceId={space?.id === "new" ? null : (space?.id ?? null)}
                     initialSelected={selectedMembers}
                     onConfirm={handleMemberPickerConfirm}
                     onClose={() => setShowMemberPicker(false)}

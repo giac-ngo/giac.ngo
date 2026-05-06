@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
+// Card unused — component uses div containers
 import { Button } from "@/components/ui/button";
 import {
   Users,

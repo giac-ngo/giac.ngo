@@ -65,6 +65,16 @@ html[data-theme="giacngo"] .conversation-sidebar-collapsed .sidebar-toggle-btn s
     transform: rotate(180deg);
 }
 
+/* Hide toggle button line on mobile when collapsed */
+@media (max-width: 1023px) {
+    html[data-theme="giacngo"] .conversation-sidebar-collapsed .sidebar-header {
+        display: none;
+    }
+    html[data-theme="giacngo"] .conversation-sidebar-collapsed .quick-action-btn {
+        border: none;
+    }
+}
+
 html[data-theme="giacngo"] .conversation-sidebar-collapsed .quick-actions-grid {
     grid-template-columns: 1fr;
 }
@@ -78,6 +88,8 @@ html[data-theme="giacngo"] .sidebar-header {
     height: 48px;
     position: relative;
     flex-shrink: 0;
+    border: none;
+    border-bottom: none;
 }
 
 html[data-theme="giacngo"] .sidebar-header .logo {
@@ -129,7 +141,7 @@ html[data-theme="giacngo"] .quick-action-btn img {
     max-width: 36px;
     height: 36px;
     object-fit: contain;
-    padding: 0;
+    padding: 2px;
 }
 
 html[data-theme="giacngo"] .quick-action-label {
@@ -432,15 +444,23 @@ html[data-theme="giacngo"] .back-link-desktop {
 }
 
 
-/* Show hamburger on mobile */
+/* Show menu toggle on mobile only */
 html[data-theme="giacngo"] .mobile-menu-toggle {
-    display: block;
-    color: var(--color-text-main);
-    background: none;
-    border: none;
-    padding: 0.5rem;
-    margin-left: -0.5rem;
-    cursor: pointer;
+    display: none !important;
+}
+@media (max-width: 1023px) {
+    html[data-theme="giacngo"] .mobile-menu-toggle {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        background: var(--color-primary) !important;
+        color: #fff !important;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        gap: 8px;
+    }
 }
 
 /* Mobile dropdown menu styles */
@@ -761,13 +781,14 @@ html[data-theme="giacngo"] .main-view-wrapper .chat-input-area {
 
 html[data-theme="giacngo"] .chat-input-wrapper {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 0.25rem;
     background-color: #fefcf5;
     border: 1px solid var(--color-border-color);
     border-radius: 1.5rem;
     padding: 0.5rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition: all 0.15s ease;
 }
 
 html[data-theme="giacngo"] .chat-input-field {
@@ -776,9 +797,13 @@ html[data-theme="giacngo"] .chat-input-field {
     background: transparent;
     padding: 0.4rem 0.5rem;
     resize: none;
-    max-height: 120px;
+    max-height: 200px;
+    min-height: 40px;
+    overflow-y: auto;
     font-size: 1rem;
     color: var(--color-text-main);
+    transition: height 0.1s ease;
+    line-height: 1.5;
 }
 
 html[data-theme="giacngo"] .chat-input-field:focus {
@@ -833,8 +858,10 @@ html[data-theme="giacngo"] .timer-display-container {
 
 html[data-theme="giacngo"] .timer-time {
     font-size: 3.5rem;
-    font-weight: 500;
-    font-family: var(--font-serif);
+    font-weight: 600;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-style: normal;
+    letter-spacing: 0.05em;
 }
 
 html[data-theme="giacngo"] .timer-btn-start {

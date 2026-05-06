@@ -83,7 +83,7 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => 
         const fetchStats = async () => {
             try {
                 const data = await apiService.getDashboardStats();
-                setStats(data);
+                setStats(data as any);
             } catch (err) {
                 setError(t.error);
             } finally {

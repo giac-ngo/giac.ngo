@@ -1,4 +1,4 @@
-﻿import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { modelPricing } from "@/shared/buddhistAgents";
@@ -79,7 +79,7 @@ export function PricingTable() {
                     {t.usedByAgents}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {model.agents.map((agentName) => (
+                    {(model.agents ?? []).map((agentName) => (
                       <Badge
                         key={agentName}
                         variant="secondary"

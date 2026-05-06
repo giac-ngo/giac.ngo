@@ -1,4 +1,4 @@
-﻿import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Sparkles } from "lucide-react";
@@ -55,7 +55,7 @@ export function AgentCard({ agent, onViewDetails }: AgentCardProps) {
             Key Capabilities
           </p>
           <ul className="space-y-2">
-            {agent.capabilities.slice(0, 3).map((capability, idx) => (
+            {(agent.capabilities ?? []).slice(0, 3).map((capability, idx) => (
               <li
                 key={idx}
                 className="flex items-start gap-2 text-sm text-foreground"

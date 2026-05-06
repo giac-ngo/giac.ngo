@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { requestPasswordReset } from "@/lib/auth-client";
 import { Link } from "@/lib/wouter-stub";
 import { Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
@@ -23,12 +23,13 @@ export default function ForgotPassword() {
       await requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,
-      }, {
-        onSuccess: () => {
-          setSuccess(true);
-        },
-        onError: (ctx: any) => {
-          setError(ctx.error.message || t.sendFailed);
+        fetchOptions: {
+          onSuccess: () => {
+            setSuccess(true);
+          },
+          onError: (ctx: { error: { message?: string } }) => {
+            setError(ctx.error.message || t.sendFailed);
+          },
         },
       });
     } catch (err: any) {
@@ -54,10 +55,7 @@ export default function ForgotPassword() {
           <p className="font-serif text-sm text-[#8B4513]/50 mb-6">
             {t.didntReceive} {t.tryAgain}
           </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 text-[#991b1b] hover:text-[#7a1515] transition-colors font-serif"
-          >
+          <Link to="/login" className="font-serif text-sm font-medium text-[#991b1b] hover:text-[#7a1515] transition-colors">
             <ArrowLeft className="w-4 h-4" />
             {t.backToSignIn}
           </Link>
@@ -123,10 +121,7 @@ export default function ForgotPassword() {
           </button>
         </form>
 
-        <Link
-          href="/login"
-          className="flex items-center justify-center gap-2 mt-6 text-[#8B4513]/60 hover:text-[#991b1b] transition-colors font-serif text-sm"
-        >
+        <Link to="/login" className="flex items-center justify-center gap-2 mt-6 text-[#8B4513]/60 hover:text-[#991b1b] transition-colors font-serif text-sm">
           <ArrowLeft className="w-4 h-4" />
           {t.backToSignIn}
         </Link>

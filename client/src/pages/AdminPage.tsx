@@ -304,7 +304,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const renderContent = () => {
     if (!systemConfig) return null;
 
-    const currentTabAllowed = user.permissions?.includes(activeTab);
+    // Global Admin: check permissions strictly
+    // Space Admin (spaceSlug có, không phải isGlobalAdmin): cho phép truy cập — backend sẽ guard
+    const isSpaceAdminContext = !!spaceSlug && !isGlobalAdmin;
+    const currentTabAllowed = isSpaceAdminContext || user.permissions?.includes(activeTab);
     if (!currentTabAllowed) {
       return <div className="p-8">Bạn không có quyền truy cập vào mục này.</div>;
     }
@@ -332,7 +335,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'ai':
         return <AiManagement language={language} user={user} />;
       case 'users':
-        return <UserManagement user={user} language={language} onUserUpdate={onUserUpdate} space={currentSpace} />;
+        return <UserManagement user={user} language={language} onUserUpdate={onUserUpdate} space={currentSpace} isGlobalAdmin={!!isGlobalAdmin} />;
       case 'roles':
         return <RoleManagement language={language} user={user} onUserUpdate={onUserUpdate} />;
       case 'comments':
@@ -342,7 +345,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'pricing':
         return <PricingPlansAdmin language={language} space={currentSpace} />;
       case 'manual-billing':
-        return <BillingManagement user={user} language={language} onUserUpdate={onUserUpdate} />;
+        return <BillingManagement user={user} language={language} onUserUpdate={onUserUpdate} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'payment-settings':
         return <PaymentSettings space={currentSpace} language={language} onSpaceUpdate={setCurrentSpace} />;
       case 'withdrawals':

@@ -1,0 +1,48 @@
+import { Router } from 'express';
+import aiConfigRoutes from './aiConfigRoutes.js';
+import authRoutes from './authRoutes.js';
+import billingRoutes from './billingRoutes.js';
+import commentRoutes from './commentRoutes.js';
+import conversationRoutes from './conversationRoutes.js';
+import dharmaTalksRoutes from './dharmaTalksRoutes.js';
+import documentRoutes from './documentRoutes.js';
+import koiiRoutes from './koiiRoutes.js';
+import libraryRoutes from './libraryRoutes.js';
+import mediaRoutes from './mediaRoutes.js';
+import meditationRoutes from './meditationRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
+import payosRoutes from './payosRoutes.js';
+import roleRoutes from './roleRoutes.js';
+import spacePageRoutes from './spacePageRoutes.js';
+import spaceSocialRoutes from './spaceSocialRoutes.js';
+import spacesRoutes from './spacesRoutes.js';
+import spaceTypesRoutes from './spaceTypesRoutes.js';
+import systemRoutes from './systemRoutes.js';
+import trainingDataRoutes from './trainingDataRoutes.js';
+import userRoutes from './userRoutes.js';
+
+const router = Router();
+
+router.use('/ai-configs', aiConfigRoutes);
+router.use('/auth', authRoutes);
+router.use('/billing', billingRoutes);
+router.use('/comments', commentRoutes);
+router.use('/conversations', conversationRoutes);
+router.use('/dharma-talks', dharmaTalksRoutes);
+router.use('/documents', documentRoutes);
+router.use('/koii', koiiRoutes);
+router.use('/library', libraryRoutes);
+router.use('/media', mediaRoutes);
+router.use('/meditation', meditationRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/payos', payosRoutes);
+router.use('/roles', roleRoutes);
+router.use('/space-pages', spacePageRoutes);
+router.use('/space-social', spaceSocialRoutes);
+router.use('/spaces', spacesRoutes);
+router.use('/space-types', spaceTypesRoutes);
+router.use('/system', systemRoutes);
+router.use('/training-data', trainingDataRoutes);
+router.use('/users', userRoutes);
+
+export default router;

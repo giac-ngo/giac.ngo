@@ -151,7 +151,6 @@ function StatsGrid({ stats, t }: { stats: NonNullable<ExternalStats["stats"]>; t
   }
   
   const hasTathataData = totalLikes > 0 || totalDislikes > 0 || Array.isArray(rawData.topAIs);
-  const aiConfigCount = rawData.totalAiConfigs ?? 0;
   
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

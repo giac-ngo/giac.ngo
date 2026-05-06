@@ -202,7 +202,7 @@ const DonationDemo: React.FC<DonationDemoProps> = ({ language, currentContent, u
         setIsLoadingPaymentMethods(true);
         apiService.getEnabledPaymentMethods()
             .then(methods => {
-                const sortedMethods = methods.sort((a, b) => {
+                const sortedMethods = methods.sort((a: any, b: any) => {
                     if (a === 'card') return -1;
                     if (b === 'card') return 1;
                     return a.localeCompare(b);

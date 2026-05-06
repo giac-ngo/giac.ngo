@@ -8,6 +8,12 @@ export interface BuddhistAgent {
   purpose: string;
   monastery?: string;
   description?: string;
+  model?: string;
+  accentColor?: string;
+  users?: number;
+  likes?: number;
+  capabilities?: string[];
+  system?: string;
 }
 
 export const vehicleInfo: Record<BuddhistVehicle, { name: string; nameEn?: string; color: string }> = {
@@ -28,6 +34,6 @@ export const buddhistAgents: BuddhistAgent[] = [
   }
 ];
 
-export const modelPricing: Record<string, { name: string, description: string, inputPrice: number, outputPrice: number, contextWindow: number, maxOutput: number }> = {
-  gpt4: { name: "GPT-4", description: "Standard model", inputPrice: 0.03, outputPrice: 0.06, contextWindow: 8000, maxOutput: 4000 }
+export const modelPricing: Record<string, { name: string, description: string, inputPrice: number, outputPrice: number, contextWindow: number, maxOutput: number, agents?: string[] }> = {
+  gpt4: { name: "GPT-4", description: "Standard model", inputPrice: 0.03, outputPrice: 0.06, contextWindow: 8000, maxOutput: 4000, agents: [] }
 };

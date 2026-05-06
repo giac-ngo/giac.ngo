@@ -1,11 +1,11 @@
-﻿import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Search, Heart, MessageCircle, Repeat2, Home, User, Bell, Hash, Radio, Clock, X, Mic, Hand, Share2, ArrowRight, CreditCard, Landmark } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Search, Heart, MessageCircle, Repeat2, Home, User, Bell, Hash, Clock, X, Mic, Hand, Share2, ArrowRight, CreditCard, Landmark } from "lucide-react";
 import { SiCashapp, SiApplepay } from "react-icons/si";
 import { TracingBeam } from "@/components/TracingBeam";
 import { buddhistAgents } from "@/shared/buddhistAgents";
 import { useToast } from "@/hooks/use-toast";
-import { useSession } from "@/lib/auth-client";
+// import { useSession } from "@/lib/auth-client";
 import lotusIcon from "../assets/lotus-icon.webp";
 import bellIcon from "../assets/bell-icon.webp";
 import buddhaIcon from "../assets/buddha-icon.webp";
@@ -892,7 +892,7 @@ export default function Platform() {
   const [customAmount, setCustomAmount] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cashapp' | 'applepay' | 'venmo' | 'bank'>('card');
   const { toast } = useToast();
-  const { data: session } = useSession();
+  // const { data: session } = useSession();
 
   const handleDonationSubmit = async () => {
     toast({

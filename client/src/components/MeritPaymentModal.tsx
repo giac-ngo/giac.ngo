@@ -130,8 +130,8 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                 fromDate: from || dateFilter.from,
                 toDate: to || dateFilter.to
             });
-            setTransactions(res.data);
-            setListTotal(res.total);
+            setTransactions((res as any).data);
+            setListTotal((res as any).total);
             setListPage(page);
         } catch (error) {
             console.error("Failed to load donations", error);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -6,6 +7,27 @@ import { apiService } from '../../services/apiService';
 import { SocialPost, SocialComment, User } from '../../types';
 import { useToast } from '../ToastProvider';
 import { MediaLibraryPicker } from '../MediaLibraryPicker';
+
+// Inject CSS keyframes for double-tap heart animation (#2)
+if (typeof document !== 'undefined' && !document.getElementById('sf-animations')) {
+    const style = document.createElement('style');
+    style.id = 'sf-animations';
+    style.textContent = `
+        @keyframes sfHeartPop {
+            0% { transform: scale(0); opacity: 0; }
+            15% { transform: scale(1.3); opacity: 1; }
+            30% { transform: scale(0.95); opacity: 1; }
+            45% { transform: scale(1.1); opacity: 1; }
+            70% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        @keyframes sfPullSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 // Convert single newlines → double newlines so ReactMarkdown creates <p> breaks
 function toMdParagraphs(text: string): string {
@@ -30,6 +52,9 @@ const translations = {
         from: 'Từ', mediaLibrary: 'Thư Viện Media', selectImages: 'Chọn tối đa 4 ảnh', mediaLibOrDevice: 'Chọn từ Thư Viện Media hoặc tải lên từ thiết bị',
         likeAction: 'Thích', commentAction: 'Bình luận', shareAction: 'Chia sẻ',
         whoLiked: 'Người đã thích', noLikesYet: 'Chưa có ai thích bài này',
+        editPost: '✏️ Chỉnh sửa bài viết', editDesc: '✏️ Chỉnh sửa mô tả', save: 'Lưu', editSaved: 'Đã cập nhật!', editFailed: 'Cập nhật thất bại.',
+        copyLink: '📋 Sao chép liên kết', linkCopied: 'Đã sao chép liên kết!', deleteCommentConfirm: 'Bạn có chắc muốn xóa bình luận này?',
+        pinPost: '📌 Ghim bài viết', unpinPost: '📌 Bỏ ghim', pinned: 'Đã ghim', bookmarkPost: '🔖 Lưu bài viết', unbookmarkPost: '🔖 Bỏ lưu', bookmarked: 'Đã lưu!', unbookmarked: 'Đã bỏ lưu.',
     },
     en: {
         justNow: 'Just now', minutesAgo: 'm ago', hoursAgo: 'h ago', daysAgo: 'd ago', monthsAgo: 'mo ago', yearsAgo: 'y ago',
@@ -45,6 +70,9 @@ const translations = {
         from: 'From', mediaLibrary: 'Media Library', selectImages: 'Select up to 4 images', mediaLibOrDevice: 'Select from Media Library or upload from device',
         likeAction: 'Like', commentAction: 'Comment', shareAction: 'Share',
         whoLiked: 'People who liked', noLikesYet: 'No one liked this yet',
+        editPost: '✏️ Edit post', editDesc: '✏️ Edit description', save: 'Save', editSaved: 'Updated!', editFailed: 'Update failed.',
+        copyLink: '📋 Copy link', linkCopied: 'Link copied!', deleteCommentConfirm: 'Are you sure you want to delete this comment?',
+        pinPost: '📌 Pin post', unpinPost: '📌 Unpin', pinned: 'Pinned', bookmarkPost: '🔖 Save post', unbookmarkPost: '🔖 Unsave', bookmarked: 'Saved!', unbookmarked: 'Unsaved.',
     }
 };
 
@@ -97,8 +125,275 @@ function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; s
     );
 }
 
+// ─── @Mention Helpers ─────────────────────────────────────────────────────────
+
+interface MentionUser { id: number; name: string; avatarUrl?: string | null; }
+
+/**
+ * Hook: detects @query in a text input/textarea, fetches space members,
+ * and provides a filtered suggestion list + insertion callback.
+ */
+function useMentionAutocomplete(spaceId: number, text: string, cursorPos: number) {
+    const [members, setMembers] = React.useState<MentionUser[]>([]);
+    const [loaded, setLoaded] = React.useState(false);
+    const [query, setQuery] = React.useState<string | null>(null);
+    const [mentionStart, setMentionStart] = React.useState<number>(-1);
+
+    // Load members once
+    React.useEffect(() => {
+        if (loaded) return;
+        apiService.getSpaceMembers(spaceId)
+            .then((m: any[]) => { setMembers(m.map(u => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))); setLoaded(true); })
+            .catch(() => setLoaded(true));
+    }, [spaceId, loaded]);
+
+    // Detect @query at cursor position
+    React.useEffect(() => {
+        if (cursorPos <= 0) { setQuery(null); return; }
+        const before = text.slice(0, cursorPos);
+        // Find last @ that is either at start or after whitespace/newline
+        const match = before.match(/(^|[\s\n])@([^\s@]*)$/);
+        if (match) {
+            setQuery(match[2].toLowerCase());
+            setMentionStart(before.length - match[2].length - 1); // position of @
+        } else {
+            setQuery(null);
+            setMentionStart(-1);
+        }
+    }, [text, cursorPos]);
+
+    const suggestions = React.useMemo(() => {
+        if (query === null || !loaded) return [];
+        return members.filter(m => m.name.toLowerCase().includes(query)).slice(0, 8);
+    }, [query, members, loaded]);
+
+    return { suggestions, query, mentionStart, isOpen: query !== null && suggestions.length > 0 };
+}
+
+/**
+ * Hook: detects #query in a text input, suggests existing hashtags from posts.
+ */
+function useHashtagAutocomplete(text: string, cursorPos: number, allHashtags: string[]) {
+    const [query, setQuery] = React.useState<string | null>(null);
+    const [hashtagStart, setHashtagStart] = React.useState<number>(-1);
+
+    React.useEffect(() => {
+        if (cursorPos <= 0) { setQuery(null); return; }
+        const before = text.slice(0, cursorPos);
+        const match = before.match(/(^|[\s\n])#([\wÀ-ỹ]*)$/);
+        if (match) {
+            setQuery(match[2].toLowerCase());
+            setHashtagStart(before.length - match[2].length - 1); // position of #
+        } else {
+            setQuery(null);
+            setHashtagStart(-1);
+        }
+    }, [text, cursorPos]);
+
+    const suggestions = React.useMemo(() => {
+        if (query === null) return [];
+        return allHashtags
+            .filter(t => t.toLowerCase().startsWith(query) && t.toLowerCase() !== query)
+            .slice(0, 8);
+    }, [query, allHashtags]);
+
+    return { suggestions, query, hashtagStart, isOpen: query !== null && suggestions.length > 0 };
+}
+
+/**
+ * Renders text with clickable @mentions.
+ * Pattern: @Name (terminated by certain boundaries)
+ * membersList is used to verify the mention matches a real user.
+ */
+function renderMentionText(
+    text: string,
+    members: MentionUser[],
+    onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void,
+    style?: React.CSSProperties,
+    onHashtagClick?: (tag: string) => void
+): React.ReactNode {
+    if (!text) return <span style={style}>{text}</span>;
+
+    // Build a regex that matches @Username for all known members AND #hashtag
+    const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
+    const escaped = sorted.map(m => m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    
+    // Combined regex: @mention OR #hashtag
+    const mentionPart = escaped.length > 0 ? '@(' + escaped.join('|') + ')(?=[\\s.,!?;:)\\]\\n]|$)' : null;
+    const hashtagPart = '#([\\wÀ-ỹ]+)';
+    const pattern = mentionPart ? `${mentionPart}|${hashtagPart}` : hashtagPart;
+    const regex = new RegExp(pattern, 'g');
+
+    const parts: React.ReactNode[] = [];
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIdx) {
+            parts.push(text.slice(lastIdx, match.index));
+        }
+        
+        if (match[1]) {
+            // @mention match
+            const mentionName = match[1];
+            const member = sorted.find(m => m.name === mentionName);
+            parts.push(
+                <span
+                    key={`m-${match.index}`}
+                    onClick={(e) => { e.stopPropagation(); member && onUserClick?.(member.id, member.name, member.avatarUrl); }}
+                    style={{
+                        color: '#8b4513', fontWeight: 600, cursor: onUserClick ? 'pointer' : 'default',
+                        borderBottom: '1px dotted rgba(139,69,19,0.3)',
+                    }}
+                >
+                    @{mentionName}
+                </span>
+            );
+        } else if (match[2]) {
+            // #hashtag match
+            const tag = match[2];
+            parts.push(
+                <span
+                    key={`h-${match.index}`}
+                    onClick={(e) => { e.stopPropagation(); onHashtagClick?.(tag); }}
+                    style={{
+                        color: '#2563eb', fontWeight: 600, cursor: onHashtagClick ? 'pointer' : 'default',
+                    }}
+                >
+                    #{tag}
+                </span>
+            );
+        }
+        lastIdx = match.index + match[0].length;
+    }
+
+    if (lastIdx < text.length) {
+        parts.push(text.slice(lastIdx));
+    }
+
+    return parts.length === 0 ? <span style={style}>{text}</span> : <span style={style}>{parts}</span>;
+}
+
+/**
+ * Portal-based dropdown — renders at document.body to avoid overflow/clip issues.
+ * anchorRef: the textarea/input to anchor below.
+ */
+function PortalDropdown({ anchorRef, children, visible }: {
+    anchorRef: React.RefObject<HTMLElement | null>;
+    children: React.ReactNode;
+    visible: boolean;
+}) {
+    const [rect, setRect] = React.useState<DOMRect | null>(null);
+
+    React.useEffect(() => {
+        if (!visible || !anchorRef.current) { setRect(null); return; }
+        const update = () => {
+            if (anchorRef.current) setRect(anchorRef.current.getBoundingClientRect());
+        };
+        update();
+        window.addEventListener('scroll', update, true);
+        window.addEventListener('resize', update);
+        return () => {
+            window.removeEventListener('scroll', update, true);
+            window.removeEventListener('resize', update);
+        };
+    }, [visible, anchorRef]);
+
+    if (!visible || !rect) return null;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const showAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+
+    const style: React.CSSProperties = {
+        position: 'fixed',
+        left: rect.left,
+        width: rect.width,
+        zIndex: 99999,
+        background: 'var(--sf-card, #fdfbf7)',
+        borderRadius: 12,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+        border: '1px solid var(--sf-border, #ebdcc5)',
+        maxHeight: 240,
+        overflowY: 'auto',
+        ...(showAbove
+            ? { bottom: window.innerHeight - rect.top + 4 }
+            : { top: rect.bottom + 4 }),
+    };
+
+    return ReactDOM.createPortal(
+        <div style={style}>{children}</div>,
+        document.body
+    );
+}
+
+/**
+ * Dropdown for @mention suggestions — uses PortalDropdown to avoid overflow clipping.
+ */
+function MentionDropdown({ suggestions, onSelect, anchorRef }: {
+    suggestions: MentionUser[];
+    onSelect: (user: MentionUser) => void;
+    anchorRef: React.RefObject<HTMLElement | null>;
+    containerStyle?: React.CSSProperties; // kept for compat, unused
+}) {
+    return (
+        <PortalDropdown anchorRef={anchorRef} visible={suggestions.length > 0}>
+            {suggestions.map(user => (
+                <div
+                    key={user.id}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(user); }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 14px', cursor: 'pointer',
+                        transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(185,148,90,0.08))')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                    <Avatar name={user.name} url={user.avatarUrl} size={28} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sf-text, #1a1a1a)' }}>{user.name}</span>
+                </div>
+            ))}
+        </PortalDropdown>
+    );
+}
+
+/**
+ * Dropdown for #hashtag suggestions — uses PortalDropdown.
+ */
+function HashtagDropdown({ suggestions, onSelect, anchorRef }: {
+    suggestions: string[];
+    onSelect: (tag: string) => void;
+    anchorRef: React.RefObject<HTMLElement | null>;
+}) {
+    return (
+        <PortalDropdown anchorRef={anchorRef} visible={suggestions.length > 0}>
+            {suggestions.map(tag => (
+                <div
+                    key={tag}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(tag); }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 14px', cursor: 'pointer',
+                        transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(185,148,90,0.08))')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                    <span style={{ fontSize: 13, color: '#2563eb', fontWeight: 700 }}>#{tag}</span>
+                </div>
+            ))}
+        </PortalDropdown>
+    );
+}
+
 function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx: number) => void }) {
     const [lightboxIdx, setLightboxIdx] = React.useState<number | null>(null);
+    // #4 Swipe support
+    const touchStartX = React.useRef(0);
+    const touchStartY = React.useRef(0);
     if (!urls.length) return null;
     const count = urls.length;
 
@@ -111,8 +406,21 @@ function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx
         }
     };
     const closeLightbox = () => setLightboxIdx(null);
-    const prev = (e: React.MouseEvent) => { e.stopPropagation(); setLightboxIdx(i => i != null && i > 0 ? i - 1 : i); };
-    const next = (e: React.MouseEvent) => { e.stopPropagation(); setLightboxIdx(i => i != null && i < urls.length - 1 ? i + 1 : i); };
+    const prev = (e?: React.MouseEvent) => { e?.stopPropagation(); setLightboxIdx(i => i != null && i > 0 ? i - 1 : i); };
+    const next = (e?: React.MouseEvent) => { e?.stopPropagation(); setLightboxIdx(i => i != null && i < urls.length - 1 ? i + 1 : i); };
+
+    // #4 Touch swipe handlers for lightbox
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+    };
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = e.changedTouches[0].clientY - touchStartY.current;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+            if (dx > 0) prev(); else next();
+        }
+    };
 
     return (
         <>
@@ -147,11 +455,13 @@ function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx
             {lightboxIdx !== null && (
                 <div
                     onClick={closeLightbox}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
                     style={{
                         position: 'fixed', inset: 0, zIndex: 99999,
                         background: 'rgba(0,0,0,0.92)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        touchAction: 'none',
+                        touchAction: 'pan-y',
                     }}
                 >
                     {/* Close button */}
@@ -217,71 +527,129 @@ function PhotoGrid({ urls, onImageClick }: { urls: string[]; onImageClick?: (idx
 
 function CommentItem({
     language = 'vi',
-    comment, currentUser, spaceId, postId, postUserId,
-    onDelete, onReply, onUserClick, parentComment
+    comment, currentUser, postUserId, spaceId, postId,
+    onDelete, onReply, onUserClick, parentComment, onLikeUpdate, spaceMembers
 }: {
     comment: SocialComment;
     currentUser: User | null;
+    postUserId: number;
     spaceId: number;
     postId: number;
-    postUserId: number;
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
     onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
     parentComment?: SocialComment | null;
     language?: 'vi' | 'en';
+    onLikeUpdate?: (commentId: number, liked: boolean, likesCount: number) => void;
+    spaceMembers: MentionUser[];
 }) {
     const canDelete = currentUser && (
         currentUser.id === comment.userId ||
         currentUser.id === postUserId ||
         (currentUser.roleIds && currentUser.roleIds.length > 0)
     );
+    const [liking, setLiking] = React.useState(false);
+    const liked = comment.isLikedByMe || false;
+    const likesCount = comment.likesCount || 0;
+    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+    const handleLike = async () => {
+        if (!currentUser || liking) return;
+        setLiking(true);
+        try {
+            const res = await apiService.toggleCommentLike(spaceId, postId, comment.id);
+            onLikeUpdate?.(comment.id, res.liked, res.likesCount);
+        } catch { /* silent */ }
+        finally { setLiking(false); }
+    };
 
     return (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <Avatar name={comment.userName} url={comment.userAvatarUrl} size={30} />
-            <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <Avatar name={comment.userName} url={comment.userAvatarUrl} size={32} />
+            <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                     background: 'var(--sf-input-bg)', borderRadius: 18,
-                    padding: '8px 12px', display: 'inline-block', maxWidth: '100%'
+                    padding: '10px 14px', display: 'inline-block', maxWidth: '100%'
                 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--sf-text)', marginBottom: 2, cursor: onUserClick ? 'pointer' : 'default' }} onClick={() => onUserClick && onUserClick(comment.userId, comment.userName, comment.userAvatarUrl)}>
+                    <div
+                        style={{ fontWeight: 700, fontSize: 13, color: 'var(--sf-text)', marginBottom: 4, cursor: onUserClick ? 'pointer' : 'default', lineHeight: 1.2 }}
+                        onClick={() => onUserClick && comment.userId != null && onUserClick(comment.userId, comment.userName, comment.userAvatarUrl)}
+                    >
                         {comment.userName}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--sf-text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <div style={{ fontSize: 13, color: 'var(--sf-text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
                         {(() => {
                             if (parentComment && comment.content.startsWith(`@${parentComment.userName} `)) {
                                 const prefix = `@${parentComment.userName} `;
                                 const rest = comment.content.slice(prefix.length);
                                 return (
                                     <>
-                                        <span 
-                                            onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); }}
+                                        <span
+                                            onClick={(e) => { e.stopPropagation(); onUserClick && parentComment.userId != null && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); }}
                                             style={{ color: '#8b4513', fontWeight: 600, cursor: onUserClick ? 'pointer' : 'default' }}
                                         >
                                             {prefix.trim()}
                                         </span>
-                                        {' '}{rest}
+                                        {' '}{renderMentionText(rest, spaceMembers, onUserClick)}
                                     </>
                                 );
                             }
-                            return comment.content;
+                            return renderMentionText(comment.content, spaceMembers, onUserClick);
                         })()}
                     </div>
+                    {/* #8 Comment image */}
+                    {comment.imageUrl && (
+                        <img src={comment.imageUrl} alt="" style={{
+                            maxWidth: 200, maxHeight: 200, borderRadius: 10,
+                            marginTop: 6, display: 'block', cursor: 'pointer',
+                        }} onClick={() => window.open(comment.imageUrl!, '_blank')} />
+                    )}
                 </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 3, paddingLeft: 8 }}>
-                    <span style={{ fontSize: 12, color: 'var(--sf-muted)' }}>{timeAgo(comment.createdAt, language)}</span>
+                <div style={{ display: 'flex', gap: 14, marginTop: 4, paddingLeft: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(comment.createdAt, language)}</span>
+                    {currentUser && (
+                        <button
+                            onClick={handleLike}
+                            style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: liked ? '#e74c3c' : 'var(--sf-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                        >
+                            <span style={{ fontSize: 22, display: 'inline-block', transform: 'translateY(1px)' }}>{liked ? '❤️' : '♡'}</span>{likesCount > 0 && <span style={{ fontWeight: 600 }}>{likesCount}</span>}
+                        </button>
+                    )}
                     <button
                         onClick={() => onReply(comment.id, comment.userName)}
-                        style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: 'var(--sf-muted)', cursor: 'pointer', padding: 0 }}
+                        style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: 'var(--sf-muted)', cursor: 'pointer', padding: 0 }}
                     >{translations[language].reply}</button>
                     {canDelete && (
                         <button
-                            onClick={() => onDelete(comment.id)}
-                            style={{ background: 'none', border: 'none', fontSize: 12, color: '#e74c3c', cursor: 'pointer', padding: 0 }}
+                            onClick={() => setShowDeleteConfirm(true)}
+                            style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}
                         >{translations[language].delete}</button>
                     )}
                 </div>
+                {/* Delete comment confirmation modal (#3) */}
+                {showDeleteConfirm && (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100000,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                    }} onClick={() => setShowDeleteConfirm(false)}>
+                        <div style={{
+                            background: 'var(--sf-card, #fdfbf7)', borderRadius: 14, padding: '20px 24px',
+                            maxWidth: 360, width: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sf-text)', marginBottom: 12 }}>
+                                {translations[language].deleteCommentConfirm}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button onClick={() => setShowDeleteConfirm(false)}
+                                    style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: 'var(--sf-border, #e5d5c0)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                                >{translations[language].cancel}</button>
+                                <button onClick={() => { onDelete(comment.id); setShowDeleteConfirm(false); }}
+                                    style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#e74c3c', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                                >{translations[language].delete}</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -291,7 +659,7 @@ function CommentItem({
 
 function CommentThread({
     comment, allComments, currentUser, spaceId, postId, postUserId,
-    onDelete, onReply, onUserClick, language = 'vi'
+    onDelete, onReply, onUserClick, onLikeUpdate, language = 'vi', spaceMembers
 }: {
     comment: SocialComment;
     allComments: SocialComment[];
@@ -302,30 +670,57 @@ function CommentThread({
     onDelete: (id: number) => void;
     onReply: (parentId: number, userName: string) => void;
     onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
+    onLikeUpdate?: (commentId: number, liked: boolean, likesCount: number) => void;
     language?: 'vi' | 'en';
+    spaceMembers: MentionUser[];
 }) {
     const replies = allComments.filter(c => c.parentCommentId === comment.id);
     const parentComment = allComments.find(c => c.id === comment.parentCommentId);
+    const [expanded, setExpanded] = React.useState(false);
+    const COLLAPSE_THRESHOLD = 2;
+    const visibleReplies = expanded ? replies : replies.slice(0, COLLAPSE_THRESHOLD);
+    const hiddenCount = replies.length - COLLAPSE_THRESHOLD;
+
     return (
         <div key={comment.id}>
             <CommentItem
                 comment={comment} currentUser={currentUser}
-                spaceId={spaceId} postId={postId} postUserId={postUserId}
+                postUserId={postUserId} spaceId={spaceId} postId={postId}
                 onDelete={onDelete} onReply={onReply}
                 onUserClick={onUserClick} parentComment={parentComment}
+                onLikeUpdate={onLikeUpdate}
                 language={language}
+                spaceMembers={spaceMembers}
             />
             {replies.length > 0 && (
-                <div style={{ paddingLeft: 38 }}>
-                    {replies.map(reply => (
+                <div className="sf-comment-replies">
+                    {visibleReplies.map(reply => (
                         <CommentThread
                             key={reply.id} comment={reply} allComments={allComments}
                             currentUser={currentUser} spaceId={spaceId} postId={postId}
                             postUserId={postUserId} onDelete={onDelete} onReply={onReply}
-                            onUserClick={onUserClick}
+                            onUserClick={onUserClick} onLikeUpdate={onLikeUpdate}
                             language={language}
+                            spaceMembers={spaceMembers}
                         />
                     ))}
+                    {!expanded && hiddenCount > 0 && (
+                        <button
+                            onClick={() => setExpanded(true)}
+                            style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: '4px 0 8px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b4513" strokeWidth="2" strokeLinecap="round"><path d="M7 13l5 5 5-5"/><path d="M7 6l5 5 5-5"/></svg>
+                            {language === 'vi' ? `Xem thêm ${hiddenCount} phản hồi` : `View ${hiddenCount} more replies`}
+                        </button>
+                    )}
+                    {expanded && hiddenCount > 0 && (
+                        <button
+                            onClick={() => setExpanded(false)}
+                            style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: 'var(--sf-muted)', cursor: 'pointer', padding: '4px 0 8px 10px' }}
+                        >
+                            {language === 'vi' ? 'Thu gọn' : 'Collapse'}
+                        </button>
+                    )}
                 </div>
             )}
         </div>
@@ -336,7 +731,7 @@ function CommentThread({
 // Renders a quoted/reposted post's content exactly like the original, handles
 // both regular posts and ai_share posts (with AI metadata block).
 
-function QuotedPostBody({ post, maxLines = 5 }: { post: any; maxLines?: number }) {
+function QuotedPostBody({ post, maxLines, onImageClick }: { post: any; maxLines?: number; onImageClick?: (idx: number) => void }) {
     const meta = post.metadata;
     const isAiShare = meta?.type === 'ai_share';
 
@@ -371,10 +766,12 @@ function QuotedPostBody({ post, maxLines = 5 }: { post: any; maxLines?: number }
                         )}
                         <div style={{
                             fontSize: 12, color: 'var(--sf-text)', lineHeight: 1.6,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: maxLines,
-                            WebkitBoxOrient: 'vertical' as any,
+                            ...(maxLines ? {
+                                overflow: 'hidden',
+                                display: '-webkit-box',
+                                WebkitLineClamp: maxLines,
+                                WebkitBoxOrient: 'vertical' as any,
+                            } : {})
                         }} className="sf-ai-markdown sf-ai-markdown--compact">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{toMdParagraphs(meta.aiResponse)}</ReactMarkdown>
                         </div>
@@ -386,19 +783,23 @@ function QuotedPostBody({ post, maxLines = 5 }: { post: any; maxLines?: number }
                         <div style={{
                             fontSize: 12, color: 'var(--sf-text)', lineHeight: 1.55,
                             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: maxLines,
-                            WebkitBoxOrient: 'vertical' as any,
+                            ...(maxLines ? {
+                                overflow: 'hidden',
+                                display: '-webkit-box',
+                                WebkitLineClamp: maxLines,
+                                WebkitBoxOrient: 'vertical' as any,
+                            } : {})
                         }}>
                             {post.content}
                         </div>
                     )}
-                    {post.imageUrls?.length > 0 && (
-                        <img
-                            src={post.imageUrls[0]} alt=""
-                            style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block', marginTop: post.content?.trim() ? 6 : 0, borderRadius: 6 }}
-                        />
+                    {(post.imageUrls?.length ?? 0) > 0 && (
+                        <div style={{ marginTop: post.content?.trim() ? 6 : 0 }}>
+                            <PhotoGrid
+                                urls={post.imageUrls}
+                                onImageClick={onImageClick}
+                            />
+                        </div>
                     )}
                 </>
             )}
@@ -406,7 +807,7 @@ function QuotedPostBody({ post, maxLines = 5 }: { post: any; maxLines?: number }
     );
 }
 
-function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick, language }: {
+function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick, language, spaceMembers, onHashtagClick }: {
     post: SocialPost;
     currentUser: User | null;
     spaceId: number;
@@ -414,6 +815,8 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     onRepost?: (post: SocialPost) => void;
     onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void;
     language?: 'vi' | 'en';
+    spaceMembers: MentionUser[];
+    onHashtagClick?: (tag: string) => void;
 }) {
     const { showToast } = useToast();
     const [liked, setLiked] = useState(post.isLikedByMe || false);
@@ -426,9 +829,19 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     const [commentText, setCommentText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: number; name: string } | null>(null);
     const [submittingComment, setSubmittingComment] = useState(false);
+    const [commentImageFile, setCommentImageFile] = useState<File | null>(null); // #8 Image in comments
+    const commentImageInputRef = useRef<HTMLInputElement>(null);
     const [expanded, setExpanded] = useState(false);
     const [aiExpanded, setAiExpanded] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [editText, setEditText] = useState(post.content || '');
+    const [editSaving, setEditSaving] = useState(false);
+    const [editImages, setEditImages] = useState<string[]>(post.imageUrls || []);
+    const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+    const editFileRef = useRef<HTMLInputElement>(null);
+    const [displayContent, setDisplayContent] = useState(post.content || '');
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const [isTruncated, setIsTruncated] = useState(false);
@@ -437,6 +850,118 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
     const [repostComment, setRepostComment] = useState('');
     const [repostSubmitting, setRepostSubmitting] = useState(false);
     const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+    const [lightboxPost, setLightboxPost] = useState<any>(post); // which post the lightbox belongs to
+    const [lightboxPostId, setLightboxPostId] = useState<number>(post.id); // postId for comment loading
+    const [lightboxComments, setLightboxComments] = useState<SocialComment[]>([]);
+    const [loadingLightboxComments, setLoadingLightboxComments] = useState(false);
+    const [lightboxLiked, setLightboxLiked] = useState<boolean>(post.isLikedByMe || false);
+    const [lightboxLikesCount, setLightboxLikesCount] = useState<number>(post.likesCount ?? 0);
+    const [showCommentEmoji, setShowCommentEmoji] = useState(false);
+    const [doubleTapHeart, setDoubleTapHeart] = useState(false); // #2 Double-tap like animation
+
+    const [autoLoadedComments, setAutoLoadedComments] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(3);
+
+    useEffect(() => {
+        if ((post.commentsCount ?? 0) > 0 && !autoLoadedComments) {
+            setLoadingComments(true);
+            apiService.getSocialComments(spaceId, post.id).then(data => {
+                setComments(data);
+                setShowComments(true);
+            }).catch(() => {}).finally(() => {
+                setLoadingComments(false);
+                setAutoLoadedComments(true);
+            });
+        }
+    }, [post.commentsCount, autoLoadedComments, spaceId, post.id]);
+
+
+    const [bookmarked, setBookmarked] = useState(post.isBookmarkedByMe || false); // #10 Bookmark
+    const [commentCursorPos, setCommentCursorPos] = useState(0);
+    const commentMention = useMentionAutocomplete(spaceId, commentText, commentCursorPos);
+    const handleCommentMentionSelect = (user: MentionUser) => {
+        const before = commentText.slice(0, commentMention.mentionStart);
+        const after = commentText.slice(commentCursorPos);
+        const inserted = `@${user.name} `;
+        setCommentText(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setCommentCursorPos(newPos);
+        setTimeout(() => { commentInputRef.current?.focus(); commentInputRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
+
+    // Lightbox comment mention
+    const [lbCommentCursorPos, setLbCommentCursorPos] = useState(0);
+    const lbCommentMention = useMentionAutocomplete(spaceId, commentText, lbCommentCursorPos);
+    const handleLbCommentMentionSelect = (user: MentionUser) => {
+        const before = commentText.slice(0, lbCommentMention.mentionStart);
+        const after = commentText.slice(lbCommentCursorPos);
+        const inserted = `@${user.name} `;
+        setCommentText(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setLbCommentCursorPos(newPos);
+    };
+
+    // Edit post mention
+    const [editCursorPos, setEditCursorPos] = useState(0);
+    const editMention = useMentionAutocomplete(spaceId, editText, editCursorPos);
+    const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const handleEditMentionSelect = (user: MentionUser) => {
+        const before = editText.slice(0, editMention.mentionStart);
+        const after = editText.slice(editCursorPos);
+        const inserted = `@${user.name} `;
+        setEditText(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setEditCursorPos(newPos);
+        setTimeout(() => { editTextareaRef.current?.focus(); editTextareaRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
+
+    // Lightbox edit description
+    const [lbEditing, setLbEditing] = useState(false);
+    const [lbEditText, setLbEditText] = useState('');
+    const [lbEditSaving, setLbEditSaving] = useState(false);
+    const [lbMenuOpen, setLbMenuOpen] = useState(false);
+    const lbMenuRef = useRef<HTMLDivElement>(null);
+    const lbIsOwner = currentUser && currentUser.id === lightboxPost?.userId;
+
+    const handleLbSaveEdit = async () => {
+        setLbEditSaving(true);
+        try {
+            await apiService.updateSocialPost(spaceId, lightboxPostId, lbEditText);
+            setLightboxPost((prev: any) => ({ ...prev, content: lbEditText }));
+            setDisplayContent(lbEditText); // sync PostCard too
+            setLbEditing(false);
+            showToast(translations[language || 'vi'].editSaved, 'success');
+        } catch {
+            showToast(translations[language || 'vi'].editFailed, 'error');
+        } finally { setLbEditSaving(false); }
+    };
+
+    const loadLightboxComments = async (targetPostId: number) => {
+        setLoadingLightboxComments(true);
+        setLightboxComments([]);
+        try {
+            const data = await apiService.getSocialComments(spaceId, targetPostId);
+            setLightboxComments(data);
+        } catch { /* silent */ }
+        finally { setLoadingLightboxComments(false); }
+    };
+
+    const handleLightboxLike = async () => {
+        if (!currentUser) return showToast('Vui lòng đăng nhập để like.', 'error');
+        const prev = lightboxLiked;
+        setLightboxLiked(!lightboxLiked);
+        setLightboxLikesCount(c => lightboxLiked ? c - 1 : c + 1);
+        try {
+            const res = await apiService.toggleSocialLike(spaceId, lightboxPostId);
+            setLightboxLiked(res.liked);
+            setLightboxLikesCount(res.likesCount);
+            // Sync back to parent card if it's the same post
+            if (lightboxPostId === post.id) { setLiked(res.liked); setLikesCount(res.likesCount); }
+        } catch {
+            setLightboxLiked(prev);
+            setLightboxLikesCount(lightboxPost.likesCount ?? 0);
+        }
+    };
     const [likersPopup, setLikersPopup] = useState<{ loading: boolean; users: { id: number; name: string; avatarUrl: string | null }[] } | null>(null);
     const likersPopupRef = useRef<HTMLDivElement>(null);
 
@@ -498,6 +1023,54 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
         }
     };
 
+    // #2 Double-tap Like — Instagram style
+    const handleDoubleTapLike = async () => {
+        if (!currentUser) return;
+        if (!liked) {
+            setLiked(true);
+            setLikesCount(c => c + 1);
+            setDoubleTapHeart(true);
+            setTimeout(() => setDoubleTapHeart(false), 1000);
+            try {
+                const res = await apiService.toggleSocialLike(spaceId, post.id);
+                setLiked(res.liked);
+                setLikesCount(res.likesCount);
+            } catch {
+                setLiked(false);
+                setLikesCount(post.likesCount);
+            }
+        } else {
+            // Already liked — just show animation
+            setDoubleTapHeart(true);
+            setTimeout(() => setDoubleTapHeart(false), 1000);
+        }
+    };
+
+    // #9 Copy link
+    const handleCopyLink = () => {
+        const url = `${window.location.origin}/${post.spaceSlug || 'giac-ngo'}/community?post=${post.id}`;
+        navigator.clipboard.writeText(url).then(() => {
+            showToast(translations[language || 'vi'].linkCopied, 'success');
+        }).catch(() => {
+            showToast('Copy failed', 'error');
+        });
+        setMenuOpen(false);
+    };
+
+    // #10 Bookmark toggle
+    const handleBookmark = async () => {
+        if (!currentUser) return showToast('Vui lòng đăng nhập.', 'error');
+        const prev = bookmarked;
+        setBookmarked(!bookmarked);
+        try {
+            const res = await apiService.toggleSocialBookmark(spaceId, post.id);
+            setBookmarked(res.bookmarked);
+            showToast(res.bookmarked ? translations[language || 'vi'].bookmarked : translations[language || 'vi'].unbookmarked, 'success');
+        } catch {
+            setBookmarked(prev);
+        }
+    };
+
     const loadComments = async () => {
         if (comments.length > 0) { setShowComments(v => !v); return; }
         setShowComments(true);
@@ -528,12 +1101,24 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
         if (!commentText.trim() || !currentUser) return;
         setSubmittingComment(true);
         try {
+            // #8 Upload comment image first if present
+            let imgUrl: string | undefined = undefined;
+            if (commentImageFile) {
+                const fd = new FormData();
+                fd.append('images', commentImageFile);
+                const uploadRes = await apiService.createSocialPost(spaceId, fd) as any;
+                // Extract image URL from the upload response metadata
+                if (uploadRes?.imageUrls?.length) {
+                    imgUrl = uploadRes.imageUrls[0];
+                }
+            }
             const newComment = await apiService.addSocialComment(
-                spaceId, post.id, commentText.trim(), replyTo?.id
+                spaceId, post.id, commentText.trim(), replyTo?.id, imgUrl
             );
             setComments(cs => [...cs, newComment]);
             setCommentText('');
             setReplyTo(null);
+            setCommentImageFile(null);
         } catch { showToast('Gửi bình luận thất bại.', 'error'); }
         finally { setSubmittingComment(false); }
     };
@@ -565,21 +1150,52 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
         }
     };
 
-    const canDelete = currentUser && (currentUser.id === post.userId || (currentUser.roleIds && currentUser.roleIds.length > 0));
+    const isOwner = currentUser && currentUser.id === post.userId;
+    const canDelete = currentUser && (isOwner || (currentUser.roleIds && currentUser.roleIds.length > 0));
+    const canEdit = isOwner;
+
+    const handleSaveEdit = async () => {
+        setEditSaving(true);
+        try {
+            const fd = new FormData();
+            fd.append('content', editText);
+            // Keep existing image URLs
+            editImages.forEach(url => fd.append('keptImageUrls', url));
+            // Attach new files
+            editNewFiles.forEach(file => fd.append('images', file));
+            await apiService.updateSocialPost(spaceId, post.id, fd);
+            setDisplayContent(editText);
+            // We need to get the final URLs — for now, refetch or approximate
+            // Since we don't get back the final URLs from the server, trigger a reload
+            const allImages = [...editImages]; // kept images are the same
+            // New file URLs will be generated by server, but we don't get them back
+            // For now, reload is the cleanest UX
+            post.imageUrls = allImages; // at minimum keep existing
+            setEditImages(allImages);
+            setEditNewFiles([]);
+            setEditing(false);
+            showToast(translations[language || 'vi'].editSaved, 'success');
+            // If new files were uploaded, force reload to get correct URLs
+            if (editNewFiles.length > 0) {
+                window.location.reload();
+            }
+        } catch {
+            showToast(translations[language || 'vi'].editFailed, 'error');
+        } finally { setEditSaving(false); }
+    };
 
     // Group replies under their parent
     const topLevel = comments.filter(c => !c.parentCommentId);
-    const getReplies = (id: number) => comments.filter(c => c.parentCommentId === id);
 
     return (
         <div style={{
             background: 'var(--sf-card)', borderRadius: 12,
-            marginBottom: 16, overflow: 'hidden',
+            marginBottom: 16, overflow: 'visible',
             boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
             fontFamily: 'var(--sf-font, inherit)',
         }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 10 }}>
+            <div className="sf-post-header" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 10 }}>
                 <div
                     onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
                     style={{ cursor: onUserClick ? 'pointer' : 'default', flexShrink: 0 }}
@@ -591,8 +1207,13 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
                         style={{ fontWeight: 600, fontSize: 14, color: 'var(--sf-text)', cursor: onUserClick ? 'pointer' : 'default', display: 'inline-block' }}
                     >{post.userName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sf-muted)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--sf-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{timeAgo(post.createdAt, language || 'vi')}</span>
+                        {post.isPinned && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: '#8b4513', fontWeight: 700, fontSize: 10 }}>
+                                📌 {translations[language || 'vi'].pinned}
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -601,13 +1222,13 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         <button
                             onClick={handleFollowToggle}
                             disabled={followLoading}
-                            style={{ 
-                                background: 'none', 
-                                border: isFollowed ? '1px solid var(--sf-border)' : '1px solid currentColor', 
-                                borderRadius: 14, 
-                                padding: '3px 10px', 
-                                fontSize: 11, 
-                                cursor: followLoading ? 'default' : 'pointer', 
+                            style={{
+                                background: 'none',
+                                border: isFollowed ? '1px solid var(--sf-border)' : '1px solid currentColor',
+                                borderRadius: 14,
+                                padding: '3px 10px',
+                                fontSize: 11,
+                                cursor: followLoading ? 'default' : 'pointer',
                                 color: isFollowed ? 'var(--sf-muted)' : '#8b4513',
                                 fontWeight: 500,
                                 opacity: followLoading ? 0.7 : 1,
@@ -628,12 +1249,58 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 <div style={{
                                     position: 'absolute', right: 0, top: '110%', background: 'var(--sf-card)',
                                     borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-                                    zIndex: 100, minWidth: 160, overflow: 'hidden'
+                                    zIndex: 100, minWidth: 200, overflow: 'hidden'
                                 }}>
+                                    {/* #9 Copy Link */}
                                     <button
-                                        onClick={() => { onDelete(post.id); setMenuOpen(false); }}
+                                        onClick={handleCopyLink}
+                                        style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: 'var(--sf-text)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(0,0,0,0.04))')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                    >{translations[language || "vi"].copyLink}</button>
+                                    {/* #10 Bookmark */}
+                                    {currentUser && (
+                                        <button
+                                            onClick={() => { handleBookmark(); setMenuOpen(false); }}
+                                            style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: bookmarked ? '#8b4513' : 'var(--sf-text)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(0,0,0,0.04))')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                        >{bookmarked ? translations[language || "vi"].unbookmarkPost : translations[language || "vi"].bookmarkPost}</button>
+                                    )}
+                                    {/* #7 Pin Post — owner/admin only */}
+                                    {canEdit && (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const res = await apiService.togglePinPost(spaceId, post.id);
+                                                    post.isPinned = res.pinned;
+                                                    showToast(res.pinned ? translations[language || 'vi'].pinned : translations[language || 'vi'].unpinPost, 'success');
+                                                    setMenuOpen(false);
+                                                    window.location.reload(); // reload to re-sort
+                                                } catch { showToast('Lỗi ghim bài.', 'error'); }
+                                            }}
+                                            style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: post.isPinned ? '#8b4513' : 'var(--sf-text)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(0,0,0,0.04))')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                        >{post.isPinned ? translations[language || "vi"].unpinPost : translations[language || "vi"].pinPost}</button>
+                                    )}
+                                    {canEdit && (
+                                        <button
+                                            onClick={() => { setEditing(true); setEditText(displayContent); setEditImages(post.imageUrls || []); setEditNewFiles([]); setMenuOpen(false); }}
+                                            style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: 'var(--sf-text)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(0,0,0,0.04))')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                        >{translations[language || "vi"].editPost}</button>
+                                    )}
+                                    {canEdit && (<>
+                                    <div style={{ height: 1, background: 'var(--sf-border)', margin: '2px 0' }} />
+                                    <button
+                                        onClick={() => { setShowDeleteConfirm(true); setMenuOpen(false); }}
                                         style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: '#e74c3c', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover, rgba(0,0,0,0.04))')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                                     >{translations[language || "vi"].deletePost}</button>
+                                    </>)}
                                 </div>
                             )}
                         </div>
@@ -642,13 +1309,53 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             </div>
 
             {/* Content */}
-            <div style={{ padding: '0 16px 12px' }}>
+            <div className="sf-post-body" style={{ padding: '0 16px 12px' }}>
                 {post.metadata?.type === 'ai_share' || post.metadata?.type === 'library_share' ? (
                     <>
-                        {/* User's personal comment */}
-                        {post.content?.trim() && post.content.trim() !== ' ' && (
+                        {/* User's personal comment — editable */}
+                        {editing ? (
+                            <div style={{ marginBottom: 10 }}>
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                    {editMention.isOpen && (
+                                        <MentionDropdown suggestions={editMention.suggestions} onSelect={handleEditMentionSelect} anchorRef={editTextareaRef as React.RefObject<HTMLElement | null>} />
+                                    )}
+                                    <textarea
+                                        ref={editTextareaRef}
+                                        value={editText}
+                                        onChange={e => { setEditText(e.target.value); setEditCursorPos(e.target.selectionStart); }}
+                                        onKeyUp={e => setEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        onClick={e => setEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        style={{
+                                            width: '100%', minHeight: 60, padding: '10px 14px', borderRadius: 10,
+                                            border: '1.5px solid var(--sf-border, #ebdcc5)', background: 'var(--sf-card, #fff)',
+                                            color: 'var(--sf-text)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
+                                            outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => { setEditing(false); setEditNewFiles([]); setEditImages(post.imageUrls || []); }}
+                                        disabled={editSaving}
+                                        style={{
+                                            padding: '6px 18px', borderRadius: 8, border: '1px solid var(--sf-border, #ebdcc5)',
+                                            background: 'none', color: 'var(--sf-text)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                                        }}
+                                    >{translations[language || 'vi'].cancel}</button>
+                                    <button
+                                        onClick={handleSaveEdit}
+                                        disabled={editSaving}
+                                        style={{
+                                            padding: '6px 18px', borderRadius: 8, border: 'none',
+                                            background: '#8b4513', color: '#fff', cursor: editSaving ? 'wait' : 'pointer',
+                                            fontSize: 13, fontWeight: 600, opacity: editSaving ? 0.6 : 1,
+                                        }}
+                                    >{editSaving ? '...' : translations[language || 'vi'].save}</button>
+                                </div>
+                            </div>
+                        ) : post.content?.trim() && post.content.trim() !== ' ' && (
                             <div style={{ fontSize: 13, color: 'var(--sf-text)', marginBottom: 10, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                                {post.content}
+                                {renderMentionText(post.content, spaceMembers, onUserClick, { whiteSpace: 'pre-wrap' }, onHashtagClick)}
                             </div>
                         )}
                         {/* Quote Block */}
@@ -722,7 +1429,103 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     </>
                 ) : (
                     <>
-                        {post.content?.trim() && (
+                        {editing ? (
+                            <div style={{ padding: '0 0 8px' }}>
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                    {editMention.isOpen && (
+                                        <MentionDropdown suggestions={editMention.suggestions} onSelect={handleEditMentionSelect} anchorRef={editTextareaRef as React.RefObject<HTMLElement | null>} />
+                                    )}
+                                    <textarea
+                                        ref={editTextareaRef}
+                                        value={editText}
+                                        onChange={e => { setEditText(e.target.value); setEditCursorPos(e.target.selectionStart); }}
+                                        onKeyUp={e => setEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        onClick={e => setEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        rows={5}
+                                        style={{
+                                            width: '100%', padding: '10px 14px', borderRadius: 10,
+                                            border: '1px solid var(--sf-border, #ebdcc5)', background: 'var(--sf-input-bg, #fff)',
+                                            color: 'var(--sf-text)', fontSize: 13, resize: 'vertical', outline: 'none',
+                                            fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box',
+                                        }}
+                                    />
+                                </div>
+                                {/* Existing images */}
+                                {editImages.length > 0 && (
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                        {editImages.map((url, idx) => (
+                                            <div key={idx} style={{ position: 'relative', width: 80, height: 80 }}>
+                                                <img src={url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--sf-border)' }} />
+                                                <button
+                                                    onClick={() => setEditImages(prev => prev.filter((_, i) => i !== idx))}
+                                                    style={{
+                                                        position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                                                        background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer',
+                                                        fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                                                    }}
+                                                >×</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* New file previews */}
+                                {editNewFiles.length > 0 && (
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                        {editNewFiles.map((file, idx) => (
+                                            <div key={idx} style={{ position: 'relative', width: 80, height: 80 }}>
+                                                <img src={URL.createObjectURL(file)} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '2px solid #8b4513' }} />
+                                                <button
+                                                    onClick={() => setEditNewFiles(prev => prev.filter((_, i) => i !== idx))}
+                                                    style={{
+                                                        position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                                                        background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer',
+                                                        fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                                                    }}
+                                                >×</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <input ref={editFileRef} type="file" accept="image/*" multiple hidden onChange={e => {
+                                            if (e.target.files) setEditNewFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                                            e.target.value = '';
+                                        }} />
+                                        <button
+                                            onClick={() => editFileRef.current?.click()}
+                                            style={{
+                                                padding: '5px 14px', borderRadius: 8, border: '1px solid var(--sf-border, #ebdcc5)',
+                                                background: 'none', color: '#8b4513', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                                                display: 'flex', alignItems: 'center', gap: 4,
+                                            }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b4513" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                                            {language === 'en' ? 'Add photos' : 'Thêm ảnh'}
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            onClick={() => { setEditing(false); setEditNewFiles([]); setEditImages(post.imageUrls || []); }}
+                                            disabled={editSaving}
+                                            style={{
+                                                padding: '6px 18px', borderRadius: 8, border: '1px solid var(--sf-border, #ebdcc5)',
+                                                background: 'none', color: 'var(--sf-text)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                                            }}
+                                        >{translations[language || 'vi'].cancel}</button>
+                                        <button
+                                            onClick={handleSaveEdit}
+                                            disabled={editSaving || (!editText.trim() && editImages.length === 0 && editNewFiles.length === 0)}
+                                            style={{
+                                                padding: '6px 18px', borderRadius: 8, border: 'none',
+                                                background: '#8b4513', color: '#fff', cursor: editSaving ? 'wait' : 'pointer',
+                                                fontSize: 13, fontWeight: 600, opacity: editSaving ? 0.6 : 1,
+                                            }}
+                                        >{editSaving ? '...' : translations[language || 'vi'].save}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : displayContent?.trim() && (
                             <>
                                 <div
                                     ref={contentRef}
@@ -733,7 +1536,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                         fontFamily: 'var(--sf-font, inherit)',
                                     }}
                                 >
-                                    <span style={{ whiteSpace: 'pre-wrap' }}>{post.content}</span>
+                                    {renderMentionText(displayContent, spaceMembers, onUserClick, { whiteSpace: 'pre-wrap' }, onHashtagClick)}
                                 </div>
                                 {isTruncated && !expanded && (
                                     <button onClick={() => setExpanded(true)}
@@ -747,8 +1550,33 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                 )}
             </div>
 
-            {/* Photos */}
-            {post.imageUrls?.length > 0 && <PhotoGrid urls={post.imageUrls} onImageClick={i => { setLightboxIdx(i); if (comments.length === 0) loadComments(); }} />}
+            {/* Photos — #2 Double-tap to like */}
+            {post.imageUrls?.length > 0 && (
+                <div style={{ position: 'relative', cursor: 'pointer' }} onDoubleClick={handleDoubleTapLike}>
+                    <PhotoGrid urls={post.imageUrls} onImageClick={i => {
+                        setLightboxPost(post);
+                        setLightboxPostId(post.id);
+                        setLightboxLiked(post.isLikedByMe || false);
+                        setLightboxLikesCount(post.likesCount ?? 0);
+                        setLightboxIdx(i);
+                        loadLightboxComments(post.id);
+                    }} />
+                    {/* Heart animation overlay */}
+                    {doubleTapHeart && (
+                        <div style={{
+                            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            pointerEvents: 'none', zIndex: 10,
+                        }}>
+                            <svg width="80" height="80" viewBox="0 0 24 24" fill="#e11d48" style={{
+                                animation: 'sfHeartPop 0.9s ease-out forwards',
+                                filter: 'drop-shadow(0 4px 12px rgba(225,29,72,0.5))',
+                            }}>
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                            </svg>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Quoted post card (for reposts) */}
             {post.quotedPost && (
@@ -772,7 +1600,16 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.quotedPost.createdAt, language || 'vi')}</span>
                     </div>
                     {/* Original content — rendered with same format as original post */}
-                    <QuotedPostBody post={post.quotedPost} maxLines={6} />
+                    <QuotedPostBody post={post.quotedPost} onImageClick={(i) => {
+                        const qp = post.quotedPost;
+                        if (!qp) return;
+                        setLightboxPost(qp);
+                        setLightboxPostId(qp.id);
+                        setLightboxLiked(qp.isLikedByMe || false);
+                        setLightboxLikesCount(qp.likesCount ?? 0);
+                        setLightboxIdx(i);
+                        loadLightboxComments(qp.id);
+                    }} />
                 </div>
             )}
 
@@ -828,7 +1665,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
 
             {/* Stat row: conditionally show clickable counts */}
             {(likesCount > 0 || repostsCount > 0 || (post.commentsCount ?? 0) > 0) && (
-                <div style={{ display: 'flex', alignItems: 'center', padding: '4px 16px 8px', fontSize: 13, color: 'var(--sf-muted)' }}>
+                <div className="sf-post-stats" style={{ display: 'flex', alignItems: 'center', padding: '4px 16px 8px', fontSize: 13, color: 'var(--sf-muted)' }}>
                     {/* Likes count — clickable to see who liked */}
                     {likesCount > 0 && (
                         <div style={{ position: 'relative' }}>
@@ -845,7 +1682,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 title={translations[language || 'vi'].whoLiked}
                             >
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="#e11d48" stroke="#e11d48" strokeWidth="1.8">
-                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                                 </svg>
                                 {likesCount.toLocaleString()}
                             </button>
@@ -882,7 +1719,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                             </div>
                                         </div>
                                     )}
-                                    
+
                                     <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0', background: 'var(--sf-card, #f4ecd8)' }}>
                                         {likersPopup.loading ? (
                                             <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--sf-muted)', fontSize: 12 }}>...</div>
@@ -904,9 +1741,9 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                             )}
                         </div>
                     )}
-                    
+
                     <div style={{ flex: 1 }} />
-                    
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         {(post.commentsCount ?? 0) > 0 && (
                             <button
@@ -918,7 +1755,7 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                 {(post.commentsCount ?? 0).toLocaleString()} {language === 'en' ? 'comments' : 'bình luận'}
                             </button>
                         )}
-                        
+
                         {repostsCount > 0 && (
                             <span style={{ color: 'var(--sf-muted)', fontSize: 13, cursor: 'pointer' }}
                                 onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
@@ -932,26 +1769,28 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             )}
 
             {/* Action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '2px 8px 8px', gap: 4, borderBottom: '1px solid var(--sf-border)' }}>
+            <div className="sf-post-actions" style={{ display: 'flex', alignItems: 'center', padding: '2px 8px 8px', gap: 4, borderBottom: '1px solid var(--sf-border)' }}>
                 {/* Like */}
-                <button
-                    onClick={handleLike}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center',
-                        background: 'none', border: 'none', borderRadius: 8,
-                        cursor: currentUser ? 'pointer' : 'default',
-                        color: liked ? '#e11d48' : 'var(--sf-muted)',
-                        fontWeight: 500, fontSize: 13, padding: '7px 4px',
-                        transition: 'color 0.15s, background 0.15s',
-                    }}
-                    onMouseEnter={e => { if (currentUser) e.currentTarget.style.background = 'rgba(225,29,72,0.07)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
-                >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                    <span>{translations[language || 'vi'].likeAction}</span>
-                </button>
+                <div style={{ flex: 1 }}>
+                    <button
+                        onClick={handleLike}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center',
+                            background: 'none', border: 'none', borderRadius: 8,
+                            cursor: currentUser ? 'pointer' : 'default',
+                            color: liked ? '#e11d48' : 'var(--sf-muted)',
+                            fontWeight: 500, fontSize: 13, padding: '7px 4px',
+                            transition: 'color 0.15s, background 0.15s',
+                        }}
+                        onMouseEnter={e => { if (currentUser) e.currentTarget.style.background = 'rgba(225,29,72,0.07)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                    >
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                        <span>{translations[language || 'vi'].likeAction}</span>
+                    </button>
+                </div>
 
                 {/* Comment */}
                 <button
@@ -966,8 +1805,8 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                 >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                     </svg>
                     <span>{translations[language || 'vi'].commentAction}</span>
                 </button>
@@ -988,38 +1827,65 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                 >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 1l4 4-4 4"/>
-                        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-                        <path d="M7 23l-4-4 4-4"/>
-                        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                        <path d="M17 1l4 4-4 4" />
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                        <path d="M7 23l-4-4 4-4" />
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                     </svg>
-                    <span>{translations[language || 'vi'].shareAction}</span>
+                    <span>{translations[language || 'vi'].shareAction}{repostsCount > 0 ? ` · ${repostsCount}` : ''}</span>
                 </button>
             </div>
 
             {/* Comments section */}
             {showComments && (
-                <div style={{ padding: '12px 16px' }}>
-                    {loadingComments ? (
+                <div className="sf-post-comments" style={{ padding: '12px 16px' }}>
+                    {loadingComments && comments.length === 0 ? (
                         <div style={{ textAlign: 'center', color: 'var(--sf-muted)', fontSize: 13, padding: '8px 0' }}>{translations[language || "vi"].loading}</div>
                     ) : (
                         <>
-                            {topLevel.map(c => (
+                            {topLevel.length > visibleCount && (
+                                <button 
+                                    onClick={() => setVisibleCount(v => v + 10)} 
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600, padding: '0 0 12px 0', display: 'block', width: '100%', textAlign: 'left' }}
+                                >
+                                    {language === 'vi' ? 'Xem tiếp bình luận...' : 'View more comments...'}
+                                </button>
+                            )}
+                            {topLevel.slice(-visibleCount).map(c => (
                                 <CommentThread
                                     key={c.id} comment={c} allComments={comments}
                                     currentUser={currentUser} spaceId={spaceId} postId={post.id}
                                     postUserId={post.userId ?? 0}
                                     onDelete={handleDeleteComment} onReply={handleReply}
                                     onUserClick={onUserClick}
+                                    onLikeUpdate={(commentId, liked, likesCount) => {
+                                        setComments(prev => prev.map(cc => cc.id === commentId ? { ...cc, isLikedByMe: liked, likesCount } : cc));
+                                    }}
                                     language={language}
+                                    spaceMembers={spaceMembers}
                                 />
                             ))}
                         </>
                     )}
 
+                    {/* Quick emoji reactions bar */}
+                    {currentUser && (
+                        <div style={{ display: 'flex', gap: 2, padding: '6px 0 2px', flexWrap: 'wrap' }}>
+                            {['\u2764\ufe0f', '\ud83d\ude4f', '\ud83d\udd25', '\ud83d\udc4f', '\ud83d\ude22', '\ud83d\ude0d', '\ud83c\udf38', '\u2728'].map(e => (
+                                <button
+                                    key={e}
+                                    onClick={() => setCommentText(prev => prev + e)}
+                                    style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: '3px 5px', borderRadius: 6, lineHeight: 1, transition: 'transform 0.15s' }}
+                                    onMouseEnter={el => { el.currentTarget.style.transform = 'scale(1.25)'; el.currentTarget.style.background = 'var(--sf-hover)'; }}
+                                    onMouseLeave={el => { el.currentTarget.style.transform = 'scale(1)'; el.currentTarget.style.background = 'none'; }}
+                                >{e}</button>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Comment input */}
                     {currentUser && (
-                        <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
+                        <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 4 }}>
                             <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={32} />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                 {replyTo && (
@@ -1030,25 +1896,72 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                                     </div>
                                 )}
                                 <div style={{ position: 'relative', width: '100%' }}>
+                                    {commentMention.isOpen && (
+                                        <MentionDropdown suggestions={commentMention.suggestions} onSelect={handleCommentMentionSelect} anchorRef={commentInputRef as React.RefObject<HTMLElement | null>} />
+                                    )}
                                     <input
                                         ref={commentInputRef}
                                         value={commentText}
-                                        onChange={e => setCommentText(e.target.value)}
+                                        onChange={e => { setCommentText(e.target.value); setCommentCursorPos(e.target.selectionStart ?? 0); }}
+                                        onKeyUp={e => setCommentCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
+                                        onClick={e => setCommentCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
                                         placeholder={translations[language || "vi"].writeComment}
                                         style={{
-                                            width: '100%', padding: '8px 40px 8px 14px', borderRadius: 20,
+                                            width: '100%', padding: '8px 64px 8px 14px', borderRadius: 20,
                                             border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)',
-                                            color: 'var(--sf-text)', fontSize: 12, outline: 'none',
+                                            color: 'var(--sf-text)', fontSize: 13, outline: 'none',
                                             boxSizing: 'border-box',
                                         }}
                                     />
-                                    <button type="submit" disabled={!commentText.trim() || submittingComment}
-                                        style={{
-                                            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                                            background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                                            color: commentText.trim() ? '#8b4513' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
-                                        }}>↑</button>
+                                    <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 2, alignItems: 'center' }}>
+                                        {/* #8 Image upload for comments */}
+                                        <button type="button" onClick={() => commentImageInputRef.current?.click()}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: commentImageFile ? '#8b4513' : 'var(--sf-muted)', fontSize: 15, lineHeight: 1, padding: '0 2px' }}
+                                            title="Đính kèm ảnh"
+                                        >📷</button>
+                                        <input type="file" accept="image/*" ref={commentImageInputRef} style={{ display: 'none' }}
+                                            onChange={e => { if (e.target.files?.[0]) setCommentImageFile(e.target.files[0]); }} />
+                                        <button type="button" onClick={() => setShowCommentEmoji(v => !v)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
+                                            title="Emoji"
+                                        >😊</button>
+                                        <button type="submit" disabled={!commentText.trim() || submittingComment}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
+                                                color: commentText.trim() ? '#8b4513' : 'var(--sf-muted)', fontSize: 18, lineHeight: 1
+                                            }}>↑</button>
+                                    </div>
                                 </div>
+                                {/* #8 Comment image preview */}
+                                {commentImageFile && (
+                                    <div style={{ position: 'relative', marginTop: 4, display: 'inline-block' }}>
+                                        <img src={URL.createObjectURL(commentImageFile)} alt="" style={{ maxWidth: 120, maxHeight: 80, borderRadius: 8, objectFit: 'cover' }} />
+                                        <button onClick={() => setCommentImageFile(null)} style={{
+                                            position: 'absolute', top: -4, right: -4, background: '#e74c3c', border: 'none', borderRadius: '50%',
+                                            width: 18, height: 18, color: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                                        }}>×</button>
+                                    </div>
+                                )}
+                                {showCommentEmoji && (
+                                    <div style={{
+                                        display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 2,
+                                        background: 'var(--sf-card)', borderRadius: 10, padding: 8,
+                                        marginTop: 6, border: '1px solid var(--sf-border)',
+                                        boxShadow: '0 4px 16px rgba(0,0,0,0.12)'
+                                    }}>
+                                        {['\ud83d\ude0a', '\ud83d\ude04', '\ud83d\ude02', '\ud83e\udd70', '\ud83d\ude0d', '\ud83e\udd29', '\ud83d\ude0e', '\ud83e\udd73', '\ud83d\ude4f', '\u2764\ufe0f',
+                                          '\ud83d\udc95', '\u2728', '\ud83c\udf38', '\ud83c\udf3a', '\ud83c\udf3b', '\ud83c\udf40', '\ud83c\udf19', '\u2600\ufe0f', '\ud83c\udf08', '\ud83d\udd25',
+                                          '\ud83d\udcaf', '\ud83d\udc4f', '\ud83e\udd1d', '\ud83d\ude4c', '\ud83d\udcaa', '\ud83e\uddd8', '\ud83d\udd4a\ufe0f', '\u26a1', '\ud83c\udfaf', '\ud83c\udf89'].map(em => (
+                                            <button
+                                                key={em}
+                                                onClick={() => { setCommentText(prev => prev + em); setShowCommentEmoji(false); }}
+                                                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 3, borderRadius: 6, lineHeight: 1 }}
+                                                onMouseEnter={el => (el.currentTarget.style.background = 'var(--sf-hover)')}
+                                                onMouseLeave={el => (el.currentTarget.style.background = 'none')}
+                                            >{em}</button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </form>
                     )}
@@ -1056,167 +1969,253 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             )}
             {/* Post Lightbox with Comments */}
             {lightboxIdx !== null && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', background: 'rgba(0,0,0,0.92)' }}>
-                    {/* Left side: Image Box */}
-                    <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setLightboxIdx(null)}>
-                        <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(null); }} style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 22, cursor: 'pointer', zIndex: 10 }}>×</button>
+                <div className="sf-lightbox-container">
+                    {/* Left side / Top on mobile: Image Box */}
+                    <div className="sf-lightbox-image-area" onClick={() => setLightboxIdx(null)}>
+                        <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(null); }} style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 22, cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                         {lightboxIdx > 0 && (
-                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! - 1); }} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer' }}>‹</button>
+                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! - 1); }} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 48, height: 48, color: '#fff', fontSize: 26, cursor: 'pointer', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>‹</button>
                         )}
-                        <img src={post.imageUrls[lightboxIdx]} alt="" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain', userSelect: 'none' }} onClick={e => e.stopPropagation()} />
-                        {lightboxIdx < post.imageUrls.length - 1 && (
-                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! + 1); }} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 22, cursor: 'pointer' }}>›</button>
+                        <img src={lightboxPost.imageUrls[lightboxIdx]} alt="" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain', userSelect: 'none' }} onClick={e => e.stopPropagation()} />
+                        {lightboxIdx < lightboxPost.imageUrls.length - 1 && (
+                            <button onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i! + 1); }} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 48, height: 48, color: '#fff', fontSize: 26, cursor: 'pointer', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>›</button>
                         )}
                     </div>
-                    {/* Right side: Comments Sidebar (Styled like the screenshot) */}
-                    <div style={{ width: 360, background: '#fdfbf7', display: 'flex', flexDirection: 'column', height: '100%', borderLeft: '1px solid #ebdcc5', fontFamily: 'Lora, Georgia, serif' }}>
-                        {/* Scrollable Area for Post AND Comments */}
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
-                            {/* Original Post inline */}
+                    {/* Right side / Bottom on mobile: Comments Sidebar */}
+                    <div className="sf-lightbox-sidebar" style={{ minHeight: 0 }}>
+                        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                            {/* Post author + content */}
                             <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid #ebdcc5' }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                    <Avatar name={post.userName} url={post.userAvatarUrl} size={38} />
+                                    <div
+                                        onClick={() => {
+                                            if (onUserClick && lightboxPost.userId != null) {
+                                                setLightboxIdx(null);
+                                                onUserClick(lightboxPost.userId, lightboxPost.userName, lightboxPost.userAvatarUrl);
+                                            }
+                                        }}
+                                        style={{ cursor: onUserClick && lightboxPost.userId ? 'pointer' : 'default' }}
+                                    >
+                                        <Avatar name={lightboxPost.userName} url={lightboxPost.userAvatarUrl} size={38} />
+                                    </div>
                                     <div style={{ flex: 1, fontSize: 15, color: '#4a4a4a', lineHeight: 1.6 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
-                                            <span style={{ fontWeight: 700, color: '#1a1a1a' }}>{post.userName}</span>
-                                            <span style={{ fontSize: 11, color: '#a08b7a', marginTop: 2, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>{timeAgo(post.createdAt, language || 'vi')}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span 
+                                                    onClick={() => {
+                                                        if (onUserClick && lightboxPost.userId != null) {
+                                                            setLightboxIdx(null);
+                                                            onUserClick(lightboxPost.userId, lightboxPost.userName, lightboxPost.userAvatarUrl);
+                                                        }
+                                                    }}
+                                                    style={{ fontWeight: 700, color: '#1a1a1a', cursor: onUserClick && lightboxPost.userId ? 'pointer' : 'default' }}
+                                                >{lightboxPost.userName}</span>
+                                                <span style={{ fontSize: 11, color: '#a08b7a', marginTop: 2, fontWeight: 500, fontFamily: 'var(--sf-font, inherit)' }}>{timeAgo(lightboxPost.createdAt, language || 'vi')}</span>
+                                            </div>
+                                            {lbIsOwner && (
+                                                <div style={{ position: 'relative' }} ref={lbMenuRef}>
+                                                    <button
+                                                        onClick={() => setLbMenuOpen(v => !v)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a08b7a', padding: '4px 8px', borderRadius: 6, fontSize: 20, lineHeight: 1 }}
+                                                    >···</button>
+                                                    {lbMenuOpen && (
+                                                        <div style={{
+                                                            position: 'absolute', right: 0, top: '110%', background: 'var(--sf-card, #fff)',
+                                                            borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                                                            zIndex: 200, minWidth: 180, overflow: 'hidden'
+                                                        }}>
+                                                            <button
+                                                                onClick={() => { setLbEditing(true); setLbEditText(lightboxPost.content || ''); setLbMenuOpen(false); }}
+                                                                style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: 'var(--sf-text, #4a4a4a)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                                            >{translations[language || 'vi'].editDesc}</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div style={{ whiteSpace: 'pre-wrap' }}>
-                                            {post.content}
-                                        </div>
+                                        {lbEditing ? (
+                                            <div>
+                                                <textarea
+                                                    value={lbEditText}
+                                                    onChange={e => setLbEditText(e.target.value)}
+                                                    rows={4}
+                                                    style={{
+                                                        width: '100%', padding: '10px 14px', borderRadius: 10,
+                                                        border: '1px solid #ebdcc5', background: '#faf6f0',
+                                                        color: '#4a4a4a', fontSize: 13, resize: 'vertical', outline: 'none',
+                                                        fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box',
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                                                    <button
+                                                        onClick={() => setLbEditing(false)}
+                                                        disabled={lbEditSaving}
+                                                        style={{ padding: '6px 18px', borderRadius: 8, border: '1px solid #ebdcc5', background: 'none', color: '#4a4a4a', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                                                    >{translations[language || 'vi'].cancel}</button>
+                                                    <button
+                                                        onClick={handleLbSaveEdit}
+                                                        disabled={lbEditSaving}
+                                                        style={{ padding: '6px 18px', borderRadius: 8, border: 'none', background: '#8b4513', color: '#fff', cursor: lbEditSaving ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600, opacity: lbEditSaving ? 0.6 : 1 }}
+                                                    >{lbEditSaving ? '...' : translations[language || 'vi'].save}</button>
+                                                </div>
+                                            </div>
+                                        ) : lightboxPost.content?.trim() && (
+                                            <div style={{ whiteSpace: 'pre-wrap' }}>{renderMentionText(lightboxPost.content, spaceMembers, (uid, uname, uav) => { setLightboxIdx(null); onUserClick?.(uid, uname, uav); })}</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Comments Title */}
+                            {/* Comments title */}
                             <div style={{ padding: '20px 20px 0' }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: '#c4a482', textTransform: 'uppercase', marginBottom: 12 }}>BÌNH LUẬN</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: '#c4a482', textTransform: 'uppercase', marginBottom: 12 }}>
+                                    {language === 'en' ? 'Comments' : 'Bình luận'}
+                                </div>
                             </div>
 
-                            {/* Comments List */}
+                            {/* Comments list — from lightboxComments (correct post) */}
                             <div style={{ padding: '0 20px 16px' }}>
-                            {loadingComments ? (
-                                <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 14 }}>{translations[language || "vi"].loading}</div>
-                            ) : (
-                                (() => {
-                                    const renderComment = (c: SocialComment, depth: number) => {
-                                        const replies = comments.filter(r => r.parentCommentId === c.id);
-                                        const canDeleteComment = currentUser && (
-                                            currentUser.id === c.userId ||
-                                            currentUser.id === post.userId ||
-                                            (currentUser.roleIds && currentUser.roleIds.length > 0)
-                                        );
+                                {loadingLightboxComments ? (
+                                    <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 14 }}>{translations[language || "vi"].loading}</div>
+                                ) : lightboxComments.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 13, padding: '8px 0' }}>
+                                        {language === 'en' ? 'No comments yet' : 'Chưa có bình luận'}
+                                    </div>
+                                ) : (() => {
+                                    const renderLbComment = (c: SocialComment, depth: number, visibleReplies?: SocialComment[]): React.ReactNode => {
+                                        const replies = visibleReplies ?? lightboxComments.filter(r => r.parentCommentId === c.id);
+                                        const canDel = currentUser && (currentUser.id === c.userId || currentUser.id === lightboxPost.userId || (currentUser.roleIds && currentUser.roleIds.length > 0));
+                                        const cLiked = c.isLikedByMe || false;
+                                        const cLikes = c.likesCount || 0;
                                         return (
                                             <React.Fragment key={c.id}>
-                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14, marginLeft: depth * 30 }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14, marginLeft: depth * 24 }}>
                                                     <Avatar name={c.userName} url={c.userAvatarUrl} size={32} />
-                                                    <div style={{ flex: 1, fontSize: 14, color: '#4a4a4a', lineHeight: 1.5 }}>
-                                                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 6, cursor: 'pointer' }} onClick={() => { onUserClick && onUserClick(c.userId, c.userName, c.userAvatarUrl); setLightboxIdx(null); }}>{c.userName}</span>
-                                                        <span>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a1a', marginBottom: 3, cursor: 'pointer', lineHeight: 1.2 }} onClick={() => { onUserClick && c.userId != null && onUserClick(c.userId, c.userName, c.userAvatarUrl); setLightboxIdx(null); }}>{c.userName}</div>
+                                                        <div style={{ fontSize: 14, color: '#4a4a4a', lineHeight: 1.5 }}>
                                                             {(() => {
-                                                                const parentComment = comments.find(p => p.id === c.parentCommentId);
-                                                                if (parentComment && c.content.startsWith(`@${parentComment.userName} `)) {
-                                                                    const prefix = `@${parentComment.userName} `;
+                                                                const pc = lightboxComments.find(p => p.id === c.parentCommentId);
+                                                                if (pc && c.content.startsWith(`@${pc.userName} `)) {
+                                                                    const prefix = `@${pc.userName} `;
                                                                     const rest = c.content.slice(prefix.length);
-                                                                    return (
-                                                                        <>
-                                                                            <span
-                                                                                onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(parentComment.userId, parentComment.userName, parentComment.userAvatarUrl); setLightboxIdx(null); }}
-                                                                                style={{ color: '#8b4513', fontWeight: 600, cursor: 'pointer' }}
-                                                                            >
-                                                                                {prefix.trim()}
-                                                                            </span>
-                                                                            {' '}{rest}
-                                                                        </>
-                                                                    );
+                                                                    return (<><span onClick={(e) => { e.stopPropagation(); onUserClick && pc.userId != null && onUserClick(pc.userId, pc.userName, pc.userAvatarUrl); setLightboxIdx(null); }} style={{ color: '#8b4513', fontWeight: 600, cursor: 'pointer' }}>{prefix.trim()}</span>{' '}{renderMentionText(rest, spaceMembers, (uid, uname, uav) => { setLightboxIdx(null); onUserClick?.(uid, uname, uav); })}</>);
                                                                 }
-                                                                return c.content;
+                                                                return renderMentionText(c.content, spaceMembers, (uid, uname, uav) => { setLightboxIdx(null); onUserClick?.(uid, uname, uav); });
                                                             })()}
-                                                        </span>
-                                                        <div style={{ display: 'flex', gap: 12, marginTop: 4, alignItems: 'center' }}>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 14, marginTop: 4, alignItems: 'center' }}>
                                                             <span style={{ fontSize: 11, color: '#a08b7a', fontWeight: 500 }}>{timeAgo(c.createdAt, language || 'vi')}</span>
-                                                            {currentUser && (
-                                                                <button
-                                                                    onClick={() => handleReply(c.id, c.userName)}
-                                                                    style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: 0 }}
-                                                                >
-                                                                    Phản hồi
-                                                                </button>
-                                                            )}
-                                                            {canDeleteComment && (
-                                                                <button
-                                                                    onClick={() => handleDeleteComment(c.id)}
-                                                                    style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}
-                                                                >
-                                                                    Xóa
-                                                                </button>
-                                                            )}
+                                                            {currentUser && <button onClick={async () => {
+                                                                try {
+                                                                    const res = await apiService.toggleCommentLike(spaceId, lightboxPostId, c.id);
+                                                                    setLightboxComments(prev => prev.map(cc => cc.id === c.id ? { ...cc, isLikedByMe: res.liked, likesCount: res.likesCount } : cc));
+                                                                } catch { /* silent */ }
+                                                            }} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: cLiked ? '#e74c3c' : '#a08b7a', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                                <span style={{ fontSize: 22, display: 'inline-block', transform: 'translateY(1px)' }}>{cLiked ? '❤️' : '♡'}</span>{cLikes > 0 && <span>{cLikes}</span>}
+                                                            </button>}
+                                                            {currentUser && <button onClick={() => handleReply(c.id, c.userName)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: 0 }}>{language === 'en' ? 'Reply' : 'Phản hồi'}</button>}
+                                                            {canDel && <button onClick={async () => { try { await apiService.deleteSocialComment(spaceId, lightboxPostId, c.id); setLightboxComments(prev => prev.filter(x => x.id !== c.id)); } catch { /* silent */ } }} style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}>{language === 'en' ? 'Delete' : 'Xóa'}</button>}
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {replies.map(r => renderComment(r, depth + 1))}
+                                                {replies.map(r => renderLbComment(r, depth + 1))}
                                             </React.Fragment>
                                         );
                                     };
-                                    return topLevel.map(c => renderComment(c, 0));
-                                })()
-                            )}
+                                    return lightboxComments.filter(c => !c.parentCommentId).map(c => renderLbComment(c, 0));
+                                })()}
                             </div>
                         </div>
 
-                        {/* Action buttons mirroring screenshot */}
+                        {/* Bottom: actions + comment input */}
                         <div style={{ flexShrink: 0, padding: '16px 20px 24px', borderTop: '1px solid #ebdcc5', background: '#fdfbf7' }}>
                             <div style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
-                                <button onClick={handleLike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: liked ? '#8b4513' : '#a08b7a' }}>
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? '#8b4513' : 'none'} stroke={liked ? '#8b4513' : '#a08b7a'} strokeWidth="2">
-                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                                    </svg>
+                                <button onClick={handleLightboxLike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: lightboxLiked ? '#8b4513' : '#a08b7a' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill={lightboxLiked ? '#8b4513' : 'none'} stroke={lightboxLiked ? '#8b4513' : '#a08b7a'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
                                 </button>
                                 <button onClick={() => commentInputRef.current?.focus()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#a08b7a' }}>
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2">
-                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                                    </svg>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                                 </button>
                                 <button onClick={handleRepost} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: reposted ? '#45bd62' : '#a08b7a' }}>
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M17 1l4 4-4 4"/>
-                                        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-                                        <path d="M7 23l-4-4 4-4"/>
-                                        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-                                    </svg>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a08b7a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
                                 </button>
                             </div>
-                            <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a1a' }}>
-                                {likesCount} lượt thích
+                            <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a1a', marginBottom: 4 }}>
+                                {lightboxLikesCount} {language === 'en' ? 'likes' : 'lượt thích'}
                             </div>
-
-                            {/* Standard comment input embedded */}
                             {currentUser && (
-                                <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    if (!commentText.trim() || submittingComment) return;
+                                    setSubmittingComment(true);
+                                    try {
+                                        const nc = await apiService.addSocialComment(spaceId, lightboxPostId, commentText.trim(), replyTo?.id);
+                                        setLightboxComments(prev => [...prev, nc]);
+                                        setCommentText('');
+                                        setReplyTo(null);
+                                    } catch { showToast(translations[language || 'vi'].sendCommentFailed, 'error'); }
+                                    finally { setSubmittingComment(false); }
+                                }} style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
                                     <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={30} />
                                     <div style={{ flex: 1, position: 'relative' }}>
+                                        {lbCommentMention.isOpen && (
+                                            <MentionDropdown suggestions={lbCommentMention.suggestions} onSelect={handleLbCommentMentionSelect} anchorRef={commentInputRef as React.RefObject<HTMLElement | null>} />
+                                        )}
                                         <input
                                             ref={commentInputRef}
                                             value={commentText}
-                                            onChange={e => setCommentText(e.target.value)}
+                                            onChange={e => { setCommentText(e.target.value); setLbCommentCursorPos(e.target.selectionStart ?? 0); }}
+                                            onKeyUp={e => setLbCommentCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
+                                            onClick={e => setLbCommentCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
                                             placeholder={translations[language || "vi"].writeComment}
-                                            style={{
-                                                width: '100%', padding: '10px 40px 10px 14px', borderRadius: 20,
-                                                border: '1px solid #ebdcc5', background: '#fff',
-                                                color: '#1a1a1a', fontSize: 13, outline: 'none', boxSizing: 'border-box',
-                                                fontFamily: 'inherit'
-                                            }}
+                                            style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: 20, border: '1px solid #ebdcc5', background: '#fff', color: '#1a1a1a', fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                                         />
                                         <button type="submit" disabled={!commentText.trim() || submittingComment}
-                                            style={{
-                                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                                                background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                                                color: commentText.trim() ? '#8b4513' : '#c4a482', fontSize: 18, lineHeight: 1
-                                            }}
+                                            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: commentText.trim() ? 'pointer' : 'default', color: commentText.trim() ? '#8b4513' : '#c4a482', fontSize: 18, lineHeight: 1 }}
                                         >↑</button>
                                     </div>
                                 </form>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete confirmation modal */}
+            {showDeleteConfirm && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 10001,
+                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+                }} onClick={() => setShowDeleteConfirm(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--sf-card, #fff)', borderRadius: 16, padding: '24px 28px',
+                        boxShadow: '0 16px 48px rgba(0,0,0,0.25)', maxWidth: 360, width: '100%',
+                        textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sf-text)', marginBottom: 8 }}>
+                            {language === 'en' ? 'Delete this post?' : 'Xóa bài viết này?'}
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--sf-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+                            {language === 'en' ? 'This action cannot be undone.' : 'Hành động này không thể hoàn tác.'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                style={{
+                                    padding: '8px 28px', borderRadius: 10, border: '1px solid var(--sf-border, #ddd)',
+                                    background: 'none', color: 'var(--sf-text)', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                                }}
+                            >{language === 'en' ? 'Cancel' : 'Hủy'}</button>
+                            <button
+                                onClick={() => { onDelete(post.id); setShowDeleteConfirm(false); }}
+                                style={{
+                                    padding: '8px 28px', borderRadius: 10, border: 'none',
+                                    background: '#e74c3c', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                                }}
+                            >{language === 'en' ? 'Delete' : 'Xóa'}</button>
                         </div>
                     </div>
                 </div>
@@ -1227,11 +2226,12 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
 
 // ─── Post Editor ───────────────────────────────────────────────────────────────
 
-function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
+function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi", allHashtags = [] }: {
     currentUser: User;
     spaceId: number;
     onPostCreated: (post: SocialPost) => void;
     language?: "vi" | "en";
+    allHashtags?: string[];
 }) {
     const { showToast } = useToast();
     const [expanded, setExpanded] = useState(false);
@@ -1244,11 +2244,34 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [currentSpace, setCurrentSpace] = useState<any>(null);
+    const [cursorPos, setCursorPos] = useState(0);
+    const mention = useMentionAutocomplete(spaceId, content, cursorPos);
+    const hashtag = useHashtagAutocomplete(content, cursorPos, allHashtags);
+
+    const handleMentionSelect = (user: MentionUser) => {
+        const before = content.slice(0, mention.mentionStart);
+        const after = content.slice(cursorPos);
+        const inserted = `@${user.name} `;
+        setContent(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setCursorPos(newPos);
+        setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
+
+    const handleHashtagSelect = (tag: string) => {
+        const before = content.slice(0, hashtag.hashtagStart);
+        const after = content.slice(cursorPos);
+        const inserted = `#${tag} `;
+        setContent(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setCursorPos(newPos);
+        setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
 
     const EMOJIS = [
-        '😊','😄','😂','🥰','😍','🤩','😎','🥳','🙏','❤️',
-        '💕','✨','🌸','🌺','🌻','🍀','🌙','☀️','🌈','🔥',
-        '💯','👏','🤝','🙌','💪','🧘','🕊️','⚡','🎯','🎉',
+        '😊', '😄', '😂', '🥰', '😍', '🤩', '😎', '🥳', '🙏', '❤️',
+        '💕', '✨', '🌸', '🌺', '🌻', '🍀', '🌙', '☀️', '🌈', '🔥',
+        '💯', '👏', '🤝', '🙌', '💪', '🧘', '🕊️', '⚡', '🎯', '🎉',
     ];
 
     const insertEmoji = (emoji: string) => {
@@ -1267,15 +2290,10 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
 
     // Fetch space info for media library scope
     useEffect(() => {
-        apiService.getSpaceById(spaceId).then(s => setCurrentSpace(s)).catch(() => {});
+        apiService.getSpaceById(spaceId).then(s => setCurrentSpace(s)).catch(() => { });
     }, [spaceId]);
 
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []).slice(0, 4 - images.length);
-        const newImages = [...images, ...files].slice(0, 4);
-        setImages(newImages);
-        setPreviews(newImages.map(f => URL.createObjectURL(f)));
-    };
+
 
     const addLibraryUrl = (url: string) => {
         if (libraryUrls.length + images.length >= 4) return;
@@ -1318,216 +2336,234 @@ function PostEditor({ currentUser, spaceId, onPostCreated, language = "vi" }: {
 
     return (
         <>
-        <div style={{
-            background: 'var(--sf-card)', borderRadius: 12, padding: 16, marginBottom: 16,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)', fontFamily: 'var(--sf-font, inherit)',
-        }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={40} />
-                {!expanded ? (
-                    <div
-                        onClick={() => { setExpanded(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
-                        style={{
-                            flex: 1, padding: '10px 16px', borderRadius: 24,
-                            background: 'var(--sf-input-bg)', border: '1px solid var(--sf-border)',
-                            color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 13
-                        }}
-                    >
-                        {currentUser ? `${currentUser.name} ${translations[language || "vi"].thinking}` : translations[language || "vi"].thinkingAnonymous}
-                    </div>
-                ) : (
-                    <div style={{ flex: 1, fontWeight: 700, fontSize: 13, color: 'var(--sf-text)' }}>
-                        {language === "vi" ? "Tạo bài viết" : "Create post"}
+            <div style={{
+                background: 'var(--sf-card)', borderRadius: 12, padding: 16, marginBottom: 16,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)', fontFamily: 'var(--sf-font, inherit)',
+            }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={40} />
+                    {!expanded ? (
+                        <div
+                            onClick={() => { setExpanded(true); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                            style={{
+                                flex: 1, padding: '10px 16px', borderRadius: 24,
+                                background: 'var(--sf-input-bg)', border: '1px solid var(--sf-border)',
+                                color: 'var(--sf-muted)', cursor: 'pointer', fontSize: 13
+                            }}
+                        >
+                            {currentUser ? `${currentUser.name} ${translations[language || "vi"].thinking}` : translations[language || "vi"].thinkingAnonymous}
+                        </div>
+                    ) : (
+                        <div style={{ flex: 1, fontWeight: 700, fontSize: 13, color: 'var(--sf-text)' }}>
+                            {language === "vi" ? "Tạo bài viết" : "Create post"}
+                        </div>
+                    )}
+                </div>
+
+                {expanded && (
+                    <>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 12, position: 'relative' }}>
+                            <div style={{ width: 40, flexShrink: 0 }} />
+                            <div style={{ flex: 1, position: 'relative' }}>
+                                {mention.isOpen && (
+                                    <MentionDropdown
+                                        suggestions={mention.suggestions}
+                                        onSelect={handleMentionSelect}
+                                        anchorRef={textareaRef as React.RefObject<HTMLElement | null>}
+                                    />
+                                )}
+                                {hashtag.isOpen && (
+                                    <HashtagDropdown
+                                        suggestions={hashtag.suggestions}
+                                        onSelect={handleHashtagSelect}
+                                        anchorRef={textareaRef as React.RefObject<HTMLElement | null>}
+                                    />
+                                )}
+                                <textarea
+                                    ref={textareaRef}
+                                    value={content}
+                                    onChange={e => { setContent(e.target.value); setCursorPos(e.target.selectionStart); }}
+                                    onKeyUp={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                    onClick={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                    placeholder={currentUser ? `${currentUser.name} ${translations[language || 'vi'].thinking}` : translations[language || 'vi'].thinkingAnonymous}
+                                    rows={4}
+                                    style={{
+                                        width: '100%', padding: '8px 0', background: 'none', border: 'none',
+                                        color: 'var(--sf-text)', fontSize: 13, resize: 'none', outline: 'none',
+                                        fontFamily: 'inherit', lineHeight: 1.5
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Image previews — file uploads */}
+                        {previews.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 12, borderRadius: 10, overflow: 'hidden' }}>
+                                {previews.map((src, i) => (
+                                    <div key={i} style={{ position: 'relative', aspectRatio: '1' }}>
+                                        <img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt="" />
+                                        <button
+                                            onClick={() => removeImage(i)}
+                                            style={{
+                                                position: 'absolute', top: 4, right: 4,
+                                                background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
+                                                width: 24, height: 24, color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1
+                                            }}>×</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Image previews — from media library */}
+                        {libraryUrls.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: previews.length ? 4 : 12, borderRadius: 10, overflow: 'hidden' }}>
+                                {libraryUrls.map((url, i) => (
+                                    <div key={i} style={{ position: 'relative', aspectRatio: '1' }}>
+                                        <img src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt="" />
+                                        <button
+                                            onClick={() => removeLibraryUrl(i)}
+                                            style={{
+                                                position: 'absolute', top: 4, right: 4,
+                                                background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
+                                                width: 24, height: 24, color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1
+                                            }}>×</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Add to post row */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
+                            <div style={{ display: 'flex', gap: 4, position: 'relative' }}>
+                                <button
+                                    onClick={() => setShowMediaPicker(true)}
+                                    disabled={totalImages >= 4}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+                                        background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer',
+                                        color: totalImages >= 4 ? 'var(--sf-muted)' : '#8b4513', fontSize: 13, fontWeight: 600,
+                                        opacity: totalImages >= 4 ? 0.5 : 1
+                                    }}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
+                                        <rect x="3" y="3" width="18" height="18" rx="3" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" fill="#fff" />
+                                        <path d="M21 15l-5-5L5 21h16z" fill="rgba(255,255,255,0.9)" />
+                                    </svg>
+                                    {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
+                                </button>
+                                <button
+                                    onClick={() => setShowEmojiPicker(v => !v)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+                                        background: showEmojiPicker ? 'var(--sf-hover)' : 'none',
+                                        border: 'none', borderRadius: 8, cursor: 'pointer',
+                                        color: '#8b4513', fontSize: 13, fontWeight: 600,
+                                    }}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="11" fill="#8b4513" />
+                                        <circle cx="9" cy="10" r="1.5" fill="#fff" />
+                                        <circle cx="15" cy="10" r="1.5" fill="#fff" />
+                                        <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                                    </svg>
+                                    {translations[language || "vi"].feeling.replace(/😊 /g, "")}
+                                </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                    onClick={() => { setExpanded(false); setContent(''); setImages([]); setPreviews([]); setShowEmojiPicker(false); }}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: 8, border: 'none',
+                                        background: 'var(--sf-input-bg)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 12
+                                    }}
+                                >{translations[language || "vi"].cancel}</button>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={(!content.trim() && images.length === 0) || submitting}
+                                    style={{
+                                        padding: '8px 20px', borderRadius: 8, border: 'none',
+                                        background: (content.trim() || images.length > 0) && !submitting ? '#8b4513' : 'var(--sf-border)',
+                                        color: '#fff', cursor: (content.trim() || images.length > 0) && !submitting ? 'pointer' : 'default',
+                                        fontWeight: 700, fontSize: 12, transition: 'background 0.2s'
+                                    }}
+                                >
+                                    {submitting ? translations[language || "vi"].posting : translations[language || "vi"].post}
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* When collapsed — quick action icons */}
+                {!expanded && (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
+                        <button
+                            onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowMediaPicker(true); }, 80); }}
+                            style={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
+                                cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
+                                <rect x="1" y="1" width="22" height="22" rx="4" />
+                                <circle cx="8" cy="9" r="2" fill="#fff" />
+                                <path d="M22 16L15 9 8 16" fill="rgba(255,255,255,0.85)" stroke="none" />
+                                <path d="M22 20L13 11 2 20" fill="rgba(255,255,255,0.6)" stroke="none" />
+                            </svg> {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
+                        </button>
+                        <button
+                            onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowEmojiPicker(true); }, 80); }}
+                            style={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
+                                cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="11" fill="#8b4513" />
+                                <circle cx="9" cy="10" r="1.5" fill="#fff" />
+                                <circle cx="15" cy="10" r="1.5" fill="#fff" />
+                                <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                            </svg> {translations[language || "vi"].feeling.replace(/😊 /g, "")}
+                        </button>
                     </div>
                 )}
             </div>
-
-            {expanded && (
-                <>
-                    <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                        <div style={{ width: 40, flexShrink: 0 }} />
-                        <textarea
-                            ref={textareaRef}
-                            value={content}
-                            onChange={e => setContent(e.target.value)}
-                            placeholder={currentUser ? `${currentUser.name} ${translations[language || 'vi'].thinking}` : translations[language || 'vi'].thinkingAnonymous}
-                            rows={4}
-                            style={{
-                                flex: 1, padding: '8px 0', background: 'none', border: 'none',
-                                color: 'var(--sf-text)', fontSize: 13, resize: 'none', outline: 'none',
-                                fontFamily: 'inherit', lineHeight: 1.5
-                            }}
-                        />
-                    </div>
-
-                    {/* Image previews — file uploads */}
-                    {previews.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 12, borderRadius: 10, overflow: 'hidden' }}>
-                            {previews.map((src, i) => (
-                                <div key={i} style={{ position: 'relative', aspectRatio: '1' }}>
-                                    <img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt="" />
-                                    <button
-                                        onClick={() => removeImage(i)}
-                                        style={{
-                                            position: 'absolute', top: 4, right: 4,
-                                            background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
-                                            width: 24, height: 24, color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1
-                                        }}>×</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Image previews — from media library */}
-                    {libraryUrls.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: previews.length ? 4 : 12, borderRadius: 10, overflow: 'hidden' }}>
-                            {libraryUrls.map((url, i) => (
-                                <div key={i} style={{ position: 'relative', aspectRatio: '1' }}>
-                                    <img src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt="" />
-                                    <button
-                                        onClick={() => removeLibraryUrl(i)}
-                                        style={{
-                                            position: 'absolute', top: 4, right: 4,
-                                            background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
-                                            width: 24, height: 24, color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1
-                                        }}>×</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Add to post row */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
-                         <div style={{ display: 'flex', gap: 4, position: 'relative' }}>
-                            <button
-                                onClick={() => setShowMediaPicker(true)}
-                                disabled={totalImages >= 4}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-                                    background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer',
-                                    color: totalImages >= 4 ? 'var(--sf-muted)' : '#8b4513', fontSize: 13, fontWeight: 600,
-                                    opacity: totalImages >= 4 ? 0.5 : 1
-                                }}
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
-                                    <rect x="3" y="3" width="18" height="18" rx="3"/>
-                                    <circle cx="8.5" cy="8.5" r="1.5" fill="#fff"/>
-                                    <path d="M21 15l-5-5L5 21h16z" fill="rgba(255,255,255,0.9)"/>
-                                </svg>
-                                {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
-                            </button>
-                            <button
-                                onClick={() => setShowEmojiPicker(v => !v)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-                                    background: showEmojiPicker ? 'var(--sf-hover)' : 'none',
-                                    border: 'none', borderRadius: 8, cursor: 'pointer',
-                                    color: '#8b4513', fontSize: 13, fontWeight: 600,
-                                }}
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="11" fill="#8b4513"/>
-                                    <circle cx="9" cy="10" r="1.5" fill="#fff"/>
-                                    <circle cx="15" cy="10" r="1.5" fill="#fff"/>
-                                    <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-                                </svg>
-                                {translations[language || "vi"].feeling.replace(/😊 /g, "")}
-                            </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                                onClick={() => { setExpanded(false); setContent(''); setImages([]); setPreviews([]); setShowEmojiPicker(false); }}
-                                style={{
-                                    padding: '8px 16px', borderRadius: 8, border: 'none',
-                                    background: 'var(--sf-input-bg)', color: 'var(--sf-text)', cursor: 'pointer', fontWeight: 600, fontSize: 12
-                                }}
-                            >{translations[language || "vi"].cancel}</button>
-                            <button
-                                onClick={handleSubmit}
-                                disabled={(!content.trim() && images.length === 0) || submitting}
-                                style={{
-                                    padding: '8px 20px', borderRadius: 8, border: 'none',
-                                    background: (content.trim() || images.length > 0) && !submitting ? '#8b4513' : 'var(--sf-border)',
-                                    color: '#fff', cursor: (content.trim() || images.length > 0) && !submitting ? 'pointer' : 'default',
-                                    fontWeight: 700, fontSize: 12, transition: 'background 0.2s'
-                                }}
-                            >
-                                {submitting ? translations[language || "vi"].posting : translations[language || "vi"].post}
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* When collapsed — quick action icons */}
-            {!expanded && (
-                <div style={{ display: 'flex', gap: 4, marginTop: 12, borderTop: '1px solid var(--sf-border)', paddingTop: 12 }}>
-                    <button
-                        onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowMediaPicker(true); }, 80); }}
-                        style={{
-                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
-                            cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#8b4513">
-                                    <rect x="1" y="1" width="22" height="22" rx="4"/>
-                                    <circle cx="8" cy="9" r="2" fill="#fff"/>
-                                    <path d="M22 16L15 9 8 16" fill="rgba(255,255,255,0.85)" stroke="none"/>
-                                    <path d="M22 20L13 11 2 20" fill="rgba(255,255,255,0.6)" stroke="none"/>
-                                </svg> {translations[language || "vi"].photoVideo.replace(/📸 /g, "")}
-                    </button>
-                    <button
-                        onClick={() => { setExpanded(true); setTimeout(() => { textareaRef.current?.focus(); setShowEmojiPicker(true); }, 80); }}
-                        style={{
-                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            padding: '8px 0', background: 'none', border: 'none', borderRadius: 8,
-                            cursor: 'pointer', color: '#8b4513', fontSize: 13, fontWeight: 600
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="11" fill="#8b4513"/>
-                                    <circle cx="9" cy="10" r="1.5" fill="#fff"/>
-                                    <circle cx="15" cy="10" r="1.5" fill="#fff"/>
-                                    <path d="M8 15c1 2 7 2 8 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-                                </svg> {translations[language || "vi"].feeling.replace(/😊 /g, "")}
-                    </button>
+            {showEmojiPicker && (
+                <div
+                    style={{
+                        background: 'var(--sf-card)', borderRadius: 12, padding: 12,
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.18)', zIndex: 100,
+                        display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4,
+                        marginTop: 4, marginBottom: 16, border: '1px solid var(--sf-border)',
+                    }}
+                >
+                    {EMOJIS.map(e => (
+                        <button
+                            key={e}
+                            onClick={() => insertEmoji(e)}
+                            style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4, borderRadius: 6 }}
+                            onMouseEnter={el => (el.currentTarget.style.background = 'var(--sf-hover)')}
+                            onMouseLeave={el => (el.currentTarget.style.background = 'none')}
+                        >{e}</button>
+                    ))}
                 </div>
             )}
-        </div>
-        {showEmojiPicker && (
-            <div
-                style={{
-                    background: 'var(--sf-card)', borderRadius: 12, padding: 12,
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.18)', zIndex: 100,
-                    display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4,
-                    marginTop: 4, marginBottom: 16, border: '1px solid var(--sf-border)',
-                }}
-            >
-                {EMOJIS.map(e => (
-                    <button
-                        key={e}
-                        onClick={() => insertEmoji(e)}
-                        style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4, borderRadius: 6 }}
-                        onMouseEnter={el => (el.currentTarget.style.background = 'var(--sf-hover)')}
-                        onMouseLeave={el => (el.currentTarget.style.background = 'none')}
-                    >{e}</button>
-                ))}
-            </div>
-        )}
-        {showMediaPicker && (
-            <MediaLibraryPicker
-                space={currentSpace}
-                acceptLabel="ảnh"
-                onSelect={url => addLibraryUrl(url)}
-                onClose={() => setShowMediaPicker(false)}
-                defaultFileType="image"
-            />
-        )}
+            {showMediaPicker && (
+                <MediaLibraryPicker
+                    space={currentSpace}
+                    acceptLabel="ảnh"
+                    onSelect={url => addLibraryUrl(url)}
+                    onClose={() => setShowMediaPicker(false)}
+                    defaultFileType="image"
+                />
+            )}
 
         </>
     );
@@ -1554,12 +2590,12 @@ function PostSkeleton() {
 
 // ─── Main SocialFeed ───────────────────────────────────────────────────────────
 
-export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; filterUserId?: number | null; onPostsLoaded?: (count: number) => void; searchQuery?: string; focusTrigger?: number; onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void; language?: 'vi' | 'en'; }> = ({ spaceId, currentUser, filterUserId, onPostsLoaded, searchQuery: externalSearch, focusTrigger, onUserClick, language = 'vi' }) => {
+export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; filterUserId?: number | null; onPostsLoaded?: (count: number) => void; searchQuery?: string; focusTrigger?: number; onUserClick?: (userId: number, userName: string, avatarUrl?: string | null) => void; language?: 'vi' | 'en'; highlightPostId?: number | null; showSavedOnly?: boolean; }> = ({ spaceId, currentUser, filterUserId, onPostsLoaded, searchQuery: externalSearch, focusTrigger, onUserClick, language = 'vi', highlightPostId, showSavedOnly }) => {
     const { showToast } = useToast();
     const [posts, setPosts] = useState<SocialPost[]>([]);
     const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
+    const [, setPage] = useState(1);
+    const [, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [internalSearch, setInternalSearch] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1570,19 +2606,57 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
     const loadingMoreRef = useRef(false);
     const pageRef = useRef(1);
     const loadingRef = useRef(false);
+    const [highlightedId, setHighlightedId] = useState<number | null>(null);
 
+    // Load space members once for @mention rendering across all PostCards
+    const [spaceMembers, setSpaceMembers] = useState<MentionUser[]>([]);
+    useEffect(() => {
+        apiService.getSpaceMembers(spaceId)
+            .then((m: any[]) => setSpaceMembers(m.map((u: any) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))))
+            .catch(() => {});
+    }, [spaceId]);
+
+    // Extract unique hashtags from loaded posts for autocomplete
+    const allHashtags = React.useMemo(() => {
+        const set = new Set<string>();
+        posts.forEach(p => {
+            const matches = (p.content || '').matchAll(/#([À-ỹ\w]+)/g);
+            for (const m of matches) set.add(m[1]);
+        });
+        return Array.from(set).sort();
+    }, [posts]);
 
     const searchQ = (externalSearch ?? internalSearch).toLowerCase().trim();
     const LIMIT = 10;
     const basePosts = filterUserId ? posts.filter(p => p.userId === filterUserId) : posts;
     const displayedPosts = searchQ
-        ? basePosts.filter(p =>
-            p.content?.toLowerCase().includes(searchQ) ||
-            p.userName?.toLowerCase().includes(searchQ) ||
-            p.metadata?.aiResponse?.toLowerCase().includes(searchQ) ||
-            p.metadata?.userQuestion?.toLowerCase().includes(searchQ)
-          )
+        ? basePosts.filter(p => {
+            const m = p.metadata;
+            // #11 Hashtag search — if query starts with #, match hashtag
+            if (searchQ.startsWith('#')) {
+                const tag = searchQ.slice(1);
+                return p.content?.toLowerCase().includes(`#${tag}`);
+            }
+            return (
+                p.content?.toLowerCase().includes(searchQ) ||
+                p.userName?.toLowerCase().includes(searchQ) ||
+                (m?.type === 'ai_share' && (
+                    m.aiResponse?.toLowerCase().includes(searchQ) ||
+                    m.userQuestion?.toLowerCase().includes(searchQ)
+                ))
+            );
+        })
         : basePosts;
+
+    // #11 Hashtag click handler — sets search to #tag
+    const handleHashtagClick = useCallback((tag: string) => {
+        setInternalSearch(`#${tag}`);
+        setShowSearchBar(true);
+    }, []);
+
+    // #5 Pull to refresh state
+    const [pullRefreshing, setPullRefreshing] = useState(false);
+    const feedContainerRef = useRef<HTMLDivElement>(null);
 
     const loadPosts = useCallback(async (pg: number, append = false) => {
         if (!currentUser) return;
@@ -1590,26 +2664,34 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
         loadingRef.current = true;
         if (pg === 1) setLoading(true); else { setLoadingMore(true); loadingMoreRef.current = true; }
         try {
-            const res = await apiService.getSocialPosts(spaceId, pg, LIMIT);
-            const newData: SocialPost[] = res.data;
-            if (append) {
-                setPosts(prev => {
-                    const existingIds = new Set(prev.map(p => p.id));
-                    const fresh = newData.filter(p => !existingIds.has(p.id));
-                    const merged = [...prev, ...fresh];
-                    const more = newData.length === LIMIT && merged.length < res.total;
+            if (showSavedOnly) {
+                // Saved/bookmarked posts mode
+                const savedData: SocialPost[] = await apiService.getSavedPosts(spaceId);
+                setPosts(savedData);
+                hasMoreRef.current = false;
+                setHasMore(false);
+            } else {
+                const res = await apiService.getSocialPosts(spaceId, pg, LIMIT);
+                const newData: SocialPost[] = res.data;
+                if (append) {
+                    setPosts(prev => {
+                        const existingIds = new Set(prev.map(p => p.id));
+                        const fresh = newData.filter(p => !existingIds.has(p.id));
+                        const merged = [...prev, ...fresh];
+                        const more = newData.length === LIMIT && merged.length < res.total;
+                        hasMoreRef.current = more;
+                        setHasMore(more);
+                        return merged;
+                    });
+                } else {
+                    setPosts(newData);
+                    const more = newData.length === LIMIT && newData.length < res.total;
                     hasMoreRef.current = more;
                     setHasMore(more);
-                    return merged;
-                });
-            } else {
-                setPosts(newData);
-                const more = newData.length === LIMIT && newData.length < res.total;
-                hasMoreRef.current = more;
-                setHasMore(more);
+                }
+                pageRef.current = pg;
+                setPage(pg);
             }
-            pageRef.current = pg;
-            setPage(pg);
         } catch {
             showToast('Không thể tải bài đăng.', 'error');
         } finally {
@@ -1618,9 +2700,27 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [spaceId, currentUser, showToast]);
+    }, [spaceId, currentUser, showToast, showSavedOnly]);
 
-    useEffect(() => { if (currentUser) loadPosts(1); else setLoading(false); }, [spaceId, currentUser]);
+    useEffect(() => { if (currentUser) loadPosts(1); else setLoading(false); }, [spaceId, currentUser, showSavedOnly]);
+
+    // Highlight post scroll — when highlightPostId changes, scroll to that post
+    useEffect(() => {
+        if (!highlightPostId) return;
+        setHighlightedId(highlightPostId);
+        // Wait for render then scroll
+        const timer = setTimeout(() => {
+            const el = document.getElementById(`sf-post-${highlightPostId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Remove highlight after animation
+                setTimeout(() => setHighlightedId(null), 2500);
+            } else {
+                setHighlightedId(null);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [highlightPostId]);
 
     // Report count to parent
     useEffect(() => {
@@ -1654,6 +2754,36 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
         }, { rootMargin: '300px' });
         if (sentinelRef.current) observerRef.current.observe(sentinelRef.current);
         return () => observerRef.current?.disconnect();
+    }, [loadPosts]);
+
+    // #5 Pull to refresh (mobile touch gesture)
+    useEffect(() => {
+        const el = feedContainerRef.current;
+        if (!el) return;
+        let startY = 0;
+        let pulling = false;
+        const onTouchStart = (e: TouchEvent) => {
+            if (el.scrollTop <= 0) {
+                startY = e.touches[0].clientY;
+                pulling = true;
+            }
+        };
+        const onTouchEnd = async (e: TouchEvent) => {
+            if (!pulling) return;
+            const diff = e.changedTouches[0].clientY - startY;
+            pulling = false;
+            if (diff > 80) {
+                setPullRefreshing(true);
+                await loadPosts(1);
+                setPullRefreshing(false);
+            }
+        };
+        el.addEventListener('touchstart', onTouchStart, { passive: true });
+        el.addEventListener('touchend', onTouchEnd, { passive: true });
+        return () => {
+            el.removeEventListener('touchstart', onTouchStart);
+            el.removeEventListener('touchend', onTouchEnd);
+        };
     }, [loadPosts]);
 
     // Toggle search bar when parent requests it (search button click)
@@ -1739,6 +2869,15 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                     50% { opacity: 0.5; }
                 }
                 .sf-skeleton { animation: sf-skeleton-pulse 1.5s ease infinite; }
+                @keyframes sf-highlight-flash {
+                    0% { box-shadow: 0 0 0 3px rgba(185,148,90,0.7); }
+                    50% { box-shadow: 0 0 12px 4px rgba(185,148,90,0.4); }
+                    100% { box-shadow: 0 0 0 0 rgba(185,148,90,0); }
+                }
+                .sf-post-highlight {
+                    animation: sf-highlight-flash 2s ease-out;
+                    border-radius: 12px;
+                }
                 /* Apply giacngo font to social feed content */
                 [data-theme="giacngo"] .sf-post-content,
                 [data-theme="giacngo"] .sf-post-content * {
@@ -1747,9 +2886,85 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                     color: var(--sf-text);
                     line-height: 1.7;
                 }
+
+                /* ── Lightbox layout ── */
+                .sf-lightbox-container {
+                    position: fixed; inset: 0; z-index: 99999;
+                    display: flex; flex-direction: row;
+                    background: rgba(0,0,0,0.95);
+                    backdrop-filter: blur(10px);
+                }
+                .sf-lightbox-image-area {
+                    flex: 1; position: relative;
+                    display: flex; align-items: center; justify-content: center;
+                    min-height: 0;
+                    padding: 20px;
+                }
+                .sf-lightbox-sidebar {
+                    width: 380px; background: var(--sf-card, #fdfbf7);
+                    display: flex; flex-direction: column;
+                    height: 100%; border-left: 1px solid var(--sf-border, #ebdcc5);
+                    font-family: var(--sf-font, inherit);
+                    flex-shrink: 0;
+                    min-height: 0;
+                    overflow: hidden;
+                    box-shadow: -10px 0 30px rgba(0,0,0,0.2);
+                }
+                /* Improved Action Buttons */
+                .sf-post-actions button {
+                    min-height: 44px; /* Apple/Google standard for touch targets */
+                    transition: transform 0.1s active;
+                }
+                .sf-post-actions button:active {
+                    transform: scale(0.95);
+                }
+
+                /* ── Mobile / Tablet responsive: image on top, comments below ── */
+                @media (max-width: 768px) {
+                    .sf-lightbox-container {
+                        flex-direction: column !important;
+                    }
+                    .sf-lightbox-image-area {
+                        flex: none !important;
+                        max-height: 50vh;
+                        min-height: 250px;
+                        padding: 10px;
+                    }
+                    .sf-lightbox-image-area img {
+                        max-height: 48vh !important;
+                        max-width: 100% !important;
+                        object-fit: contain;
+                    }
+                    .sf-lightbox-sidebar {
+                        width: 100% !important;
+                        height: auto !important;
+                        flex: 1 !important;
+                        border-left: none !important;
+                        border-top: 1px solid var(--sf-border, #ebdcc5);
+                        min-height: 0 !important;
+                        overflow-y: auto !important;
+                        border-radius: 20px 20px 0 0; /* Modern bottom sheet look */
+                    }
+                    /* Navigation arrows on mobile: smaller and positioned better */
+                    .sf-lightbox-image-area button {
+                        width: 36px !important;
+                        height: 36px !important;
+                        font-size: 20px !important;
+                    }
+                }
             `}</style>
 
-            <div style={{ maxWidth: 680, margin: '0 auto', padding: '0' }}>
+            <div ref={feedContainerRef} style={{ maxWidth: 680, margin: '0 auto', padding: '0 12px' }}>
+                {/* #5 Pull to refresh indicator */}
+                {pullRefreshing && (
+                    <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                        <div style={{
+                            display: 'inline-block', width: 24, height: 24,
+                            border: '3px solid var(--sf-border)', borderTopColor: '#8b4513',
+                            borderRadius: '50%', animation: 'sfPullSpin 0.6s linear infinite',
+                        }} />
+                    </div>
+                )}
                 {/* Search bar — only on main feed, toggle via search button */}
                 {!filterUserId && showSearchBar && (
                     <div style={{ marginBottom: 12, position: 'relative' }}>
@@ -1769,7 +2984,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                         />
                         <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--sf-muted)' }}
                             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+                            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" />
                         </svg>
                         <button onClick={() => { setInternalSearch(''); setShowSearchBar(false); }}
                             style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 16, lineHeight: 1 }}>
@@ -1778,8 +2993,8 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                     </div>
                 )}
 
-                {currentUser && (!filterUserId || filterUserId === currentUser.id) && (
-                    <PostEditor currentUser={currentUser} spaceId={spaceId} onPostCreated={handlePostCreated} language={language} />
+                {currentUser && !showSavedOnly && (!filterUserId || filterUserId === currentUser.id) && (
+                    <PostEditor currentUser={currentUser} spaceId={spaceId} onPostCreated={handlePostCreated} language={language} allHashtags={allHashtags} />
                 )}
                 {!currentUser && (
                     <div style={{
@@ -1804,26 +3019,29 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                         background: 'var(--sf-card)', borderRadius: 12, padding: '40px 24px',
                         textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
                     }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+                        <div style={{ fontSize: 48, marginBottom: 12 }}>{showSavedOnly ? '🔖' : '📭'}</div>
                         <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--sf-text)', marginBottom: 6 }}>
-                            {filterUserId ? translations[language].noUserPostsYet : translations[language].noPostsYet}
+                            {showSavedOnly ? (language === 'vi' ? 'Chưa có bài viết nào được lưu' : 'No saved posts') : filterUserId ? translations[language].noUserPostsYet : translations[language].noPostsYet}
                         </div>
                         <div style={{ color: 'var(--sf-muted)', fontSize: 14 }}>
-                            {filterUserId ? translations[language].shareSomething : translations[language].beFirst}
+                            {showSavedOnly ? (language === 'vi' ? 'Nhấn 🔖 trên bài viết để lưu lại đọc sau.' : 'Tap 🔖 on a post to save it for later.') : filterUserId ? translations[language].shareSomething : translations[language].beFirst}
                         </div>
                     </div>
                 ) : (
                     displayedPosts.map(post => (
-                        <PostCard
-                            key={post.id}
-                            post={post}
-                            currentUser={currentUser}
-                            spaceId={spaceId}
-                            onDelete={handleDeletePost}
-                            onRepost={handlePostCreated}
-                            onUserClick={onUserClick}
-                            language={language}
-                        />
+                        <div key={post.id} id={`sf-post-${post.id}`} className={highlightedId === post.id ? 'sf-post-highlight' : ''}>
+                            <PostCard
+                                post={post}
+                                currentUser={currentUser}
+                                spaceId={spaceId}
+                                onDelete={handleDeletePost}
+                                onRepost={handlePostCreated}
+                                onUserClick={onUserClick}
+                                language={language}
+                                spaceMembers={spaceMembers}
+                                onHashtagClick={handleHashtagClick}
+                            />
+                        </div>
                     ))
                 )}
 
@@ -1855,6 +3073,15 @@ export const UserPhotoGallery: React.FC<{
     const [photos, setPhotos] = useState<PhotoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<PhotoItem | null>(null);
+    const [selectedIdx, setSelectedIdx] = useState(0);
+
+    // Load space members for @mention rendering
+    const [spaceMembers, setSpaceMembers] = useState<MentionUser[]>([]);
+    useEffect(() => {
+        apiService.getSpaceMembers(spaceId)
+            .then((m: any[]) => setSpaceMembers(m.map((u: any) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))))
+            .catch(() => {});
+    }, [spaceId]);
 
     // Comments for selected photo post
     const [comments, setComments] = useState<SocialComment[]>([]);
@@ -1864,9 +3091,94 @@ export const UserPhotoGallery: React.FC<{
     const [loadingComments, setLoadingComments] = useState(false);
     const commentInputRef = useRef<HTMLInputElement>(null);
 
+    // Edit description
+    const [galleryMenuOpen, setGalleryMenuOpen] = useState(false);
+    const [galleryEditing, setGalleryEditing] = useState(false);
+    const [galleryEditText, setGalleryEditText] = useState('');
+    const [galleryEditSaving, setGalleryEditSaving] = useState(false);
+    const galleryMenuRef = useRef<HTMLDivElement>(null);
+
+    // Gallery comment @mention
+    const [galleryCmtCursorPos, setGalleryCmtCursorPos] = useState(0);
+    const galleryCommentMention = useMentionAutocomplete(spaceId, commentText, galleryCmtCursorPos);
+    const handleGalleryCommentMentionSelect = (user: MentionUser) => {
+        const before = commentText.slice(0, galleryCommentMention.mentionStart);
+        const after = commentText.slice(galleryCmtCursorPos);
+        const inserted = `@${user.name} `;
+        setCommentText(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setGalleryCmtCursorPos(newPos);
+        setTimeout(() => { commentInputRef.current?.focus(); commentInputRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
+
+    // Gallery edit @mention
+    const [galleryEditCursorPos, setGalleryEditCursorPos] = useState(0);
+    const galleryEditMention = useMentionAutocomplete(spaceId, galleryEditText, galleryEditCursorPos);
+    const galleryEditRef = useRef<HTMLTextAreaElement>(null);
+    const handleGalleryEditMentionSelect = (user: MentionUser) => {
+        const before = galleryEditText.slice(0, galleryEditMention.mentionStart);
+        const after = galleryEditText.slice(galleryEditCursorPos);
+        const inserted = `@${user.name} `;
+        setGalleryEditText(before + inserted + after);
+        const newPos = before.length + inserted.length;
+        setGalleryEditCursorPos(newPos);
+        setTimeout(() => { galleryEditRef.current?.focus(); galleryEditRef.current?.setSelectionRange(newPos, newPos); }, 0);
+    };
+
+    // Close menu on click outside
+    useEffect(() => {
+        if (!galleryMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (galleryMenuRef.current && !galleryMenuRef.current.contains(e.target as Node)) setGalleryMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [galleryMenuOpen]);
+
+    const handleGallerySaveEdit = async () => {
+        if (!selected) return;
+        setGalleryEditSaving(true);
+        try {
+            const formData = new FormData();
+            formData.append('content', galleryEditText);
+            (selected.post.imageUrls || []).forEach((url: string) => formData.append('imageUrls', url));
+            await apiService.updateSocialPost(spaceId, selected.postId, formData);
+            selected.post.content = galleryEditText;
+            setGalleryEditing(false);
+            showToast(language === 'vi' ? 'Đã cập nhật mô tả' : 'Description updated', 'success');
+        } catch { showToast(language === 'vi' ? 'Lỗi cập nhật' : 'Update failed', 'error'); }
+        finally { setGalleryEditSaving(false); }
+    };
+
+    const [galleryDeleting, setGalleryDeleting] = useState(false);
+    const handleGalleryDeleteImage = async () => {
+        if (!selected || !window.confirm(language === 'vi' ? 'Xóa ảnh này?' : 'Delete this photo?')) return;
+        setGalleryDeleting(true);
+        setGalleryMenuOpen(false);
+        try {
+            const remaining = (selected.post.imageUrls || []).filter((u: string) => u !== selected.url);
+            if (remaining.length === 0) {
+                // Last image — delete entire post
+                await apiService.deleteSocialPost(spaceId, selected.postId);
+                setPhotos(prev => prev.filter(p => p.postId !== selected.postId));
+            } else {
+                // Multiple images — update post removing this image
+                const formData = new FormData();
+                formData.append('content', selected.post.content || '');
+                remaining.forEach((url: string) => formData.append('imageUrls', url));
+                await apiService.updateSocialPost(spaceId, selected.postId, formData);
+                selected.post.imageUrls = remaining;
+                setPhotos(prev => prev.filter(p => !(p.postId === selected.postId && p.url === selected.url)));
+            }
+            setSelected(null);
+            showToast(language === 'vi' ? 'Đã xóa ảnh' : 'Photo deleted', 'success');
+        } catch { showToast(language === 'vi' ? 'Xóa ảnh thất bại' : 'Failed to delete photo', 'error'); }
+        finally { setGalleryDeleting(false); }
+    };
+
     const t = {
-        vi: { noPhotos: 'Chưa có ảnh nào', writeComment: 'Viết bình luận...', replyingTo: 'Đang phản hồi', send: 'Gửi', reply: 'Phản hồi', delete: 'Xóa', close: 'Đóng' },
-        en: { noPhotos: 'No photos yet', writeComment: 'Write a comment...', replyingTo: 'Replying to', send: 'Send', reply: 'Reply', delete: 'Delete', close: 'Close' },
+        vi: { noPhotos: 'Chưa có ảnh nào', writeComment: 'Viết bình luận...', replyingTo: 'Đang phản hồi', send: 'Gửi', reply: 'Phản hồi', delete: 'Xóa', close: 'Đóng', editDesc: '✏️ Chỉnh sửa mô tả' },
+        en: { noPhotos: 'No photos yet', writeComment: 'Write a comment...', replyingTo: 'Replying to', send: 'Send', reply: 'Reply', delete: 'Delete', close: 'Close', editDesc: '✏️ Edit description' },
     }[language];
 
     useEffect(() => {
@@ -1879,12 +3191,14 @@ export const UserPhotoGallery: React.FC<{
                 });
                 setPhotos(items);
             })
-            .catch(() => {})
+            .catch(() => { })
             .finally(() => setLoading(false));
     }, [spaceId, userId]);
 
-    const openPhoto = async (item: PhotoItem) => {
+    const openPhoto = async (item: PhotoItem, idx?: number) => {
         setSelected(item);
+        if (idx !== undefined) setSelectedIdx(idx);
+        setGalleryEditing(false);
         setComments([]);
         setLoadingComments(true);
         try {
@@ -1892,6 +3206,13 @@ export const UserPhotoGallery: React.FC<{
             setComments(data);
         } catch { /* silent */ }
         finally { setLoadingComments(false); }
+    };
+
+    const navigatePhoto = (dir: -1 | 1) => {
+        const newIdx = selectedIdx + dir;
+        if (newIdx >= 0 && newIdx < photos.length) {
+            openPhoto(photos[newIdx], newIdx);
+        }
     };
 
     const handleSubmitComment = async (e: React.FormEvent) => {
@@ -1919,15 +3240,25 @@ export const UserPhotoGallery: React.FC<{
     const renderComment = (c: SocialComment, depth: number): React.ReactNode => {
         const replies = comments.filter(r => r.parentCommentId === c.id);
         const canDel = currentUser && (currentUser.id === c.userId || currentUser.id === selected?.post.userId || (currentUser.roleIds?.length ?? 0) > 0);
+        const cLiked = c.isLikedByMe || false;
+        const cLikes = c.likesCount || 0;
         return (
             <React.Fragment key={c.id}>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10, marginLeft: depth * 20 }}>
-                    <Avatar name={c.userName} url={c.userAvatarUrl} size={28} />
-                    <div style={{ flex: 1, fontSize: 13, color: '#4a4a4a' }}>
-                        <span style={{ fontWeight: 700, color: '#1a1a1a', marginRight: 4 }}>{c.userName}</span>
-                        {c.content}
-                        <div style={{ display: 'flex', gap: 10, marginTop: 3, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 14, marginLeft: depth * 20 }}>
+                    <Avatar name={c.userName} url={c.userAvatarUrl} size={30} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a1a', marginBottom: 2, lineHeight: 1.2 }}>{c.userName}</div>
+                        <div style={{ fontSize: 13, color: '#4a4a4a', lineHeight: 1.5 }}>{renderMentionText(c.content, spaceMembers, undefined)}</div>
+                        <div style={{ display: 'flex', gap: 14, marginTop: 3, alignItems: 'center' }}>
                             <span style={{ fontSize: 11, color: '#a08b7a' }}>{timeAgo(c.createdAt, language)}</span>
+                            {currentUser && <button onClick={async () => {
+                                try {
+                                    const res = await apiService.toggleCommentLike(spaceId, selected!.postId, c.id);
+                                    setComments(prev => prev.map(cc => cc.id === c.id ? { ...cc, isLikedByMe: res.liked, likesCount: res.likesCount } : cc));
+                                } catch { /* silent */ }
+                            }} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: cLiked ? '#e74c3c' : '#a08b7a', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                {cLiked ? '\u2764\ufe0f' : '\u2661'}{cLikes > 0 && <span>{cLikes}</span>}
+                            </button>}
                             {currentUser && <button onClick={() => { setReplyTo({ id: c.id, name: c.userName }); commentInputRef.current?.focus(); }} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#8b4513', cursor: 'pointer', padding: 0 }}>{t.reply}</button>}
                             {canDel && <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#e74c3c', cursor: 'pointer', padding: 0 }}>{t.delete}</button>}
                         </div>
@@ -1954,84 +3285,284 @@ export const UserPhotoGallery: React.FC<{
     return (
         <>
             {/* Photo Grid */}
-            {!selected && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-                    {photos.map((item, i) => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+                {photos.map((item, i) => {
+                    const isOwner = currentUser && currentUser.id === item.post.userId;
+                    return (
                         <div
                             key={i}
-                            onClick={() => openPhoto(item)}
-                            style={{ aspectRatio: '1', cursor: 'pointer', overflow: 'hidden', borderRadius: 4, position: 'relative' }}
-                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                            style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 4, position: 'relative' }}
+                            onMouseEnter={e => {
+                                (e.currentTarget as HTMLDivElement).style.opacity = '0.9';
+                                const btn = (e.currentTarget as HTMLDivElement).querySelector('.photo-menu-btn') as HTMLElement | null;
+                                if (btn) btn.style.opacity = '1';
+                            }}
+                            onMouseLeave={e => {
+                                (e.currentTarget as HTMLDivElement).style.opacity = '1';
+                                const btn = (e.currentTarget as HTMLDivElement).querySelector('.photo-menu-btn') as HTMLElement | null;
+                                if (btn) btn.style.opacity = '0';
+                                const drop = (e.currentTarget as HTMLDivElement).querySelector('.photo-menu-drop') as HTMLElement | null;
+                                if (drop) drop.style.display = 'none';
+                            }}
                         >
-                            <img src={item.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.2s' }} />
+                            <img
+                                src={item.url} alt=""
+                                onClick={() => openPhoto(item, i)}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
+                            />
+                            {isOwner && (
+                                <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 10 }}>
+                                    <button
+                                        className="photo-menu-btn"
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            const drop = (e.currentTarget.nextElementSibling as HTMLElement);
+                                            drop.style.display = drop.style.display === 'block' ? 'none' : 'block';
+                                        }}
+                                        style={{
+                                            opacity: 0, transition: 'opacity 0.15s',
+                                            background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%',
+                                            width: 28, height: 28, color: '#fff', fontSize: 16, fontWeight: 700,
+                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            lineHeight: 1, backdropFilter: 'blur(4px)'
+                                        }}
+                                    >⋯</button>
+                                    <div
+                                        className="photo-menu-drop"
+                                        style={{
+                                            display: 'none', position: 'absolute', right: 0, top: '110%',
+                                            background: '#fdfbf7', border: '1px solid #ebdcc5', borderRadius: 10,
+                                            boxShadow: '0 4px 16px rgba(0,0,0,0.18)', minWidth: 160, overflow: 'hidden', zIndex: 99
+                                        }}
+                                    >
+                                        <button
+                                            onClick={async e => {
+                                                e.stopPropagation();
+                                                if (!window.confirm(language === 'vi' ? 'Xóa ảnh này?' : 'Delete this photo?')) return;
+                                                try {
+                                                    const remaining = (item.post.imageUrls || []).filter((u: string) => u !== item.url);
+                                                    if (remaining.length === 0) {
+                                                        await apiService.deleteSocialPost(spaceId, item.postId);
+                                                        setPhotos(prev => prev.filter(p => p.postId !== item.postId));
+                                                    } else {
+                                                        const fd = new FormData();
+                                                        fd.append('content', item.post.content || '');
+                                                        remaining.forEach((u: string) => fd.append('imageUrls', u));
+                                                        await apiService.updateSocialPost(spaceId, item.postId, fd);
+                                                        item.post.imageUrls = remaining;
+                                                        setPhotos(prev => prev.filter(p => !(p.postId === item.postId && p.url === item.url)));
+                                                    }
+                                                    showToast(language === 'vi' ? 'Đã xóa ảnh' : 'Photo deleted', 'success');
+                                                } catch { showToast(language === 'vi' ? 'Xóa thất bại' : 'Delete failed', 'error'); }
+                                            }}
+                                            style={{
+                                                display: 'block', width: '100%', padding: '10px 14px',
+                                                background: 'none', border: 'none', textAlign: 'left',
+                                                color: '#e74c3c', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(231,76,60,0.07)')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                        >
+                                            🗑️ {language === 'vi' ? 'Xóa ảnh này' : 'Delete photo'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    ))}
-                </div>
-            )}
+                    );
+                })}
+            </div>
 
-            {/* Inline Photo + Comment Viewer */}
-            {selected && (
-                <div style={{ display: 'flex', gap: 0, background: 'var(--sf-card)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-                    {/* Left: Image */}
-                    <div style={{ flex: '0 0 55%', maxWidth: '55%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 320 }}>
+            {/* Fullscreen Lightbox Modal */}
+            {selected && ReactDOM.createPortal(
+                <div
+                    onClick={() => setSelected(null)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', flexDirection: 'row', background: 'rgba(0,0,0,0.92)' }}
+                    className="gn-lightbox-overlay"
+                >
+                    <style>{`
+                        @media (max-width: 768px) {
+                            .gn-lightbox-overlay { flex-direction: column !important; }
+                            .gn-lightbox-img-area { flex: none !important; max-height: 45vh !important; min-height: 160px !important; }
+                            .gn-lightbox-img-area img { max-height: 43vh !important; }
+                            .gn-lightbox-sidebar { width: 100% !important; height: auto !important; flex: 1 !important; border-left: none !important; border-top: 1px solid #ebdcc5 !important; }
+                        }
+                    `}</style>
+                    {/* Image area */}
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        className="gn-lightbox-img-area"
+                        style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}
+                    >
+                        {/* Close button */}
                         <button
                             onClick={() => setSelected(null)}
-                            style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                        >←</button>
-                        <img src={selected.url} alt="" style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }} />
+                            style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 22, cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >×</button>
+                        {/* Prev button */}
+                        {selectedIdx > 0 && (
+                            <button
+                                onClick={() => navigatePhoto(-1)}
+                                style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 24, cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
+                            >‹</button>
+                        )}
+                        {/* Next button */}
+                        {selectedIdx < photos.length - 1 && (
+                            <button
+                                onClick={() => navigatePhoto(1)}
+                                style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: 24, cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
+                            >›</button>
+                        )}
+                        {/* Photo counter */}
+                        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 12, padding: '4px 12px', borderRadius: 12, fontWeight: 600 }}>
+                            {selectedIdx + 1} / {photos.length}
+                        </div>
+                        <img
+                            src={selected.url}
+                            alt=""
+                            style={{ maxWidth: '95%', maxHeight: '95vh', objectFit: 'contain', userSelect: 'none', borderRadius: 4 }}
+                        />
                     </div>
 
-                    {/* Right: Comments */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, maxHeight: 480, overflowY: 'auto' }}>
-                        {/* Author info */}
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--sf-border)' }}>
-                            <Avatar name={selected.post.userName} url={selected.post.userAvatarUrl} size={36} />
-                            <div>
-                                <div style={{ fontWeight: 700, fontSize: 13 }}>{selected.post.userName}</div>
-                                <div style={{ fontSize: 11, color: '#a08b7a' }}>{timeAgo(selected.post.createdAt, language)}</div>
+                    {/* Sidebar: Post content + Comments */}
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        className="gn-lightbox-sidebar"
+                        style={{ width: 380, background: '#fdfbf7', display: 'flex', flexDirection: 'column', height: '100%', borderLeft: '1px solid #ebdcc5', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}
+                    >
+                        {/* Header: author + menu */}
+                        <div style={{ padding: '18px 20px 16px', borderBottom: '1px solid #ebdcc5', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                            <Avatar name={selected.post.userName} url={selected.post.userAvatarUrl} size={40} />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a' }}>{selected.post.userName}</div>
+                                <div style={{ fontSize: 11, color: '#a08b7a', marginTop: 2 }}>{timeAgo(selected.post.createdAt, language)}</div>
+                            </div>
+                            {/* ⋯ menu — only for owner */}
+                            {currentUser && currentUser.id === selected.post.userId && (
+                                <div ref={galleryMenuRef} style={{ position: 'relative' }}>
+                                    <button
+                                        onClick={() => setGalleryMenuOpen(v => !v)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#a08b7a', padding: '4px 8px', borderRadius: 8 }}
+                                    >⋯</button>
+                                    {galleryMenuOpen && (
+                                        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fdfbf7', border: '1px solid #ebdcc5', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 200, minWidth: 180, overflow: 'hidden' }}>
+                                            <button
+                                                onClick={() => { setGalleryEditing(true); setGalleryEditText(selected.post.content || ''); setGalleryMenuOpen(false); }}
+                                                style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', color: '#1a1a1a', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.04)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                            >{t.editDesc}</button>
+                                            <button
+                                                onClick={handleGalleryDeleteImage}
+                                                disabled={galleryDeleting}
+                                                style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', borderTop: '1px solid #ebdcc5', textAlign: 'left', color: '#e74c3c', cursor: 'pointer', fontSize: 14, fontWeight: 600, opacity: galleryDeleting ? 0.5 : 1 }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(231,76,60,0.06)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                            >
+                                                {galleryDeleting ? '...' : (language === 'vi' ? '🗑️ Xóa ảnh này' : '🗑️ Delete photo')}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Scrollable: post content + comments */}
+                        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                            {/* Post content — editable */}
+                            {galleryEditing ? (
+                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #ebdcc5', position: 'relative' }}>
+                                    <textarea
+                                        ref={galleryEditRef}
+                                        value={galleryEditText}
+                                        onChange={e => { setGalleryEditText(e.target.value); setGalleryEditCursorPos(e.target.selectionStart); }}
+                                        onKeyUp={e => setGalleryEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        onClick={e => setGalleryEditCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                                        style={{ width: '100%', minHeight: 60, padding: '10px 12px', borderRadius: 8, border: '1px solid #ebdcc5', background: '#fff', color: '#1a1a1a', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' }}
+                                    />
+                                    {galleryEditMention.isOpen && (
+                                        <MentionDropdown suggestions={galleryEditMention.suggestions} onSelect={handleGalleryEditMentionSelect} anchorRef={galleryEditRef as React.RefObject<HTMLElement | null>} />
+                                    )}
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                                        <button onClick={() => setGalleryEditing(false)} disabled={galleryEditSaving} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid #ebdcc5', background: 'none', color: '#1a1a1a', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>{language === 'vi' ? 'Hủy' : 'Cancel'}</button>
+                                        <button onClick={handleGallerySaveEdit} disabled={galleryEditSaving} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: '#8b4513', color: '#fff', cursor: galleryEditSaving ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600, opacity: galleryEditSaving ? 0.6 : 1 }}>{galleryEditSaving ? '...' : (language === 'vi' ? 'Lưu' : 'Save')}</button>
+                                    </div>
+                                </div>
+                            ) : selected.post.content?.trim() && (
+                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #ebdcc5', fontSize: 14, color: '#3a3a3a', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                                    {selected.post.content}
+                                </div>
+                            )}
+
+                            {/* Comments title */}
+                            <div style={{ padding: '14px 20px 0' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#c4a482', textTransform: 'uppercase' as const, marginBottom: 10 }}>
+                                    {language === 'vi' ? 'Bình luận' : 'Comments'}
+                                </div>
+                            </div>
+
+                            {/* Comments list */}
+                            <div style={{ padding: '0 20px 16px' }}>
+                                {loadingComments ? (
+                                    <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 14, padding: '8px 0' }}>...</div>
+                                ) : topLevel.length === 0 ? (
+                                    <div style={{ color: '#c4a482', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+                                        {language === 'vi' ? 'Chưa có bình luận' : 'No comments yet'}
+                                    </div>
+                                ) : topLevel.map(c => renderComment(c, 0))}
                             </div>
                         </div>
 
-                        {/* Comments list */}
-                        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
-                            {loadingComments ? (
-                                <div style={{ textAlign: 'center', color: '#c4a482', fontSize: 13 }}>...</div>
-                            ) : topLevel.length === 0 ? (
-                                <div style={{ color: 'var(--sf-muted)', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
-                                    {language === 'vi' ? 'Chưa có bình luận' : 'No comments yet'}
-                                </div>
-                            ) : topLevel.map(c => renderComment(c, 0))}
-                        </div>
-
-                        {/* Comment input */}
+                        {/* Comment input — fixed at bottom */}
                         {currentUser && (
-                            <form onSubmit={handleSubmitComment} style={{ borderTop: '1px solid var(--sf-border)', paddingTop: 10 }}>
+                            <div style={{ flexShrink: 0, borderTop: '1px solid #ebdcc5', padding: '14px 20px 20px', background: '#fdfbf7' }}>
                                 {replyTo && (
-                                    <div style={{ fontSize: 11, color: '#8b4513', marginBottom: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <div style={{ fontSize: 11, color: '#8b4513', marginBottom: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
                                         <span>{t.replyingTo} <strong>{replyTo.name}</strong></span>
-                                        <button type="button" onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 13 }}>×</button>
+                                        <button type="button" onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 14 }}>×</button>
                                     </div>
                                 )}
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                    <input
-                                        ref={commentInputRef}
-                                        value={commentText}
-                                        onChange={e => setCommentText(e.target.value)}
-                                        placeholder={t.writeComment}
-                                        style={{ flex: 1, padding: '7px 12px', borderRadius: 20, border: '1px solid var(--sf-border)', background: 'var(--sf-input-bg)', fontSize: 13, outline: 'none', color: 'var(--sf-text)' }}
-                                    />
-                                    <button
-                                        type="submit"
-                                        disabled={!commentText.trim() || submittingComment}
-                                        style={{ padding: '7px 14px', borderRadius: 20, border: 'none', background: commentText.trim() ? '#8b4513' : 'var(--sf-border)', color: '#fff', cursor: commentText.trim() ? 'pointer' : 'default', fontWeight: 700, fontSize: 12 }}
-                                    >{t.send}</button>
-                                </div>
-                            </form>
+                                <form onSubmit={handleSubmitComment} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                    <Avatar name={currentUser.name} url={currentUser.avatarUrl} size={32} />
+                                    <div style={{ flex: 1, position: 'relative' }}>
+                                        <MentionDropdown
+                                            suggestions={galleryCommentMention.suggestions}
+                                            onSelect={handleGalleryCommentMentionSelect}
+                                            anchorRef={commentInputRef as React.RefObject<HTMLElement | null>}
+                                        />
+                                        <input
+                                            ref={commentInputRef}
+                                            value={commentText}
+                                            onChange={e => { setCommentText(e.target.value); setGalleryCmtCursorPos(e.target.selectionStart ?? 0); }}
+                                            onKeyUp={e => setGalleryCmtCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
+                                            onClick={e => setGalleryCmtCursorPos((e.target as HTMLInputElement).selectionStart ?? 0)}
+                                            placeholder={t.writeComment}
+                                            style={{
+                                                width: '100%', padding: '9px 42px 9px 14px', borderRadius: 24,
+                                                border: '1px solid #ebdcc5', background: '#fff',
+                                                color: '#1a1a1a', fontSize: 13, outline: 'none',
+                                                boxSizing: 'border-box', fontFamily: 'inherit'
+                                            }}
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={!commentText.trim() || submittingComment}
+                                            style={{
+                                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                                background: 'none', border: 'none',
+                                                cursor: commentText.trim() ? 'pointer' : 'default',
+                                                color: commentText.trim() ? '#8b4513' : '#c4a482',
+                                                fontSize: 20, lineHeight: 1
+                                            }}
+                                        >↑</button>
+                                    </div>
+                                </form>
+                            </div>
                         )}
                     </div>
                 </div>
-            )}
+            , document.body)}
         </>
     );
 };

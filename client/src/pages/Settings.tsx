@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSession, updateUser, changeEmail, changePassword, listSessions, revokeSession, revokeOtherSessions } from "@/lib/auth-client";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "@/lib/wouter-stub";
@@ -162,7 +162,7 @@ export default function Settings() {
       const result = await listSessions();
       
       if (result.error) {
-        setSessionsError(result.error.message || "Failed to load sessions");
+        setSessionsError((result.error as any)?.message || "Failed to load sessions");
         return;
       }
       
@@ -212,7 +212,7 @@ export default function Settings() {
       if (result.error) {
         toast({
           title: "Error",
-          description: result.error.message || "Could not sign out this device. Please try again.",
+          description: (result.error as any)?.message || "Could not sign out this device. Please try again.",
           variant: "destructive",
         });
         return;
@@ -246,7 +246,7 @@ export default function Settings() {
       if (result.error) {
         toast({
           title: "Error",
-          description: result.error.message || "Could not sign out other devices. Please try again.",
+          description: (result.error as any)?.message || "Could not sign out other devices. Please try again.",
           variant: "destructive",
         });
         return;
@@ -291,10 +291,10 @@ export default function Settings() {
       const result = await updateUser({ name: name.trim() });
       
       if (result.error) {
-        setProfileError(result.error.message || "Failed to update name");
+        setProfileError((result.error as any)?.message || "Failed to update name");
         toast({
           title: "Error",
-          description: result.error.message || "Failed to update name",
+          description: (result.error as any)?.message || "Failed to update name",
           variant: "destructive",
         });
       } else {
@@ -346,10 +346,10 @@ export default function Settings() {
       
       if (result.error) {
         // Handle duplicate email error (409)
-        if (result.error.status === 409) {
+        if ((result.error as any)?.status === 409) {
           setEmailError("This email is already in use by another account.");
         } else {
-          setEmailError(result.error.message || "Failed to change email");
+          setEmailError((result.error as any)?.message || "Failed to change email");
         }
       } else {
         setEmailChangeSuccess(true);

@@ -29,24 +29,45 @@ export function useSession() {
 
 // Stubs for auth methods – redirect to GiacNgoVN login page
 export const signIn = {
-  email: async ({ email, password }: { email: string; password: string; callbackURL?: string }) => {
+  email: async ({ email, password, callbackURL: _callbackURL, fetchOptions }: { 
+    email: string; 
+    password: string; 
+    callbackURL?: string;
+    fetchOptions?: {
+      onSuccess?: (ctx: { data?: { user?: Record<string, unknown> } }) => void;
+      onError?: (ctx: { error: { message?: string } }) => void;
+    };
+  }) => {
     try {
       const res: any = await apiService.login(email, password);
-      if (res?.token) {
-        localStorage.setItem('token', res.token);
-        localStorage.setItem('user', JSON.stringify(res.user));
+      // The backend returns the user object directly, containing apiToken
+      if (res && res.apiToken) {
+        localStorage.setItem('apiToken', res.apiToken);
+        localStorage.setItem('user', JSON.stringify(res));
+        if (fetchOptions?.onSuccess) {
+          fetchOptions.onSuccess({ data: { user: res } });
+          return;
+        }
         window.location.href = '/';
-        return { data: res.user, error: null };
+        return { data: res, error: null };
+      }
+      if (fetchOptions?.onError) {
+        fetchOptions.onError({ error: { message: 'Login failed' } });
+        return;
       }
       return { data: null, error: { message: 'Login failed' } };
     } catch (e: any) {
+      if (fetchOptions?.onError) {
+        fetchOptions.onError({ error: { message: e.message } });
+        return;
+      }
       return { data: null, error: { message: e.message } };
     }
   }
 };
 
 export const signOut = async () => {
-  localStorage.removeItem('token');
+  localStorage.removeItem('apiToken');
   localStorage.removeItem('user');
   window.location.href = '/';
 };

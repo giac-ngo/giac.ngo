@@ -1,8 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Users, Star, Sparkles, Briefcase, BookOpen, Calendar, HandHeart } from "lucide-react";
-import { buddhistCenters } from "../../shared/buddhistCenters";
-import { Link, useNavigate } from "react-router-dom";
+import { Search, MapPin, Users, Star, Sparkles, Briefcase } from "lucide-react";
+import { buddhistCenters } from "@/shared/buddhistCenters";
+import { Link } from "react-router-dom";
 import { TracingBeam } from "@/components/TracingBeam";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -24,13 +24,13 @@ export default function Discovery() {
     { id: "retreat-center", label: t.categories.retreatCenter, icon: "🌄" },
   ];
 
-  const filteredCenters = buddhistCenters.filter((center) => {
+  const filteredCenters = buddhistCenters.filter((center: typeof buddhistCenters[0]) => {
     const matchesSearch =
-      center.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      (center.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (center.description ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (center.location ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (center.country ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (center.tags ?? []).some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesCategory = selectedCategory === "all" || center.type === selectedCategory;
 
@@ -145,7 +145,7 @@ export default function Discovery() {
             <div className="flex items-center gap-3 text-[#2c2c2c]/70">
               <div className="flex items-center gap-1">
                 <Users className="w-4 h-4" />
-                <span className="text-xs font-serif">{center.members.toLocaleString()}</span>
+                <span className="text-xs font-serif">{(center.members ?? 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-[#d4af37] text-[#d4af37]" />
@@ -155,7 +155,7 @@ export default function Discovery() {
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            {center.tags.slice(0, 3).map((tag, index) => (
+            {(center.tags ?? []).slice(0, 3).map((tag, index) => (
               <span
                 key={index}
                 className="px-2 py-1 rounded-lg text-xs font-serif font-semibold"

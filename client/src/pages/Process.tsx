@@ -1,6 +1,6 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Briefcase, Building2, User, Mail, Phone, MapPin, Users, Globe, Wrench, FileText, ClipboardList, PhoneCall, Settings, Rocket, Check, ArrowRight, ArrowLeft, Video, MessageSquare, Monitor, HeadphonesIcon, XCircle, AlertTriangle } from "lucide-react";
 import { TracingBeam } from "@/components/TracingBeam";
 import { useLanguage } from "@/contexts/LanguageContext";

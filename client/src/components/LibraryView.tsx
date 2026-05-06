@@ -80,7 +80,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
         };
 
         try {
-            const detail = await apiService.getDocumentDetail(doc.id);
+            const detail = await apiService.getDocumentDetail(doc.id as number);
             const title = language === 'en' && detail.titleEn ? detail.titleEn : detail.title;
             const author = language === 'en' && detail.authorEn ? detail.authorEn : detail.author;
             const content = stripHtml(language === 'en' && detail.contentEn ? detail.contentEn : detail.content || '');

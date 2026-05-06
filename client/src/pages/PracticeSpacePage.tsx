@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { User, Message, AIConfig, SystemConfig, Conversation, ViewMode, LibraryFilters, Space } from '../types';
-import { apiService } from '../services/apiService';
+import { apiService, ModelType } from '../services/apiService';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { MessageContextMenu } from '../components/MessageContextMenu';
 import { useToast } from '../components/ToastProvider';
@@ -204,6 +204,7 @@ export const PracticeSpacePage: React.FC<{
 
     const [isRecording, setIsRecording] = useState(false);
     const [speakingMessageId, setSpeakingMessageId] = useState<string | number | null>(null);
+    const [loadingTtsId, setLoadingTtsId] = useState<string | number | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [fileAttachment, setFileAttachment] = useState<{ name: string; url: string } | null>(null);
@@ -219,6 +220,15 @@ export const PracticeSpacePage: React.FC<{
     const [currentAiConfig, setCurrentAiConfig] = useState<AIConfig | null>(null);
     const [conversationId, setConversationId] = useState<number | null>(null);
     const [feedbackStatus, setFeedbackStatus] = useState<{ [messageId: string]: 'liked' | 'disliked' | null }>({});
+
+    // Owner voice config — lấy voice/style/temperature từ owner AI config
+    const [ownerVoiceConfig, setOwnerVoiceConfig] = useState<{ geminiKey?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null>(null);
+    useEffect(() => {
+        if (!currentAiConfig?.id) { setOwnerVoiceConfig(null); return; }
+        apiService.getAiVoiceKey(currentAiConfig.id)
+            .then(res => setOwnerVoiceConfig(res || null))
+            .catch(() => setOwnerVoiceConfig(null));
+    }, [currentAiConfig?.id]);
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -279,9 +289,10 @@ export const PracticeSpacePage: React.FC<{
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [notifLoading, setNotifLoading] = useState(false);
-    const notifCount = notifications.filter(n => n.unread !== false).length;
+    const [notifCount, setNotifCount] = useState(0);
     const [myPostsCount, setMyPostsCount] = useState(0);
-    const [myHomeTab, setMyHomeTab] = useState<'posts' | 'photos'>('posts');
+    const [myHomeTab, setMyHomeTab] = useState<'posts' | 'photos' | 'gatha' | 'audio' | 'saved'>('posts');
+    const [highlightPostId, setHighlightPostId] = useState<number | null>(null);
     const [editProfileOpen, setEditProfileOpen] = useState(false);
     const [editBio, setEditBio] = useState('');
     const [editAvatarUrl, setEditAvatarUrl] = useState('');
@@ -308,12 +319,28 @@ export const PracticeSpacePage: React.FC<{
         }
     }, [communityTab, user?.id, currentSpace?.id, viewingUser]);
 
+    // Poll unread notification count every 30s
+    useEffect(() => {
+        if (!currentSpace?.id || !user?.id) return;
+        const fetchCount = () => {
+            apiService.getUnreadNotificationCount(currentSpace.id as number)
+                .then(r => setNotifCount(r.count))
+                .catch(() => {});
+        };
+        fetchCount();
+        const interval = setInterval(fetchCount, 30000);
+        return () => clearInterval(interval);
+    }, [currentSpace?.id, user?.id]);
+
     const handleToggleNotifications = async () => {
         if (!showNotifications && currentSpace?.id) {
             setNotifLoading(true);
             try {
                 const data = await apiService.getSocialNotifications(currentSpace.id as number);
                 setNotifications(data);
+                // Mark all as read
+                await apiService.markNotificationsRead(currentSpace.id as number);
+                setNotifCount(0);
             } catch { /* ignore */ }
             finally { setNotifLoading(false); }
         }
@@ -380,6 +407,9 @@ export const PracticeSpacePage: React.FC<{
     const initialQuerySent = useRef(false);
 
     const streamBufferRef = useRef<string>('');
+    const testAudioRef = useRef<HTMLAudioElement | null>(null);
+    // Client-side TTS cache: key = text hash, value = blob URL
+    const ttsCacheRef = useRef<Map<string, { blobUrl: string; mimeType: string }>>(new Map());
 
     const liveSessionPromiseRef = useRef<Promise<any> | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -392,10 +422,23 @@ export const PracticeSpacePage: React.FC<{
             setShowOfferingNudge(true);
             // Force-close the modal if the user navigates away from chat while it's open
             setIsMeritPurchaseModalOpen(false);
-            // Auto-open sidebar to show table of contents
-            setIsSidebarCollapsed(false);
+            if (viewMode === 'library') {
+                // Library always opens sidebar (shows table of contents)
+                setIsSidebarCollapsed(false);
+            } else {
+                // DharmaTalks: collapse on mobile, open on desktop
+                if (window.innerWidth < 1024) {
+                    setIsSidebarCollapsed(true);
+                } else {
+                    setIsSidebarCollapsed(false);
+                }
+            }
         } else {
             setShowOfferingNudge(false);
+            // On mobile: collapse sidebar for chat, meditation, community, about
+            if (window.innerWidth < 1024) {
+                setIsSidebarCollapsed(true);
+            }
         }
     }, [viewMode]);
 
@@ -532,6 +575,29 @@ export const PracticeSpacePage: React.FC<{
             setIsMarketplaceModalOpen(true);
             localStorage.removeItem('promptPurchaseAiId');
         }
+    }, []);
+
+    // Auto-open Voice Chat if coming from homepage mic button
+    useEffect(() => {
+        const openVoice = localStorage.getItem('openVoiceOnLoad');
+        if (openVoice === '1') {
+            localStorage.removeItem('openVoiceOnLoad');
+            // Small delay to allow AI config to load
+            setTimeout(() => setIsVoiceChatOpen(true), 800);
+        }
+    }, []);
+
+    // Auto-trigger STT mic if coming from homepage mic button
+    useEffect(() => {
+        const openMic = localStorage.getItem('openMicOnLoad');
+        if (openMic === '1') {
+            localStorage.removeItem('openMicOnLoad');
+            // Delay to allow recognition to initialize
+            setTimeout(() => {
+                handleToggleRecording();
+            }, 900);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
 
@@ -783,7 +849,7 @@ export const PracticeSpacePage: React.FC<{
 
         try {
             await apiService.sendMessageStream(currentAiConfig, [...historyToSend, userMessage], user, conversationId, {
-                onChunk: (chunk) => {
+                onChunk: (chunk: string) => {
                     streamBufferRef.current += chunk;
                     const fullBuffer = streamBufferRef.current;
                     const visibleText = fullBuffer;
@@ -804,11 +870,11 @@ export const PracticeSpacePage: React.FC<{
                         setMessages(prev => updateStreamingMessage(prev));
                     }
                 },
-                onEnd: (newConversationId, updatedUser, finalMessage) => {
+                onEnd: (newConversationId: number | string, updatedUser: any, finalMessage: any) => {
                     setIsTyping(false);
                     setIsAiThinking(false);
                     if (newConversationId && !conversationId) {
-                        setConversationId(newConversationId);
+                        setConversationId(newConversationId as any);
                         setConversationUpdateTrigger(c => c + 1); // Trigger sidebar refresh for new conversation
                     }
                     if (!user) {
@@ -835,7 +901,7 @@ export const PracticeSpacePage: React.FC<{
                         setMessages(prev => updateOrAddMessage(prev));
                     }
                 },
-                onError: (error) => {
+                onError: (error: any) => {
                     setIsTyping(false);
                     setIsAiThinking(false);
 
@@ -843,25 +909,25 @@ export const PracticeSpacePage: React.FC<{
                     setAllMessages(prev => prev.filter(m => m.id !== userMessage.id));
                     setMessages(prev => prev.filter(m => m.id !== userMessage.id));
 
-                    if (error.startsWith('DAILY_LIMIT_REACHED:')) {
+                    if (typeof error === 'string' && error.startsWith('DAILY_LIMIT_REACHED:')) {
                         const [, base, bonus] = error.split(':');
                         setDailyLimitInfo({ base: parseInt(base) || 20, bonus: parseInt(bonus) || 0 });
                         setIsDonateModalOpen(true);
                         return;
                     }
 
-                    const displayError = error.includes('GUEST_REGISTER_NUDGE')
+                    const displayError = (typeof error === 'string' && error.includes('GUEST_REGISTER_NUDGE'))
                         ? t.guestLimitReached
-                        : t.genericError + `: ${error}`;
+                        : t.genericError + `: ${error.message || error}`;
 
                     const errorMsg: Message = { id: `ai-err-${Date.now()}`, text: displayError, sender: 'ai', timestamp: Date.now() };
                     setAllMessages(prev => [...prev, errorMsg]);
                     setMessages(prev => [...prev, errorMsg]);
 
-                    if (error.includes('GUEST_REGISTER_NUDGE')) handleGoToSpaceLogin();
+                    if (typeof error === 'string' && error.includes('GUEST_REGISTER_NUDGE')) handleGoToSpaceLogin();
                 }
-            }, false, language, aiMessageId, guestMessageCount);
-        } catch (error) {
+            });
+        } catch (error: any) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             setIsTyping(false);
             setIsAiThinking(false);
@@ -921,6 +987,17 @@ export const PracticeSpacePage: React.FC<{
         }
     };
 
+    // Auto-expand textarea like ChatGPT
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        // Reset height to auto first so scrollHeight recalculates correctly
+        textarea.style.height = 'auto';
+        // Clamp between 1 line (~40px) and max (~200px)
+        const newHeight = Math.min(textarea.scrollHeight, 200);
+        textarea.style.height = `${newHeight}px`;
+    }, [newMessage]);
+
     const handleToggleRecording = () => {
         const recognition = recognitionRef.current;
         if (!recognition) {
@@ -974,53 +1051,141 @@ export const PracticeSpacePage: React.FC<{
         showToast(t.messageCopied, 'info');
     };
 
+    // Strip markdown formatting from text before sending to TTS
+    const stripMarkdown = (md: string): string => {
+        return md
+            .replace(/```[\s\S]*?```/g, '') // code blocks
+            .replace(/`[^`]+`/g, '')         // inline code
+            .replace(/!?\[[^\]]*\]\([^)]*\)/g, '') // links/images
+            .replace(/#{1,6}\s*/g, '')       // headings
+            .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+            .replace(/\*([^*]+)\*/g, '$1')     // italic
+            .replace(/~~([^~]+)~~/g, '$1')     // strikethrough
+            .replace(/^[\s]*[-*+]\s/gm, '')   // list markers
+            .replace(/^[\s]*\d+\.\s/gm, '')   // numbered list
+            .replace(/^>\s?/gm, '')           // blockquotes
+            .replace(/---+/g, '')             // hr
+            .replace(/\n{3,}/g, '\n\n')       // excess newlines
+            .trim();
+    };
+
     const handleSpeak = async (text: string, msgId: string | number) => {
-        if (speakingMessageId === msgId) {
+        if (speakingMessageId === msgId || loadingTtsId === msgId) {
             window.speechSynthesis.cancel();
+            if (testAudioRef.current) {
+                testAudioRef.current.pause();
+            }
             setSpeakingMessageId(null);
+            setLoadingTtsId(null);
             return;
         }
         window.speechSynthesis.cancel();
-        setSpeakingMessageId(msgId);
+        setLoadingTtsId(msgId);
+        setSpeakingMessageId(null);
 
-        const geminiKey = (user?.apiKeys as any)?.gemini;
-        const geminiVoice = (user?.apiKeys as any)?.geminiVoice || 'Algieba';
-        const geminiStyle = (user?.apiKeys as any)?.geminiStyle || '';
-        const geminiTemperature = parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1;
+        // Pre-create Audio element synchronously to bypass Autoplay restrictions!
+        const audio = new Audio();
+        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; // 1 sample silent wav
+        audio.play().catch(e => console.warn('Silent unlock play failed:', e));
+        testAudioRef.current = audio;
 
-        if (geminiKey && user?.id) {
+        const cleanText = stripMarkdown(text);
+        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
+        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || (user?.apiKeys as any)?.geminiStyle || '';
+        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? (parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1);
+        const ttsProvider = (currentAiConfig?.ttsProvider || 'gemini') as ModelType;
+        const ttsModel = currentAiConfig?.ttsModel || 'gemini-3.1-flash-tts-preview';
+
+        // Helper to play blob URL on the unlocked audio element
+        const playBlobUrl = (blobUrl: string) => {
+            audio.src = blobUrl;
+            audio.onended = () => setSpeakingMessageId(null);
+            audio.onerror = () => setSpeakingMessageId(null);
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch((e) => {
+                    console.error('Autoplay blocked:', e);
+                    setSpeakingMessageId(null);
+                    const utterance = new SpeechSynthesisUtterance(cleanText);
+                    utterance.lang = language === 'vi' ? 'vi-VN' : 'en-US';
+                    utterance.onend = () => setSpeakingMessageId(null);
+                    window.speechSynthesis.speak(utterance);
+                });
+            }
+        };
+
+        if (user?.id) {
+            // ── CLIENT-SIDE CACHE: check if we already have this audio ──
+            const cacheKey = `${ttsProvider}:${ttsModel}:${geminiVoice}:${String(msgId)}`;
+            const cached = ttsCacheRef.current.get(cacheKey);
+            if (cached) {
+                setLoadingTtsId(null);
+                setSpeakingMessageId(msgId);
+                playBlobUrl(cached.blobUrl);
+                return;
+            }
+
             try {
                 const res = await apiService.generateTtsAudio(
-                    text, 'gemini', 'gemini-2.5-flash-preview-tts',
-                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature
+                    cleanText, ttsProvider, ttsModel,
+                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature,
+                    currentAiConfig?.id
                 );
-                const audio = new Audio(`data:${res.mimeType};base64,${res.audioContent}`);
-                audio.onended = () => setSpeakingMessageId(null);
-                audio.play();
+                
+                // Convert Base64 to Blob URL
+                const byteCharacters = atob(res.audioContent);
+                const byteArray = new Uint8Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteArray[i] = byteCharacters.charCodeAt(i);
+                }
+                const blob = new Blob([byteArray], { type: res.mimeType || 'audio/wav' });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // Store in client cache (don't revoke — keep for repeat plays)
+                ttsCacheRef.current.set(cacheKey, { blobUrl, mimeType: res.mimeType });
+                // Evict old entries if cache grows too large (keep 50)
+                if (ttsCacheRef.current.size > 50) {
+                    const firstKey = ttsCacheRef.current.keys().next().value;
+                    if (firstKey) {
+                        const old = ttsCacheRef.current.get(firstKey);
+                        if (old) URL.revokeObjectURL(old.blobUrl);
+                        ttsCacheRef.current.delete(firstKey);
+                    }
+                }
+
+                setLoadingTtsId(null);
+                setSpeakingMessageId(msgId);
+                playBlobUrl(blobUrl);
                 return;
             } catch (e) {
-                console.warn('Gemini TTS failed, falling back to SpeechSynthesis:', e);
+                console.error('Gemini TTS API call failed, falling back to SpeechSynthesis:', e);
+                setLoadingTtsId(null);
             }
         }
 
         // Fallback: browser SpeechSynthesis
-        const utterance = new SpeechSynthesisUtterance(text);
+        setLoadingTtsId(null);
+        setSpeakingMessageId(msgId);
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = language === 'vi' ? 'vi-VN' : 'en-US';
         utterance.onend = () => setSpeakingMessageId(null);
         window.speechSynthesis.speak(utterance);
     };
 
     const handleDownload = async (text: string, msgId: string | number) => {
-        const geminiKey = (user?.apiKeys as any)?.gemini;
-        const geminiVoice = (user?.apiKeys as any)?.geminiVoice || 'Algieba';
-        const geminiStyle = (user?.apiKeys as any)?.geminiStyle || '';
-        const geminiTemperature = parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1;
+        const cleanText = stripMarkdown(text);
+        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
+        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || (user?.apiKeys as any)?.geminiStyle || '';
+        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? (parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1);
+        const ttsProvider = (currentAiConfig?.ttsProvider || 'gemini') as ModelType;
+        const ttsModel = currentAiConfig?.ttsModel || 'gemini-3.1-flash-tts-preview';
 
-        if (geminiKey && user?.id) {
+        if (user?.id) {
             try {
                 const res = await apiService.generateTtsAudio(
-                    text, 'gemini', 'gemini-2.5-flash-preview-tts',
-                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature
+                    cleanText, ttsProvider, ttsModel,
+                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature,
+                    currentAiConfig?.id
                 );
                 const byteChars = atob(res.audioContent);
                 const byteArr = new Uint8Array(byteChars.length);
@@ -1101,7 +1266,7 @@ export const PracticeSpacePage: React.FC<{
         setFeedbackStatus(prev => ({ ...prev, [String(msgId)]: finalFeedback }));
 
         try {
-            await apiService.setMessageFeedback(conversationId, msgId, finalFeedback);
+            await apiService.setMessageFeedback(conversationId as any as string, msgId, finalFeedback as string);
             const updateFeedbackInMessages = (msgs: Message[]) => msgs.map(m => m.id === msgId ? { ...m, feedback: finalFeedback } : m);
             setAllMessages(prev => updateFeedbackInMessages(prev));
             setMessages(prev => updateFeedbackInMessages(prev));
@@ -1335,13 +1500,13 @@ export const PracticeSpacePage: React.FC<{
                                                         <div className="chat-message-content group">
                                                             <div className={`chat-message-bubble ${msg.sender}`}>
                                                                 <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{
-                                                                    // Nếu segment có dòng mới đơn (kệ thơ, không phải list/heading) → convert thành markdown hard break
-                                                                    segText.includes('\n') && !segText.includes('\n\n')
-                                                                        && !/^\d+\.\s/m.test(segText)
-                                                                        && !/^[-*•]\s/m.test(segText)
-                                                                        && !/^#+\s/m.test(segText)
-                                                                        ? segText.replace(/\n/g, '  \n')
-                                                                        : segText
+                                                                    // Convert mọi single newline → markdown hard break (2 spaces + \n)
+                                                                    // để bài kệ/thơ giữ đúng format xuống dòng.
+                                                                    // Double newline (\n\n) vẫn giữ nguyên làm paragraph break.
+                                                                    segText
+                                                                        .replace(/\n\n/g, '\x00PARA\x00')     // tạm giữ double newline
+                                                                        .replace(/\n/g, '  \n')               // single newline → hard break
+                                                                        .replace(/\x00PARA\x00/g, '\n\n')     // khôi phục paragraph
                                                                 }</ReactMarkdown></div>
                                                                 {msg.imageUrl && segIndex === 0 && <img src={msg.imageUrl} alt="Uploaded content" className="mt-2 rounded-lg max-w-full h-auto" />}
                                                             </div>
@@ -1354,9 +1519,9 @@ export const PracticeSpacePage: React.FC<{
                                                                         </>
                                                                     )}
                                                                     <button onClick={() => handleCopy(segText)} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
-                                                                    <button onClick={() => handleSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${speakingMessageId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}><SpeakerWaveIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${speakingMessageId === `${msg.id}-${segIndex}` ? 'text-primary' : loadingTtsId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}>{loadingTtsId === `${msg.id}-${segIndex}` ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <SpeakerWaveIcon className="w-4 h-4" />}</button>
                                                                     <button onClick={() => handleDownload(segText, `${msg.id}-${segIndex}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
-                                                                    <button onClick={() => handleShare(segments.join('\n\n'), currentAiConfig?.name, messages[index - 1]?.text)} title={language === 'vi' ? 'Chia sẻ lên cộng đồng' : 'Share to community'} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><ShareIcon className="w-5 h-5" /></button>
+                                                                    <button onClick={() => handleShare(segments.join('\n\n'), currentAiConfig?.name, messages[index - 1]?.text)} title={language === 'vi' ? 'Chia sẻ lên cộng đồng' : 'Share to community'} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><ShareIcon className="w-4 h-4" /></button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1506,31 +1671,57 @@ export const PracticeSpacePage: React.FC<{
                                                             }
                                                         `}</style>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px 12px', borderBottom: '1px solid var(--color-border-color)', position: 'sticky', top: 0, background: 'var(--color-background-panel)', zIndex: 1 }}>
-                                                            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif" }}>Thông báo</span>
-                                                            <button onClick={() => setShowNotifications(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>Đánh dấu đã đọc</button>
+                                                            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif" }}>{language === 'en' ? 'Notifications' : 'Thông báo'}</span>
+                                                            <button onClick={() => setShowNotifications(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>{language === 'en' ? 'Close' : 'Đóng'}</button>
                                                         </div>
                                                         {notifLoading ? (
-                                                            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-light)', fontSize: 13 }}>Đang tải...</div>
+                                                            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-light)', fontSize: 13 }}>{language === 'en' ? 'Loading...' : 'Đang tải...'}</div>
                                                         ) : notifications.length === 0 ? (
-                                                            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-light)', fontSize: 13 }}>Không có thông báo nào.</div>
+                                                            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-light)', fontSize: 13 }}>{language === 'en' ? 'No notifications.' : 'Không có thông báo nào.'}</div>
                                                         ) : notifications.map((n, i) => {
                                                             const initials = (n.actorName || '?').charAt(0);
                                                             const timeStr = n.createdAt
-                                                                ? (() => { const d = Math.floor((Date.now() - new Date(n.createdAt).getTime()) / 86400000); return d === 0 ? 'Hôm nay' : `${d} ngày trước`; })()
+                                                                ? (() => { const ms = Date.now() - new Date(n.createdAt).getTime(); const m = Math.floor(ms / 60000); if (m < 1) return language === 'en' ? 'Just now' : 'Vừa xong'; if (m < 60) return `${m}${language === 'en' ? 'm ago' : ' phút trước'}`; const h = Math.floor(m / 60); if (h < 24) return `${h}${language === 'en' ? 'h ago' : ' giờ trước'}`; const d = Math.floor(h / 24); return `${d}${language === 'en' ? 'd ago' : ' ngày trước'}`; })()
                                                                 : '';
-                                                            const actionText = n.type === 'like' ? 'đã thích bài viết của bạn'
-                                                                : n.type === 'comment' ? 'đã bình luận về bài viết của bạn'
-                                                                : n.type === 'follow' ? 'đã bắt đầu theo dõi bạn'
-                                                                : 'đã chia sẻ lại bài viết của bạn';
+                                                            const actionTexts: Record<string, Record<string, string>> = {
+                                                                like: { vi: 'đã thích bài viết của bạn', en: 'liked your post' },
+                                                                comment: { vi: 'đã bình luận về bài viết của bạn', en: 'commented on your post' },
+                                                                follow: { vi: 'đã bắt đầu theo dõi bạn', en: 'started following you' },
+                                                                mention: { vi: 'đã nhắc đến bạn', en: 'mentioned you' },
+                                                                new_post: { vi: 'đã đăng bài mới', en: 'posted something new' },
+                                                            };
+                                                            const actionText = actionTexts[n.type]?.[language] || actionTexts[n.type]?.vi || '';
                                                             const iconEl = n.type === 'like'
                                                                 ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                                                                 : n.type === 'comment'
                                                                 ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                                                 : n.type === 'follow'
                                                                 ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-main)" strokeWidth="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-                                                                : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.8" strokeLinecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+                                                                : n.type === 'mention'
+                                                                ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b4513" strokeWidth="1.8"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0V12a10 10 0 1 0-3.92 7.94"/></svg>
+                                                                : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#45bd62" strokeWidth="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
                                                             return (
-                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--color-border-color)' }}>
+                                                                <div key={i}
+                                                                    onClick={() => {
+                                                                        if (n.type === 'follow') {
+                                                                            // Follow → open user profile
+                                                                            if (n.actorUserId) {
+                                                                                openUserProfile(n.actorUserId, n.actorName, n.actorAvatarUrl);
+                                                                            }
+                                                                        } else if (n.postId) {
+                                                                            // like, comment, mention, new_post → switch to feed tab, highlight post
+                                                                            setViewingUser(null);
+                                                                            setCommunityTabState('feed');
+                                                                            setHighlightPostId(null);
+                                                                            // Use setTimeout to ensure state resets before setting new value
+                                                                            setTimeout(() => setHighlightPostId(n.postId), 50);
+                                                                        } else if (n.actorUserId) {
+                                                                            openUserProfile(n.actorUserId, n.actorName, n.actorAvatarUrl);
+                                                                        }
+                                                                        setShowNotifications(false);
+                                                                    }}
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--color-border-color)', background: n.isRead ? 'transparent' : 'rgba(139,69,19,0.04)', cursor: 'pointer' }}
+                                                                >
                                                                     {n.actorAvatarUrl
                                                                         ? <img src={n.actorAvatarUrl} alt={n.actorName} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid var(--color-border-color)' }} />
                                                                         : <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#7c3d3d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 17, flexShrink: 0 }}>{initials}</div>
@@ -1543,7 +1734,7 @@ export const PracticeSpacePage: React.FC<{
                                                                     </div>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                                                         {iconEl}
-                                                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48' }} />
+                                                                        {!n.isRead && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48' }} />}
                                                                     </div>
                                                                 </div>
                                                             );
@@ -1630,7 +1821,7 @@ export const PracticeSpacePage: React.FC<{
                                                         </div>
                                                     ) : communityTab === 'home' && user ? (
                                                         /* ── Personal profile page ── */
-                                                        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 8px' }}>
+                                                        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 12px' }}>
                                                             {/* Profile card */}
                                                             <div style={{ background: 'var(--color-background-panel)', borderRadius: 14, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.1)', border: '1px solid var(--color-border-color)' }}>
 
@@ -1763,27 +1954,50 @@ export const PracticeSpacePage: React.FC<{
                                                             {/* ── Home sub-tabs ── */}
                                                             {currentSpace?.id && (
                                                                 <>
-                                                                    {/* Tab switcher */}
-                                                                    <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--color-border-color)', marginBottom: 16 }}>
+                                                                    {/* Tab switcher — pill style */}
+                                                                    <div style={{
+                                                                        display: 'flex',
+                                                                        marginBottom: 16,
+                                                                        background: 'rgba(185,148,90,0.18)',
+                                                                        borderRadius: 999,
+                                                                        padding: '3px',
+                                                                        gap: 0,
+                                                                        overflowX: 'auto',
+                                                                        scrollbarWidth: 'none',
+                                                                        WebkitOverflowScrolling: 'touch',
+                                                                    }}>
                                                                         {[
                                                                             { key: 'posts', labelVi: 'Bài viết', labelEn: 'Posts' },
-                                                                            { key: 'photos', labelVi: 'Thư viện ảnh', labelEn: 'Photo Library' },
-                                                                        ].map(tab => (
+                                                                            { key: 'photos', labelVi: 'Ảnh', labelEn: 'Photos' },
+                                                                            { key: 'gatha', labelVi: 'Kệ', labelEn: 'Gatha' },
+                                                                            { key: 'audio', labelVi: 'Pháp thoại', labelEn: 'Audio' },
+                                                                            { key: 'saved', labelVi: 'Đã lưu', labelEn: 'Saved' },
+                                                                        ].map(tab => {
+                                                                            const isActive = myHomeTab === tab.key;
+                                                                            return (
                                                                             <button
                                                                                 key={tab.key}
-                                                                                onClick={() => setMyHomeTab(tab.key as 'posts' | 'photos')}
+                                                                                onClick={() => setMyHomeTab(tab.key as 'posts' | 'photos' | 'saved' | 'gatha' | 'audio')}
                                                                                 style={{
-                                                                                    padding: '8px 18px', border: 'none', background: 'none',
-                                                                                    fontWeight: myHomeTab === tab.key ? 700 : 500,
-                                                                                    fontSize: 13, cursor: 'pointer',
-                                                                                    color: myHomeTab === tab.key ? 'var(--color-primary)' : 'var(--color-text-light)',
-                                                                                    borderBottom: myHomeTab === tab.key ? '2px solid var(--color-primary)' : '2px solid transparent',
-                                                                                    marginBottom: -2, transition: 'all 0.15s',
+                                                                                    flex: '1 0 auto',
+                                                                                    padding: '7px 10px',
+                                                                                    border: 'none',
+                                                                                    borderRadius: 999,
+                                                                                    background: isActive ? '#ffffff' : 'transparent',
+                                                                                    boxShadow: isActive ? '0 1px 6px rgba(0,0,0,0.13)' : 'none',
+                                                                                    fontWeight: isActive ? 600 : 400,
+                                                                                    fontSize: 13,
+                                                                                    cursor: 'pointer',
+                                                                                    color: isActive ? '#111111' : '#a07850',
+                                                                                    transition: 'background 0.18s, box-shadow 0.18s, color 0.18s',
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    letterSpacing: 0,
                                                                                 }}
                                                                             >
                                                                                 {language === 'en' ? tab.labelEn : tab.labelVi}
                                                                             </button>
-                                                                        ))}
+                                                                            );
+                                                                        })}
                                                                     </div>
 
                                                                     {/* Posts tab */}
@@ -1810,6 +2024,47 @@ export const PracticeSpacePage: React.FC<{
                                                                             language={language}
                                                                         />
                                                                     )}
+
+                                                                    {/* Gatha tab */}
+                                                                    {myHomeTab === 'gatha' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+                                                                            <span style={{ fontSize: 36 }}>🪷</span>
+                                                                            <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif", margin: 0 }}>
+                                                                                {language === 'vi' ? 'Kệ sáng tác' : 'Gatha'}
+                                                                            </p>
+                                                                            <p style={{ fontSize: 13, color: 'var(--color-text-light)', margin: 0, textAlign: 'center', lineHeight: 1.6 }}>
+                                                                                {language === 'vi' ? 'Tính năng đang phát triển. Bạn sẽ sớm có thể chia sẻ những bài kệ, thơ thiền và cảm ngộ của mình.' : 'Feature coming soon. You will be able to share your gathas, meditation poems and spiritual insights.'}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Saved/Bookmarked tab */}
+                                                                    {myHomeTab === 'saved' && currentSpace?.id && (
+                                                                        <SocialFeed
+                                                                            spaceId={currentSpace.id as number}
+                                                                            currentUser={user}
+                                                                            showSavedOnly={true}
+                                                                            onUserClick={(uid, uname, uavatar) => {
+                                                                                if (typeof user?.id === 'number' && uid === user.id) return;
+                                                                                openUserProfile(uid, uname, uavatar);
+                                                                            }}
+                                                                            language={language}
+                                                                        />
+                                                                    )}
+
+
+                                                                    {/* Audio tab */}
+                                                                    {myHomeTab === 'audio' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+                                                                            <span style={{ fontSize: 36 }}>🎵</span>
+                                                                            <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-main)', fontFamily: "'EB Garamond', serif", margin: 0 }}>
+                                                                                {language === 'vi' ? 'Pháp thoại & Nhạc ngộ đạo' : 'Dharma Talks & Awakening Music'}
+                                                                            </p>
+                                                                            <p style={{ fontSize: 13, color: 'var(--color-text-light)', margin: 0, textAlign: 'center', lineHeight: 1.6 }}>
+                                                                                {language === 'vi' ? 'Tính năng đang phát triển. Bạn sẽ sớm có thể chia sẻ pháp thoại và nhạc ngộ đạo tự sáng tác.' : 'Feature coming soon. You will be able to share your own dharma talks and original awakening music.'}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
                                                                 </>
                                                             )}
                                                         </div>
@@ -1821,6 +2076,7 @@ export const PracticeSpacePage: React.FC<{
                                                                 currentUser={user}
                                                                 filterUserId={null}
                                                                 focusTrigger={feedSearchTrigger}
+                                                                highlightPostId={highlightPostId}
                                                                 onUserClick={(uid, uname, uavatar) => {
                                                                     if (typeof user?.id === 'number' && uid === user.id) return;
                                                                     openUserProfile(uid, uname, uavatar);
@@ -1856,6 +2112,7 @@ export const PracticeSpacePage: React.FC<{
                     }}
                     onSaveSession={handleVoiceSessionSave}
                     onClose={() => setIsVoiceChatOpen(false)}
+                    ownerVoiceConfig={ownerVoiceConfig}
                 />
             )}
 
@@ -2047,3 +2304,4 @@ export const PracticeSpacePage: React.FC<{
         </div>
     );
 };
+

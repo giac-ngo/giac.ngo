@@ -21,9 +21,6 @@ import {
   XCircle,
   Loader2,
   ExternalLink,
-  Users,
-  DollarSign,
-  Activity,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,7 +62,7 @@ export default function AdminTempleApis() {
   });
 
   // Fetch temple APIs
-  const { data: apis = [], isLoading, refetch } = useQuery<TempleApi[]>({
+  const { data: apis = [], isLoading } = useQuery<TempleApi[]>({
     queryKey: ["admin-temple-apis"],
     queryFn: async () => {
       const res = await fetch("/api/admin/temple-apis", { credentials: "include" });
@@ -76,7 +73,7 @@ export default function AdminTempleApis() {
   });
 
   // Fetch temple admins for dropdown
-  const { data: templeAdmins = [] } = useQuery<TempleUser[]>({
+  const { data: _templeAdmins = [] } = useQuery<TempleUser[]>({
     queryKey: ["admin-temple-users"],
     queryFn: async () => {
       const res = await fetch("/api/leads", { credentials: "include" });

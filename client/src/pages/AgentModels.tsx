@@ -1,10 +1,10 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CompactAgentCard } from "@/components/CompactAgentCard";
 import { AgentDialog } from "@/components/AgentDialog";
 import { Search, ChevronDown } from "lucide-react";
-import { buddhistAgents, vehicleInfo, type BuddhistAgent, type BuddhistVehicle } from "@/shared/buddhistAgents";
+import { buddhistAgents, type BuddhistAgent, type BuddhistVehicle } from "@/shared/buddhistAgents";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { docsTranslations } from "@/translations/docs";
 import { useDocumentTitle } from "@/hooks/use-document-title";
@@ -49,10 +49,10 @@ export default function AgentModels() {
   };
 
   const vehicleOptions: Array<{ value: BuddhistVehicle, label: string }> = [
-    { value: "tiểu-thừa", label: t.filters.vehicles.tieu },
-    { value: "trung-thừa", label: t.filters.vehicles.trung },
-    { value: "đại-thừa", label: t.filters.vehicles.dai },
-    { value: "phật-thừa", label: t.filters.vehicles.phat }
+    { value: "hinayana", label: t.filters.vehicles.tieu },
+    { value: "zen", label: t.filters.vehicles.trung },
+    { value: "mahayana", label: t.filters.vehicles.dai },
+    { value: "vajrayana", label: t.filters.vehicles.phat }
   ];
 
   return (

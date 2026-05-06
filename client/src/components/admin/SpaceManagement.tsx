@@ -411,10 +411,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 const newSpace = await apiService.createSpace(createPayload);
                 setSpaces(prev => [newSpace, ...prev]);
             } else {
-                const updatedSpace = await apiService.updateSpace({
-                    id: editingSpace.id as number,
-                    spaceData: finalPayload
-                });
+                const updatedSpace = await apiService.updateSpace(editingSpace.id as number, finalPayload);
                 setSpaces(prev => prev.map(s => s.id === updatedSpace.id ? updatedSpace : s));
             }
 

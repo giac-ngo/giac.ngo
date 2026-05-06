@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AIConfig, Conversation, User, SystemConfig, ViewMode, LibraryFilters, Space } from '../types';
 import { apiService } from '../services/apiService';
 import { useToast } from './ToastProvider';
-import { LanguageIcon, CryptoIcon, LogoutIcon, PencilIcon, TrashIcon, HelmetIcon, LoginIcon, SpinnerIcon } from './Icons';
+import { LanguageIcon, LogoutIcon, PencilIcon, TrashIcon, HelmetIcon, LoginIcon, SpinnerIcon } from './Icons';
 import { LibraryMenu } from './LibraryMenu';
 import UserAvatar from './UserAvatar';
 
@@ -456,7 +456,9 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                 </div>
                                 <div className="user-info-actions">
                                     <button onClick={onOpenMeritPurchase} className="btn-cta-new">
-                                        <img src="/themes/giacngo/nhang.png" alt="Donation" style={{width: 16, height: 16, objectFit: 'contain'}} /> {t.donation}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink: 0}}>
+                                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                                        </svg> {t.donation}
                                     </button>
                                     <div className="w-full flex items-center justify-between gap-2">
                                         <div className="user-menu-language-switcher !p-0" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

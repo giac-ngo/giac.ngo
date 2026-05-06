@@ -3,7 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AIConfig } from '../types';
 // FIX: Imported missing MenuIcon and XIcon components.
-import { ChevronDownIcon, ChevronLeftIcon, MenuIcon, XIcon, ListIcon } from './Icons';
+import { ChevronDownIcon, ChevronLeftIcon, ListIcon } from './Icons';
 import { ViewMode } from '../types';
 
 
@@ -43,8 +43,6 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
     t,
     currentAiConfig,
     aiConfigs,
-    isMobileMenuOpen,
-    setIsMobileMenuOpen,
     isAiSelectorOpen,
     setIsAiSelectorOpen,
     aiSelectorRef,
@@ -101,9 +99,14 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
         <header className="chat-main-header">
             <div className="header-content-wrapper" style={{ position: 'relative' }}>
                 <div className="header-left-group">
-                    {false && (
-                        <button className="mobile-menu-toggle" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-                            {isMobileMenuOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
+                    {/* Mobile menu button — same style as Library "Mục lục" button */}
+                    {isSidebarCollapsed && viewMode !== 'library' && viewMode !== 'community' && (
+                        <button
+                            onClick={() => setIsSidebarCollapsed(false)}
+                            className="mobile-menu-toggle flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark transition-colors"
+                            title="Menu"
+                        >
+                            <ListIcon className="w-5 h-5" />
                         </button>
                     )}
                     <button onClick={handleBack} className="back-link-desktop flex items-center gap-3 text-text-light hover:text-text-main">

@@ -50,6 +50,11 @@ export interface AIConfig {
   views?: number;
   likes?: number;
   rating?: number;
+  ttsProvider?: string;
+  ttsModel?: string;
+  ttsVoice?: string;
+  ttsStyle?: string;
+  ttsTemperature?: number | string;
   maxOutputTokens?: number;
   thinkingBudget?: number;
   isTrialAllowed: boolean;
@@ -322,6 +327,29 @@ export interface Tag {
     name: string;
 }
 
+export interface Billing {
+    id: number;
+    userId: number;
+    merits: number;
+    type: string;
+    timestamp: string;
+    details?: any;
+}
+
+export interface SocialNotification {
+    id: number;
+    type: 'like' | 'comment' | 'mention' | 'new_post' | 'follow';
+    postId?: number | null;
+    commentId?: number | null;
+    isRead: boolean;
+    createdAt: string;
+    actorUserId: number;
+    actorName: string;
+    actorAvatarUrl?: string | null;
+}
+
+export type Meditation = MeditationSession;
+
 export interface QuotedPost {
   id: number;
   userId?: number | null;
@@ -331,6 +359,8 @@ export interface QuotedPost {
   imageUrls: string[];
   createdAt: string;
   metadata?: any;
+  likesCount?: number;
+  isLikedByMe?: boolean;
 }
 
 export interface SocialPost {
@@ -346,6 +376,9 @@ export interface SocialPost {
   retweetsCount?: number;
   isLikedByMe?: boolean;
   isFollowedByMe?: boolean;
+  isPinned?: boolean;
+  isBookmarkedByMe?: boolean;
+  spaceSlug?: string;
   createdAt: string;
   updatedAt: string;
   quotedPost?: QuotedPost | null;
@@ -354,6 +387,11 @@ export interface SocialPost {
     aiName: string;
     userQuestion: string;
     aiResponse: string;
+  } | {
+    type: 'library_share';
+    docTitle: string;
+    docAuthor: string;
+    docContent: string;
   } | null;
 }
 
@@ -365,7 +403,10 @@ export interface SocialComment {
   userAvatarUrl?: string | null;
   content: string;
   parentCommentId?: number | null;
+  imageUrl?: string | null;
   createdAt: string;
+  likesCount?: number;
+  isLikedByMe?: boolean;
 }
 
 export interface Comment {

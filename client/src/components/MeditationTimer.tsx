@@ -49,19 +49,17 @@ export const MeditationTimer: React.FC<{ language?: 'vi' | 'en', spaceId?: numbe
             setLoading(true);
             apiService.getMeditationBySpaceId(spaceId)
                 .then(data => {
-                    setMeditationData(data);
-                    if (data) {
-                        setTimeLeft(data.duration);
+                    const session = Array.isArray(data) ? data[0] : data;
+                    setMeditationData(session);
+                    if (session) {
+                        setTimeLeft(session.duration);
                         // Initialize audio
-                        const url = language === 'en' && data.audioUrlEn ? data.audioUrlEn : data.audioUrl;
+                        const url = language === 'en' && session.audioUrlEn ? session.audioUrlEn : session.audioUrl;
                         if (audioRef.current) {
                             audioRef.current.pause();
                             audioRef.current = null;
                         }
                         audioRef.current = new Audio(url);
-                        audioRef.current.loop = true; // Optional: loop specifically the background music if it was separate, but here it's one file. Assuming the file is long enough or we loop it? 
-                        // Actually, usually a guided meditation is played once. If it's shorter than duration, it stops. If longer, it stops when timer stops.
-                        // Let's assume play once.
                         audioRef.current.loop = false;
                     }
                 })
