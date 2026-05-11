@@ -1,0 +1,168 @@
+# Danh sách Toàn Bộ API (API Endpoints & Features)
+
+Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint API đang hoạt động trong toàn bộ hệ thống Giác Ngộ VN.
+
+### 1. Phân hệ User & Authentication (`/api/auth`, `/api/users`)
+* **Auth**:
+  - `POST /api/auth/login`: Đăng nhập (hỗ trợ context spaceSlug).
+  - `POST /api/auth/register`: Đăng ký tài khoản (Tích hợp Cross-space registration).
+  - `GET /api/auth/me`: Lấy profile của người dùng hiện tại (bằng JWT).
+  - `POST /api/auth/forgot-password`: Quên mật khẩu.
+  - `POST /api/auth/reset-password`: Đổi mật khẩu qua token.
+  - `PUT /api/auth/profile`: Cập nhật thông tin profile cá nhân.
+* **Users**:
+  - `GET /api/users`: Lấy danh sách toàn bộ người dùng (phân trang/tìm kiếm).
+  - `POST /api/users`: Admin tạo người dùng mới.
+  - `PUT /api/users/:id`: Chỉnh sửa thông tin user (quản trị).
+  - `DELETE /api/users/:id`: Xoá user.
+  - `POST /api/users/:id/regenerate-token`: Tạo lại ApiToken cho tài khoản.
+  - `POST /api/users/change-password`: Đổi mật khẩu.
+  - `GET /api/users/:id/spaces`: Lấy danh sách các không gian (Space) mà user đã tham gia.
+
+### 2. Phân hệ Đa Không Gian - Multi-Tenant Spaces (`/api/spaces`, `/api/space-types`)
+* **Spaces**:
+  - `GET /api/spaces`: Lấy danh sách tất cả Spaces.
+  - `GET /api/spaces/:id`: Chi tiết một Space theo ID.
+  - `GET /api/spaces/slug/:slug`: Chi tiết một Space theo Slug (URL).
+  - `GET /api/spaces/domain/:domain`: Lấy thông vị Space thông qua Custom Domain.
+  - `GET /api/spaces/managed/:userId`: Lấy các Space do user làm chủ / quản lý.
+  - `GET /api/spaces/owners`: Lấy danh sách các User là chủ Space.
+  - `GET /api/spaces/owner-data`: Lấy tổng hợp dữ liệu riêng cho Space Owner.
+  - `POST /api/spaces`: Tạo Không gian mới (Chỉ Admin).
+  - `PUT /api/spaces/:id`: Cập nhật cấu hình Không gian (Admin/Space Owner).
+  - `DELETE /api/spaces/:id`: Xoá Không gian.
+  - `POST /api/spaces/:id/view`: Tăng lượt xem (increment views).
+  - `POST /api/spaces/:id/like`: Thả tim/thích một không gian.
+* **Space Types** (Danh mục Không gian: Phật giáo, Công ty,...):
+  - Lệnh `GET`, `POST`, `PUT`, `DELETE` tương ứng tại endpoint `/api/space-types`.
+* **Space Members**:
+  - `GET /api/spaces/:id/members`: Danh sách thành viên trong Space.
+  - `POST /api/spaces/:id/join`: Người dùng xin gia nhập Space.
+  - `POST /api/spaces/:id/members`: Thêm thành viên vào Space.
+  - `PUT /api/spaces/:id/members/:userId/role`: Đổi Role cho thành viên.
+  - `DELETE /api/spaces/:id/members/:userId`: Kick thành viên.
+
+### 3. Phân hệ Phân Quyền (`/api/roles`)
+  - `GET /api/roles`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý danh sách vai trò (Roles).
+  - `GET /api/roles/space/:spaceId`: Lấy danh sách role nội bộ áp dụng trong một Space cụ thể.
+
+### 4. Phân hệ Trang Không Gian Tuỳ Biến (`/api/space-pages`)
+  - `GET /api/space-pages/space/:spaceId`, `GET /api/space-pages/:id`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý các trang đích tuỳ chỉnh (Landing Pages) cho từng Space.
+  - `POST /api/space-pages/1/contact`: Endpoint xử lý form liên hệ.
+
+### 5. Phân hệ AI Config & Voice (`/api/ai-configs`, `/api/system`)
+* **AI Configuration**:
+  - `POST /api/ai-configs`: Lấy cấu hình AI theo user.
+  - `GET /api/ai-configs/space/:spaceId`: Lấy tất cả cấu hình AI thuộc 1 Space.
+  - `POST /api/ai-configs/manageable`: AI mà người dùng được quản lý.
+  - `POST /api/ai-configs/create`, `PUT /:id`, `DELETE /:id`: CRUD AI Config.
+  - `GET /api/ai-configs/:id/access` & `POST /api/ai-configs/:id/access`: Quản lý whitelist các Email được dùng con AI này.
+  - `PUT /api/ai-configs/:id/active`: Bật/tắt AI.
+  - `POST /api/ai-configs/:id/purchase` & `POST /api/ai-configs/:id/claim`: Chức năng mua / nhận miễn phí Bot AI.
+* **Tích Hợp Voice & TTS**:
+  - `GET /api/ai-configs/:id/voice-key`: Lấy key config (Giọng đọc đặc thù, nhiệt độ, kiểu kể chuyện...).
+  - `POST /api/system/tts/generate`: API tạo giọng nói từ Text (Gemini/OpenAI TTS) - Áp dụng Rate Limit 50 req/giờ.
+  - `POST /api/system/translate`: Dịch thuật văn bản.
+  - `GET /api/system/models/:provider`: Lấy danh sách mô hình (GPT, Gemini, Vertex, Grok).
+
+### 6. Phân hệ RAG, Tài liệu & Kho Văn Bản (`/api/documents`, `/api/library`)
+* **Thư viện & Bộ lọc**:
+  - `GET /api/library/documents`: Lấy danh sách tài liệu công khai trong Thư viện Space.
+  - `GET /api/library/topics`, `GET /api/library/filters`: Lấy hệ thống phân loại tài liệu (Tag, Topic, Author).
+* **Tài liệu (Documents)**:
+  - `GET /api/documents`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý tài liệu RAG.
+  - `GET /api/documents/recommended`: Gợi ý tài liệu.
+  - `POST /api/documents/:id/like`: Thả tim tài liệu.
+  - `POST /api/documents/extract-text`: Dùng AI bóc tách nội dung Text từ File đính kèm.
+* **Liên kết RAG (Knowledge Base)**:
+  - `POST /api/ai-configs/:aiId/documents`: Nạp tài liệu vào Context Window của AI.
+  - `DELETE /api/ai-configs/:aiId/documents/:docId`: Huỷ nạp tài liệu.
+* **Danh mục bổ trợ (Type, Topic, Author)**:
+  - Cung cấp toàn bộ các lệnh CRUD ở `/api/documents/authors`, `/api/documents/types`, `/api/documents/topics`, và cấu hình UI `/api/documents/config`.
+
+### 7. Phân hệ Huấn Luyện AI (Training Data & Koii Vector Sync)
+* **Training Data**:
+  - `GET /api/ai-configs/:id/training-data`: Lấy dữ liệu huấn luyện (QA/Tài liệu) của Bot.
+  - `POST /api/ai-configs/:id/training-data`: Thêm bộ QA hoặc upload file huấn luyện.
+  - `DELETE /api/training-data/:id` & `DELETE /api/training-data/qa`: Xoá dữ liệu.
+  - `POST /api/training-data/:id/summarize`: Tóm tắt tài liệu nạp vào bằng AI.
+  - `GET /api/training-data/qa/all` & `POST /api/training-data/qa/export`: Export QA để fine-tune (JSONL).
+* **Koii & Weaviate**:
+  - `POST /api/koii/submit-task`: Gửi lệnh đồng bộ Vector embeddings vào Weaviate.
+  - `GET /api/koii/progress/:aiId` & `GET /api/koii/task-status/:aiId`: Check tiến trình Vectorization (Realtime trả về frontend).
+
+### 8. Phân hệ Hội Thoại (Chat) & Streaming (`/api/conversations`)
+* **Core Chat**:
+  - `GET /api/conversations` (Lọc theo user/aiConfig, phân trang) & `GET /api/conversations/all`.
+  - `GET /api/conversations/:id`, `POST /`, `DELETE /:id`: CRUD log chat.
+  - `PUT /api/conversations/:id/rename`: Đổi tên session chat.
+  - `POST /api/conversations/chat/stream`: **Endpoint cực kì quan trọng** dùng kỹ thuật HTTP SSE (Server-Sent Events) để trả về luồng AI sinh văn bản từng chữ một (kết hợp Gemini Live / Voice Chat), hỗ trợ Rate Limit 100 req/15 phút.
+  - `POST /api/conversations/:conversationId/messages/:messageId/feedback`: Like/Dislike (Feedback) phản hồi của AI.
+* **Training Utils**:
+  - `PUT /api/conversations/:id/train-status`: Mark là đã train.
+  - `POST /api/ai-configs/:id/latest-conversation`, `GET /api/ai-configs/:id/trained-conversations`, `POST /api/ai-configs/:id/test-conversations`: Các API lấy log chat dành cho UI test bot.
+
+### 9. Phân hệ Cộng Đồng & Bảng Tin - Social (`/api/space-social`, `/api/comments`)
+* **Social Feed**:
+  - `GET /api/space-social/:spaceId/social`: Lấy News Feed của Space.
+  - `POST`, `PUT /:postId`, `DELETE /:postId`: Đăng status/sửa/xoá.
+  - `POST /api/space-social/:spaceId/social/:postId/like`: Like status.
+  - `GET /api/space-social/:spaceId/social/:postId/likes`: Xem ai đã like.
+* **Comments**:
+  - `GET`, `POST`, `DELETE /:commentId` tại `/api/space-social/:spaceId/social/:postId/comments`.
+  - `POST /.../comments/:commentId/like`: Like một bình luận.
+* **Social Interactions**:
+  - `POST /api/space-social/:spaceId/social/follow/:userId`: Theo dõi người dùng khác.
+  - `GET /api/space-social/:spaceId/social/users/:userId/stats`: Số người follow/following.
+  - `POST /api/space-social/:spaceId/social/:postId/bookmark`: Lưu bài viết (Bookmark).
+  - `GET /api/space-social/:spaceId/social/saved`: Xem bài đã lưu.
+  - `POST /api/space-social/:spaceId/social/:postId/pin`: Ghim bài lên đầu Space.
+* **Notifications (Thông báo)**:
+  - `GET /api/space-social/:spaceId/social/notifications`: Lấy danh sách thông báo.
+  - `POST /api/space-social/:spaceId/social/notifications/read`: Đánh dấu đã đọc.
+  - `GET /api/space-social/:spaceId/social/notifications/count`: Số thông báo mới.
+
+### 10. Phân hệ Pháp Thoại & Thiền (`/api/dharma-talks`, `/api/meditation`)
+* **Dharma Talks (Pháp Thoại)**:
+  - `GET /api/dharma-talks` & `GET /api/spaces/:id/dharma-talks`: Lấy danh sách bài giảng.
+  - `POST`, `PUT /:id`, `DELETE /:id`: Quản lý nội dung.
+  - `POST /:id/view` & `POST /:id/like`: Tăng view và like.
+* **Meditation (Thiền)**:
+  - `GET /api/meditation/space/:spaceId` & `GET /api/meditation`: Theo dõi lịch sử thực hành thiền.
+  - `POST`, `PUT /:id`, `DELETE /:id`: Ghi nhận dữ liệu thời gian thiền (Timer).
+
+### 11. Phân hệ CMS N8N & Webhook Đăng Bài (`/api/cms`)
+* **Articles (Bài viết)**:
+  - `GET /api/cms/:spaceId/articles`, `GET /:id`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý bài đăng đa kênh.
+  - `DELETE /api/cms/:spaceId/articles/:id/permanent`: Xoá vĩnh viễn (Hard delete).
+  - `POST /api/cms/:spaceId/articles/:id/publish`: Endpoint kích hoạt Webhook N8N đăng lên nền tảng chỉ định.
+  - `POST /api/cms/:spaceId/articles/import-document`: Import bài từ Kho Văn Bản sang bài đăng CMS.
+  - `POST /api/cms/:spaceId/articles/:id/share-to-feed`: Share bài viết CMS vào Bảng tin Cộng Đồng nội bộ của Space.
+* **Social Connections**:
+  - `GET /api/cms/:spaceId/connections`, `DELETE /:id`: Quản lý Token nối tới mạng xã hội.
+  - `GET /api/cms/:spaceId/oauth/:platform/url`: Nhận URL uỷ quyền (OAuth).
+  - `GET /api/cms/:spaceId/connections/facebook/pages` & `PUT /.../facebook`: Swap Page Access Token của Fanpage hoặc Profile Cá Nhân.
+  - Cấu hình quản lý `fb-albums`.
+
+### 12. Phân hệ Thanh Toán, Cúng Dường & Lịch Sử Giao Dịch (`/api/billing`, `/api/payos`)
+* **Billing (Trực tiếp bằng thẻ via Stripe)**:
+  - `GET`, `POST`, `PUT`, `DELETE /api/billing/pricing-plans`: Quản lý các gói thanh toán định kỳ.
+  - `GET /api/billing/transactions`: Lịch sử giao dịch (có thể lọc qua `user/:id` hoặc `spaces/:id`).
+  - `GET /api/billing/stats/space-earnings`: Thống kê doanh thu 30 ngày.
+  - `POST /api/billing/stripe/create-checkout-session` & `POST /verify-checkout-session`: Luồng charge tiền tự động.
+  - Tích hợp **Stripe Connect** (`/api/billing/stripe/connect/account`, `account-link`, `login-link`, `disconnect`) cho phép Space Owner có tài khoản nhận tiền độc lập.
+* **PayOS (Chuyển khoản QR tại Việt Nam)**:
+  - `POST /api/payos/create-donation-link` & `POST /api/payos/create-payment-link`: Khởi tạo lệnh cúng dường / thanh toán qua App Ngân Hàng (Mã VietQR).
+  - `GET /api/payos/verify-order`: Xác thực trạng thái giao dịch (Webhook).
+* **Rút tiền (Withdrawals)**:
+  - `GET`, `POST`, `PUT /process` tại `/api/billing/admin/withdrawals`: Xử lý lệnh yêu cầu rút tiền của chủ Space.
+
+### 13. Phân hệ Hệ Thống & Lưu trữ Media (`/api/system`, `/api/media`)
+* **Dashboard & Cấu hình máy chủ**:
+  - `GET /api/system/dashboard/stats`: Số liệu quản trị (Người dùng, Space, Tin nhắn AI).
+  - `GET /api/system/config`, `PUT /api/system/config`: Thông số core platform.
+* **Media / Uploads**:
+  - `POST /api/system/upload`: Tải file tổng hợp.
+  - `GET /api/media/:spaceId`, `POST /upload`, `DELETE`: Quản lý kho Media riêng cho từng Space.
+* **Cúng dường tại Space API (Bypass Billing)**:
+  - `POST /api/spaces/:id/qr-donation` & `POST /api/spaces/:id/offer`: Cơ chế ghi nhận bằng tay luồng cúng dường QR, có tích hợp cúng dường ẩn danh (Guest).

@@ -1,0 +1,9 @@
+# Daily Logs (Nhật Ký Làm Việc Hàng Ngày)
+
+*Thư mục này ghi chú lại những công việc (tasks), quyết định kỹ thuật (decisions) và thay đổi đã thực hiện trong ngày.*
+
+---
+## [Ngày/Tháng/Năm]
+- **Hoàn thành**: ...
+- **Quyết định**: ...
+- **Vấn đề gặp phải**: ...
