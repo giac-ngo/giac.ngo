@@ -79,6 +79,24 @@
 
 ---
 
+### 🔧 Sửa lỗi Ephemeral Token, Rate Limit Proxy & Cảnh báo Gemini SDK
+
+**Vấn đề**:
+1. **Lỗi `API Key not found` khi tạo Voice Token**: Tính năng tạo Ephemeral Token (`getAiVoiceKey`) bị lỗi do vẫn đang đọc API Key theo cấu trúc cũ (`owner.apiKeys`), trong khi thực tế bộ Key đã được chuyển sang cấp độ Không gian (`spaces.api_keys`).
+2. **Lỗi `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`**: Khi chạy trên môi trường thực tế đằng sau Nginx (Reverse Proxy), module `express-rate-limit` không đọc được IP thật của người dùng, dẫn đến việc gộp chung IP của tất cả khách truy cập thành 1 IP của Nginx, gây lỗi chặn Rate Limit sai diện rộng.
+3. **Cảnh báo `thoughtSignature` từ Gemini SDK**: Khi dùng các mô hình có tư duy (như Gemini 2.5 Flash Thinking), Google SDK liên tục nhả cảnh báo đỏ rác console nếu ứng dụng chỉ bóc tách `chunk.text` mà bỏ qua chuỗi tư duy của AI.
+
+**Giải pháp**:
+1. **Cập nhật luồng lấy API Key (`aiConfigController.ts`)**: Tái cấu trúc hàm tạo Token, tích hợp helper `getApiKeyForAi` để dò tìm API Key chuẩn xác theo cơ chế kế thừa: `Key của Space` ➡️ `Key của Owner` ➡️ `Key Hệ thống`.
+2. **Thiết lập Trust Proxy (`server/index.ts`)**: Thêm cấu hình `app.set('trust proxy', 1);` để Express tin tưởng và lấy đúng IP thật từ header `X-Forwarded-For` của Nginx truyền vào.
+3. **Tắt cảnh báo `thoughtSignature` (`geminiService.ts`)**: Viết lại vòng lặp đọc Stream Chat của Gemini. Thay vì gọi hàm `chunk.text` gây kích hoạt cảnh báo của SDK, hệ thống tự động duyệt mảng `chunk.candidates[0].content.parts` và ghép nội dung text thủ công, giúp dọn dẹp sạch sẽ Console Log.
+
+**Commit**: 
+- `fix: resolve voice key missing and suppress gemini thoughtSignature warning`
+- `fix: trust proxy for express-rate-limit behind nginx`
+
+---
+
 ### 🔐 Bảo mật: Sửa lỗ hổng lộ Gemini API Key
 
 **Vấn đề**: Endpoint `GET /api/ai-configs/:id/voice-key` trả raw Gemini API key cho client. Client (VoiceChat.tsx) dùng key trực tiếp trên browser để kết nối Gemini Live API → Google phát hiện key bị expose ở client-side → vô hiệu hóa key vĩnh viễn (lỗi 403 "API key was reported as leaked").

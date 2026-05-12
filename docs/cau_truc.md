@@ -210,6 +210,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `space_id = X` → Role do Space Owner tạo (chỉnh sửa được bởi Space Owner/Manager).
   - UNIQUE constraint: `(name, COALESCE(space_id, 0))` — cho phép trùng tên giữa các Space.
   - *Lưu ý Hiển thị*: Khi Root Admin (Global Admin) truy cập Quản lý Quyền từ ngoài Space, API chỉ trả về các Role hệ thống (`space_id IS NULL`) để tránh lỗi hiển thị trùng lặp (duplicate) các quyền cùng tên do nhiều Không gian khác nhau tạo ra.
+- **Rate Limit & Reverse Proxy (Nginx)**: Hệ thống sử dụng `express-rate-limit` để chống spam API (vd: Chat, gọi hàm TTS). Vì chạy thực tế đằng sau Nginx, Express được cấu hình `app.set('trust proxy', 1)` để nhận diện đúng IP thật của người dùng qua header `X-Forwarded-For`. Việc này ngăn việc Rate Limiter chặn nhầm IP của Nginx và cấm cửa tất cả người dùng hệ thống.
 
 ---
 
