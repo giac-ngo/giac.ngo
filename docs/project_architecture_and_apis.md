@@ -13,8 +13,8 @@ Hệ thống được thiết kế theo mô hình **Multi-Tenant**, trong đó m
 
 ### 2. Dữ liệu độc lập theo Space
 Hầu hết các tài nguyên trong hệ thống đều được gắn thẻ `space_id` để đảm bảo tính cô lập dữ liệu (Data Isolation):
-- **API Keys (AI Studio, ChatGPT, Grok)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI cần key, hệ thống tra theo thứ tự: `Space.apiKeys → Owner.apiKeys (fallback)`. Personal Access Token vẫn giữ ở user settings.
-- **Cài đặt Khách**: Giới hạn tin nhắn cho khách (`guest_message_limit`, `guest_daily_limit`) được cấu hình riêng trên từng Space.
+- **API Keys (AI Studio, ChatGPT)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI cần key, hệ thống tra theo thứ tự: `Space.apiKeys → Owner.apiKeys (fallback)`. Personal Access Token vẫn giữ ở user settings.
+- **Cài đặt Khách**: Giới hạn chat hàng ngày cho khách (`guest_daily_limit`). Khi đạt giới hạn, người dùng bắt buộc phải đăng nhập để tiếp tục. Không còn dùng nấc gợi ý đăng nhập (nudge) trung gian.
 - **Kho Văn Bản (Documents)**: Tài liệu của Space nào chỉ phục vụ RAG cho AI của Space đó.
 - **Cấu Hình AI (AiConfig)**: Các bot AI, Prompt, cấu hình Giọng nói (TTS) được setup riêng cho từng Space.
 - **Voice Live (Gemini Live)**: Sử dụng ephemeral token (ngắn hạn 30 phút, 1 lần dùng) thay vì trả raw API key cho client. Backend tạo token qua `authTokens.create()` rồi gửi cho frontend.
@@ -218,6 +218,7 @@ Hệ thống Frontend được xây dựng bằng **React + TypeScript + Vite**,
   - **Community (Bảng tin MXH)**: Nơi post bài, đăng ảnh, tương tác thả tim và bình luận nội bộ.
   - Tích hợp **Voice Chat (Gemini Live)**: Chức năng Live Stream bằng giọng nói `window.SpeechRecognition`.
 - **`AdminPage.tsx`**: Bảng điều khiển quản trị (Dashboard) cực lớn, quản lý AI Config, CMS, Users, Billing (Thanh toán/Rút tiền) dựa trên quyền `isGlobalAdmin` hoặc `Space Owner`.
+  - **SpaceManagement**: Giao diện được chia thành 2 tab (Thông tin chung & Cấu hình mở rộng). Đã ẩn tính năng xóa Space đối với các quản trị viên không phải là SuperAdmin. Đã gỡ bỏ cấu hình Grok API. Hỗ trợ chặn auto-fill trình duyệt trên các ô tìm kiếm.
 
 ### 3. Quản lý Trạng Thái & Giao diện (State & Theming)
 - **Theming (Giao diện động)**: Hệ thống sử dụng thuộc tính CSS `data-theme` được tiêm thẳng vào thẻ `<html>` thông qua `document.documentElement.setAttribute('data-theme', themeToApply)`. Việc này cho phép cấu hình màu sắc, Dark/Light mode khác nhau cho từng Space.

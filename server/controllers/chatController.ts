@@ -153,11 +153,7 @@ export const chatController = {
                     }
 
                     if (guestTurnCount !== undefined && guestTurnCount >= guestDailyLimit) {
-                        return onError(new Error("Bạn đã hết 20 lượt chat miễn phí hôm nay. Vui lòng đăng nhập để tiếp tục."));
-                    }
-
-                    if (guestTurnCount !== undefined && guestTurnCount >= guestRegisterThreshold) {
-                        return onError(new Error("GUEST_REGISTER_NUDGE: Để lưu lại duyên lành và hành trình vấn đáp, mong bạn hoan hỉ tạo một tài khoản."));
+                        return onError(new Error("Bạn đã hết lượt chat miễn phí hôm nay. Vui lòng đăng nhập để tiếp tục."));
                     }
 
                     if (aiConfig.isContactForAccess) {

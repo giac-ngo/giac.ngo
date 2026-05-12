@@ -324,6 +324,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
 
     // Editing State
     const [editingSpace, setEditingSpace] = useState<Partial<Space> | null>(null);
+    const [activeModalTab, setActiveModalTab] = useState<'info' | 'config'>('info');
     const [isSaving, setIsSaving] = useState(false);
     const [pagesSpaceId, setPagesSpaceId] = useState<number | null>(null);
     const [ownerSearch, setOwnerSearch] = useState('');
@@ -418,6 +419,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
             });
         }
         setIsModalOpen(true);
+        setActiveModalTab('info');
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -512,7 +514,15 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
             {/* Filters */}
             <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 bg-background-light p-4 rounded-lg border border-border-color flex-shrink-0">
                 <div className="relative">
-                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.filterSearch} className="w-full pl-9 pr-3 py-2 border rounded-md focus:ring-primary focus:border-primary bg-background-panel" />
+                    <input 
+                        type="text" 
+                        name="spaceSearch"
+                        autoComplete="off"
+                        value={searchQuery} 
+                        onChange={e => setSearchQuery(e.target.value)} 
+                        placeholder={t.filterSearch} 
+                        className="w-full pl-9 pr-3 py-2 border rounded-md focus:ring-primary focus:border-primary bg-background-panel" 
+                    />
                     <SearchIcon className="w-4 h-4 text-text-light absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
                 <select value={filterType} onChange={e => setFilterType(e.target.value)} className="w-full p-2 border rounded-md bg-background-panel">
@@ -577,7 +587,9 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                     <div className="flex justify-end gap-2">
 
                                         <button onClick={() => handleOpenModal(space)} className="p-1.5 text-text-light hover:text-primary hover:bg-primary-light rounded-md transition-colors"><PencilIcon className="w-4 h-4" /></button>
-                                        <button onClick={() => handleDelete(space)} className="p-1.5 text-text-light hover:text-accent-red hover:bg-red-50 rounded-md transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                        {isSuperAdmin && (
+                                            <button onClick={() => handleDelete(space)} className="p-1.5 text-text-light hover:text-accent-red hover:bg-red-50 rounded-md transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -643,9 +655,25 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                             <button onClick={() => setIsModalOpen(false)}><XIcon className="w-6 h-6 text-text-light hover:text-text-main" /></button>
                         </div>
 
+                        <div className="flex border-b border-border-color px-6 pt-4 gap-6 bg-background-light">
+                            <button
+                                onClick={() => setActiveModalTab('info')}
+                                className={`pb-3 font-bold transition-colors ${activeModalTab === 'info' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
+                            >
+                                Thông tin chung
+                            </button>
+                            <button
+                                onClick={() => setActiveModalTab('config')}
+                                className={`pb-3 font-bold transition-colors ${activeModalTab === 'config' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
+                            >
+                                Cấu hình mở rộng
+                            </button>
+                        </div>
+
                         <div className="flex-1 overflow-y-auto p-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Left Column: Image & Config */}
+                            {activeModalTab === 'info' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    {/* Left Column: Image & Config */}
                                 <div className="space-y-6">
                                     <div className="bg-background-light p-4 rounded-lg border border-border-color">
                                         <label className="block text-sm font-bold mb-2">{t.imageUrl}</label>
@@ -839,42 +867,6 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                         </div>
                                     </div>
 
-                                    {/* API Keys Group */}
-                                    <div className="bg-background-panel p-4 rounded-lg border border-border-color space-y-4">
-                                        <div>
-                                            <h3 className="font-bold border-b pb-2 mb-1 text-text-main">{t.groupApiKeys}</h3>
-                                            <p className="text-xs text-text-light mb-3">{t.apiKeysHint}</p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Google AI Studio (Gemini)</label>
-                                            <input type="password" name="apiKeys.gemini" value={editingSpace.apiKeys?.gemini || ''} onChange={handleInputChange} placeholder="AIzaSy..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">OpenAI (ChatGPT)</label>
-                                            <input type="password" name="apiKeys.gpt" value={editingSpace.apiKeys?.gpt || ''} onChange={handleInputChange} placeholder="sk-..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Grok (X.AI)</label>
-                                            <input type="password" name="apiKeys.grok" value={editingSpace.apiKeys?.grok || ''} onChange={handleInputChange} placeholder="xai-..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
-                                        </div>
-                                    </div>
-
-                                    {/* Guest Config Group */}
-                                    <div className="bg-background-panel p-4 rounded-lg border border-border-color space-y-4">
-                                        <div>
-                                            <h3 className="font-bold border-b pb-2 mb-1 text-text-main">{t.groupGuestConfig}</h3>
-                                            <p className="text-xs text-text-light mb-3">{t.guestConfigHint}</p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">{t.guestMessageLimit}</label>
-                                            <input type="number" name="guestMessageLimit" value={editingSpace.guestMessageLimit ?? 5} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">{t.guestDailyLimit}</label>
-                                            <input type="number" name="guestDailyLimit" value={editingSpace.guestDailyLimit ?? 20} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" />
-                                        </div>
-                                    </div>
-
                                 </div>
 
 
@@ -946,7 +938,44 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
 
                                 </div>
 
-                            </div>
+                                </div>
+                            )}
+
+                            {activeModalTab === 'config' && (
+                                <div className="max-w-3xl mx-auto space-y-8">
+                                    {/* API Keys Group */}
+                                    <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg border-b pb-2 mb-1 text-text-main flex items-center gap-2">{t.groupApiKeys}</h3>
+                                            <p className="text-sm text-text-light mb-4">{t.apiKeysHint}</p>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">Google AI Studio (Gemini)</label>
+                                                <input type="password" name="apiKeys.gemini" value={editingSpace.apiKeys?.gemini || ''} onChange={handleInputChange} placeholder="AIzaSy..." className="w-full p-2.5 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">OpenAI (ChatGPT)</label>
+                                                <input type="password" name="apiKeys.gpt" value={editingSpace.apiKeys?.gpt || ''} onChange={handleInputChange} placeholder="sk-..." className="w-full p-2.5 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Guest Config Group */}
+                                    <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg border-b pb-2 mb-1 text-text-main flex items-center gap-2">{t.groupGuestConfig}</h3>
+                                            <p className="text-sm text-text-light mb-4">{t.guestConfigHint}</p>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">{t.guestDailyLimit}</label>
+                                                <input type="number" name="guestDailyLimit" value={editingSpace.guestDailyLimit ?? 20} onChange={handleInputChange} className="w-full p-2.5 border rounded-md text-sm bg-background-light focus:ring-2 focus:ring-primary/20" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                         </div>
 
