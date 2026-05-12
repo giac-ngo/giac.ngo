@@ -78,6 +78,9 @@ app.use('/uploads', express.static(uploadsDir));
 app.use(authenticateToken);
 
 // --- Custom Domain Middleware ---
+// Known SPA view segments that React Router handles — must NOT be intercepted
+const SPA_VIEWS = new Set(['chat', 'library', 'dharmatalks', 'meditationtimer', 'admin', 'login', 'register', 'about', 'community', 'donation', 'finance', 'reset-password', 'auth']);
+
 app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
         const host = req.headers.host?.split(':')[0];
@@ -90,6 +93,15 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
             return next();
         }
         if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp|json|txt|map)$/.test(req.path)) {
+            return next();
+        }
+        // Skip SPA routes so React Router handles them (e.g. /tathata/chat, /tathata/admin)
+        const segments = req.path.split('/').filter(Boolean);
+        if (segments.length >= 2 && SPA_VIEWS.has(segments[1])) {
+            return next();
+        }
+        // Also skip top-level SPA routes (e.g. /chat, /login on custom domains)
+        if (segments.length === 1 && SPA_VIEWS.has(segments[0])) {
             return next();
         }
         const space = await spaceModel.findByCustomDomain(host);

@@ -30,6 +30,7 @@ import { WithdrawalManagement } from '../components/admin/WithdrawalManagement';
 import { NotificationManagement } from '../components/admin/NotificationManagement';
 import { PricingPlansAdmin } from '../components/admin/PricingPlansAdmin';
 import { MediaLibrary } from '../components/admin/MediaLibrary';
+import { CmsManagement } from '../components/admin/CmsManagement';
 import UserAvatar from '../components/UserAvatar';
 
 
@@ -55,6 +56,7 @@ const translations = {
 
     withdrawalManagement: 'Yêu cầu rút tiền',
     notificationManagement: 'Thông Báo',
+    cmsManagement: 'Quản lý Tin tức',
     toAppPage: 'Về không gian thực hành',
     logout: 'Đăng xuất',
     language: 'English',
@@ -86,6 +88,7 @@ const translations = {
     manualBilling: 'Transaction History',
     withdrawalManagement: 'Withdrawal Requests',
     notificationManagement: 'Notifications',
+    cmsManagement: 'News CMS',
     toAppPage: 'Back to Practice Space',
     logout: 'Logout',
     language: 'Tiếng Việt',
@@ -100,7 +103,7 @@ const translations = {
   }
 };
 
-type AdminTab = 'dashboard' | 'ai' | 'users' | 'roles' | 'settings' | 'domain' | 'mail-server' | 'media-library' | 'conversations' | 'pricing' | 'manual-billing' | 'payment-settings' | 'templates' | 'finetune' | 'user-billing' | 'files' | 'comments' | 'spaces' | 'dharma-talks' | 'meditation' | 'space-billing' | 'withdrawals' | 'notifications';
+type AdminTab = 'dashboard' | 'ai' | 'users' | 'roles' | 'settings' | 'domain' | 'mail-server' | 'media-library' | 'conversations' | 'pricing' | 'manual-billing' | 'payment-settings' | 'templates' | 'finetune' | 'user-billing' | 'files' | 'comments' | 'spaces' | 'dharma-talks' | 'meditation' | 'space-billing' | 'withdrawals' | 'notifications' | 'cms';
 
 
 const getFirstAllowedTab = (user: User): AdminTab => {
@@ -110,7 +113,7 @@ const getFirstAllowedTab = (user: User): AdminTab => {
 
   const allowedTabs: AdminTab[] = [
     'dashboard', 'user-billing', 'space-billing', 'ai', 'users', 'conversations', 'pricing', 'manual-billing', 'payment-settings',
-    'templates', 'finetune', 'settings', 'media-library', 'roles', 'files', 'comments', 'spaces', 'dharma-talks', 'meditation', 'withdrawals', 'notifications'
+    'templates', 'finetune', 'settings', 'media-library', 'roles', 'files', 'comments', 'spaces', 'dharma-talks', 'meditation', 'withdrawals', 'notifications', 'cms'
   ];
 
 
@@ -352,6 +355,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         return <WithdrawalManagement language={language} user={user} />;
       case 'notifications':
         return <NotificationManagement user={user} space={currentSpace} language={language} onSpaceUpdate={setCurrentSpace} />;
+      case 'cms':
+        return <CmsManagement user={user} space={currentSpace} language={language} />;
       case 'templates':
         return <TemplateManagement space={currentSpace} language={language} />;
       case 'finetune':
@@ -406,6 +411,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
           {hasPermission('notifications') && <NavItem tab="notifications" label={t.notificationManagement} icon={<BellIcon />} />}
           {hasPermission('files') && <NavItem tab="files" label={t.filesAndDocuments} icon={<DocumentTextIcon />} />}
           {hasPermission('media-library') && <NavItem tab="media-library" label={t.mediaLibrary} icon={<PhotoIcon />} />}
+          {hasPermission('cms') && <NavItem tab="cms" label={t.cmsManagement} icon={<DocumentTextIcon />} />}
           {hasPermission('spaces') && <NavItem tab="spaces" label={t.spaceManagement} icon={<MapPinIcon />} />}
           {hasPermission('templates') && <NavItem tab="templates" label={t.templateManagement} icon={<TemplateIcon />} />}
           {hasPermission('meditation') && <NavItem tab="meditation" label={t.meditationManagement} icon={<MeditationIcon />} />}

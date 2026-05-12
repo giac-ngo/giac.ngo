@@ -172,12 +172,6 @@ export const LibraryMenu: React.FC<LibraryMenuProps> = ({ filters, onSetFilters,
 
             <div className="library-menu-section">
                 <div className="library-topic-list">
-                    <button
-                        onClick={() => handleTopicChange(undefined)}
-                        className={!filters.topicId ? 'active' : ''}
-                    >
-                        {t.all}
-                    </button>
                     {topics.map((topic, index) => {
                         const isLastElement = topics.length === index + 1;
                         return (

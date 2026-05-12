@@ -693,7 +693,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
     const [selectedAi, setSelectedAi] = useState<AIConfig | null>(null);
     const [pristineAi, setPristineAi] = useState<AIConfig | null>(null); // For checking unsaved changes
     const [trainingData, setTrainingData] = useState<TrainingDataSource[]>([]);
-    const [activeTab, setActiveTab] = useState<'configuration' | 'training' | 'tags' | 'api'>('configuration');
+    const [activeTab, setActiveTab] = useState<'configuration' | 'training' | 'tags' | 'api' | 'tts'>('configuration');
 
     // Chat states
     const [allMessages, setAllMessages] = useState<Message[]>([]);
@@ -2176,7 +2176,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                                     onClick={async () => {
                                                         if (!user?.id || !selectedAi) return;
                                                         const sampleText = 'Hãy buông bỏ mọi phiền não, trở về nương tựa nơi Tự Tánh thanh tịnh của chính mình. Nơi đó không có sự phân biệt, không có đối gian, chỉ có sự bình yên hằng hữu.';
-                                                        const provider = selectedAi.ttsProvider || 'gemini';
+                                                        const provider = (selectedAi.ttsProvider || 'gemini') as any;
                                                         const model = selectedAi.ttsModel || 'gemini-3.1-flash-tts-preview';
                                                         const voice = selectedAi.ttsVoice || 'Algieba';
                                                         const style = selectedAi.ttsStyle || '';
@@ -2185,7 +2185,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                                         setTestLoadingTtsId('style-preview');
                                                         try {
                                                             const resp = await apiService.generateTtsAudio(
-                                                                sampleText, provider, model, voice, language, user.id as number, style, temp, selectedAi.id
+                                                                sampleText, provider, model, voice, language, user.id as number, style, Number(temp), selectedAi.id ? Number(selectedAi.id) : undefined
                                                             );
                                                             if (resp?.audioContent) {
                                                                 if (testAudioRef.current) { testAudioRef.current.pause(); }

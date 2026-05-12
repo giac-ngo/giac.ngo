@@ -1,6 +1,6 @@
 // client/src/components/ConversationSidebar.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { AIConfig, Conversation, User, SystemConfig, ViewMode, LibraryFilters, Space } from '../types';
 import { apiService } from '../services/apiService';
 import { useToast } from './ToastProvider';
@@ -61,6 +61,8 @@ const translations = {
         meditationDesc: 'Tĩnh tâm là khoảng lặng cần thiết để tâm trí được nghỉ ngơi, tái tạo năng lượng và tìm thấy sự bình an từ bên trong.',
         dharmaTalksTitle: 'Pháp Thoại',
         dharmaTalksDesc: 'Lắng nghe các bài giảng pháp thoại từ các thiền sư và giảng sư uy tín.',
+        communityTitle: 'Cộng Đồng',
+        communityDesc: 'Nơi kết nối, chia sẻ và lan tỏa những giá trị tốt đẹp trong cuộc sống. Cùng nhau học hỏi và phát triển trên con đường tu tập.',
         loginToChat: "Vui lòng đăng nhập để xem và bắt đầu cuộc trò chuyện.",
         login: "Đăng nhập",
         loginOrRegister: "Đăng nhập / Đăng ký",
@@ -92,6 +94,8 @@ const translations = {
         meditationDesc: 'Meditation is a necessary pause for the mind to rest, regenerate energy, and find inner peace.',
         dharmaTalksTitle: 'Dharma Talks',
         dharmaTalksDesc: 'Listen to dharma talks from reputable Zen masters and teachers.',
+        communityTitle: 'Community',
+        communityDesc: 'A place to connect, share, and spread good values in life. Learn and grow together on the path of practice.',
         loginToChat: "Please log in to see and start conversations.",
         login: "Login",
         loginOrRegister: "Login / Sign Up",
@@ -118,7 +122,6 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
         onSetLibraryFilters, spaceSlug, currentSpace, conversationUpdateTrigger, aiConfigs
     } = props;
 
-    const navigate = useNavigate();
     const { showToast } = useToast();
 
 
@@ -282,10 +285,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
 
 
-    const handleRestrictedTabClick = (path: string) => {
-        onOpenMeritPurchase();
-        navigate(path);
-    };
+    // Removed handleRestrictedTabClick
 
     const renderSidebarContent = () => {
         if (isSidebarCollapsed) return null;
@@ -343,7 +343,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
             case 'library': return <LibraryMenu filters={libraryFilters} onSetFilters={onSetLibraryFilters} language={language} isSidebarCollapsed={isSidebarCollapsed} spaceId={currentSpace?.id} spaceSlug={spaceSlug} />;
             case 'meditationtimer': return <SidebarInfoPanel title={t.meditationTitle} description={t.meditationDesc} />;
             case 'dharmatalks': return <SidebarInfoPanel title={t.dharmaTalksTitle} description={t.dharmaTalksDesc} />;
-            case 'community': return null; // Social Feed renders in main panel
+            case 'community': return <SidebarInfoPanel title={t.communityTitle} description={t.communityDesc} />;
             default: return null;
         }
     }
@@ -390,16 +390,16 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                             </Link>
                         )}
                         {Boolean(currentSpace?.hasLibrary) && (
-                            <button onClick={() => handleRestrictedTabClick(`/${spaceSlug}/library`)} className={`quick-action-btn ${viewMode === 'library' ? 'active' : ''}`} title={t.libraryMode}>
+                            <Link to={`/${spaceSlug}/library`} className={`quick-action-btn ${viewMode === 'library' ? 'active' : ''}`} title={t.libraryMode}>
                                 <img src="/themes/giacngo/3.png" alt={t.libraryMode} />
                                 <span className="quick-action-label">{language === 'vi' ? 'Thư viện' : 'Library'}</span>
-                            </button>
+                            </Link>
                         )}
                         {Boolean(currentSpace?.hasDharmaTalks) && (
-                            <button onClick={() => handleRestrictedTabClick(`/${spaceSlug}/dharmatalks`)} className={`quick-action-btn ${viewMode === 'dharmatalks' ? 'active' : ''}`} title={t.dharmaTalksMode}>
+                            <Link to={`/${spaceSlug}/dharmatalks`} className={`quick-action-btn ${viewMode === 'dharmatalks' ? 'active' : ''}`} title={t.dharmaTalksMode}>
                                 <img src="/themes/giacngo/4.png" alt={t.dharmaTalksMode} />
                                 <span className="quick-action-label">{language === 'vi' ? 'Pháp thoại' : 'Dharma'}</span>
-                            </button>
+                            </Link>
                         )}
                         {/* Tab Community (Social Feed) — tạm ẩn */}
                         {/* <Link to={`/${spaceSlug}/community`} className={`quick-action-btn ${viewMode === 'community' ? 'active' : ''}`} title={t.communityMode}>

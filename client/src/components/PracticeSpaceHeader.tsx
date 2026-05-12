@@ -241,27 +241,25 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                                     </div>
                                 )}
                             </div>
-                            <button onClick={() => setIsMarketplaceModalOpen(true)} className="header-icon-btn" title={t.marketplace} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 10px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:44 }}>
-                                {/* Magnifying glass icon */}
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <button onClick={() => setIsMarketplaceModalOpen(true)} className="header-icon-btn" title={t.marketplace} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 8px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:38 }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                                     <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
                                 </svg>
-                                <span className="header-icon-label" style={{ fontSize:'0.5rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
+                                <span className="header-icon-label" style={{ fontSize:'0.45rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Khám phá' : 'Explore'}</span>
                             </button>
                         </>
                     )}
-                    {/* Hide Cộng Đồng button when already in community */}
                     {viewMode !== 'community' && currentSpace?.hasCommunity !== false && (
                         <button
                             onClick={handleCommunityClick}
                             className="header-icon-btn"
                             title={language === 'vi' ? 'Cộng Đồng' : 'Community'}
-                            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 10px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:44 }}
+                            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'5px 8px', background:'#991b1b', border:'1px solid #7f1d1d', borderRadius:10, cursor:'pointer', color:'#fefce8', minWidth:38 }}
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                             </svg>
-                            <span className="header-icon-label" style={{ fontSize:'0.5rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Cộng Đồng' : 'Community'}</span>
+                            <span className="header-icon-label" style={{ fontSize:'0.45rem', fontWeight:700, letterSpacing:'0.02em', whiteSpace:'nowrap', lineHeight:1, color:'#fefce8' }}>{language === 'vi' ? 'Cộng Đồng' : 'Community'}</span>
                         </button>
                     )}
                 </div>

@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { spaceModel } from '../models/space.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { userModel } from '../models/user.model.js';
-import { isAdmin } from '../middleware/authMiddleware.js';
+import { isAdmin, getUserManagedSpaceIds, canAccessSpace } from '../middleware/authMiddleware.js';
 import { pool } from '../db.js';
 
 
@@ -20,10 +20,19 @@ export const spacesController = {
         try {
             const spaces = await spaceModel.findAll();
 
-            if (req.user && !isAdmin(req.user as any)) {
-                const mySpaces = spaces.filter(space => space.userId === (req.user as any).id);
+            // Super admin sees everything
+            if (req.user && isAdmin(req.user as any)) {
+                return res.json(spaces);
+            }
+
+            // Authenticated non-admin: only spaces they own or are a member of
+            if (req.user && (req.user as any).id) {
+                const managedIds = await getUserManagedSpaceIds((req.user as any).id);
+                const mySpaces = spaces.filter(space => managedIds.includes(space.id as number));
                 return res.json(mySpaces);
             }
+
+            // Unauthenticated: return all (public listing for homepage/landing)
             res.json(spaces);
         } catch (error: unknown) {
             console.error('Error fetching spaces:', error);
@@ -155,7 +164,8 @@ export const spacesController = {
             }
 
             if (req.user && !isAdmin(req.user as any)) {
-                if (existingSpace.userId !== (req.user as any).id) {
+                const hasAccess = await canAccessSpace(req.user as any, id);
+                if (!hasAccess) {
                     return res.status(403).json({ message: 'Forbidden: You do not have permission to edit this space.' });
                 }
             }
@@ -219,7 +229,8 @@ export const spacesController = {
             }
 
             if (req.user && !isAdmin(req.user as any)) {
-                if (existingSpace.userId !== (req.user as any).id) {
+                const hasAccess = await canAccessSpace(req.user as any, id);
+                if (!hasAccess) {
                     return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this space.' });
                 }
             }

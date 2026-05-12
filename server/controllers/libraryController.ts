@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 // server/controllers/libraryController.ts
 import { libraryModel } from '../models/library.model.js';
@@ -89,7 +89,8 @@ export const libraryController = {
                 topicId: topicId ? parseInt(topicId as string, 10) : undefined,
                 limit: limitNum,
                 offset: (pageNum - 1) * limitNum,
-                spaceId: finalSpaceId
+                spaceId: finalSpaceId,
+                excludeCmsSpaceId: req.query.excludeCmsSpaceId as string | undefined
             });
             logger.info(`Library API requested: query=${JSON.stringify(req.query)}, finalSpaceId=${finalSpaceId}, totalFound=${result.total}`); 
             res.json(result); // Returns { data, total }

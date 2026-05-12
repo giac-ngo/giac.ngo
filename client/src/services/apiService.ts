@@ -495,7 +495,7 @@ export const apiService = {
     },
 
     // ── Spaces ──────────────────────────────────────────────────────────────────
-    getSpaces: (): Promise<Space[]> => fetch('/api/spaces').then(handleResponse),
+    getSpaces: (): Promise<Space[]> => authedFetch('/api/spaces').then(handleResponse),
     getSpace: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceById: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceBySlug: (slug: string): Promise<Space> => fetch(`/api/spaces/slug/${slug}`).then(handleResponse),
@@ -721,7 +721,7 @@ export const apiService = {
     }),
 
     // ── AI Voice ────────────────────────────────────────────────────────────────
-    getAiVoiceKey: (aiConfigId: number | string): Promise<{ geminiKey: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number }> => {
+    getAiVoiceKey: (aiConfigId: number | string): Promise<{ ephemeralToken: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number }> => {
         return authedFetch(`/api/ai-configs/${aiConfigId}/voice-key`).then(handleResponse);
     },
 
@@ -785,4 +785,55 @@ export const apiService = {
     togglePinPost: (spaceId: number, postId: number): Promise<{ pinned: boolean }> => {
         return authedFetch(`/api/space-social/${spaceId}/social/${postId}/pin`, { method: 'POST' }).then(handleResponse);
     },
+
+    // ── CMS Articles ────────────────────────────────────────────────────────────
+    getCmsArticles: (spaceId: number | string, filters?: any): Promise<any> => {
+        const params = new URLSearchParams();
+        if (filters) {
+            Object.keys(filters).forEach(k => {
+                if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') params.append(k, filters[k]);
+            });
+        }
+        return authedFetch(`/api/cms/${spaceId}/articles?${params.toString()}`).then(handleResponse);
+    },
+    getCmsArticle: (spaceId: number | string, id: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${id}`).then(handleResponse),
+    createCmsArticle: (spaceId: number | string, data: any): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles`, { method: 'POST', body: JSON.stringify(data) }).then(handleResponse),
+    updateCmsArticle: (spaceId: number | string, id: number | string, data: any): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${id}`, { method: 'PUT', body: JSON.stringify(data) }).then(handleResponse),
+    deleteCmsArticle: (spaceId: number | string, id: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${id}`, { method: 'DELETE' }).then(handleResponse),
+    permanentDeleteCmsArticle: (spaceId: number | string, id: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${id}/permanent`, { method: 'DELETE' }).then(handleResponse),
+    publishCmsArticle: (spaceId: number | string, id: number | string, platforms?: string[]): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${id}/publish`, { method: 'POST', body: JSON.stringify({ platforms }) }).then(handleResponse),
+    importDocumentToCms: (spaceId: number | string, documentId: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/import-document`, { method: 'POST', body: JSON.stringify({ documentId }) }).then(handleResponse),
+    shareCmsToSocialFeed: (spaceId: number | string, articleId: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/articles/${articleId}/share-to-feed`, { method: 'POST' }).then(handleResponse),
+
+    // ── CMS Social Connections ──────────────────────────────────────────────────
+    getCmsConnections: (spaceId: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/connections`).then(handleResponse),
+    deleteCmsConnection: (spaceId: number | string, connectionId: number | string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/connections/${connectionId}`, { method: 'DELETE' }).then(handleResponse),
+    getCmsOAuthUrl: (spaceId: number | string, platform: string): Promise<{ url: string }> =>
+        authedFetch(`/api/cms/${spaceId}/oauth/${platform}/url`).then(handleResponse),
+    getFacebookPages: (spaceId: number | string): Promise<any[]> =>
+        authedFetch(`/api/cms/${spaceId}/connections/facebook/pages`).then(handleResponse),
+    updateFacebookConnection: (spaceId: number | string, data: { pageName: string, accessToken: string }): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/connections/facebook`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(handleResponse),
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // FB Albums
+    // ─────────────────────────────────────────────────────────────────────────────
+    getCmsFbAlbums: (spaceId: number | string): Promise<any[]> =>
+        authedFetch(`/api/cms/${spaceId}/fb-albums`).then(handleResponse),
+    createCmsFbAlbum: (spaceId: number | string, name: string, albumId: string): Promise<any> =>
+        authedFetch(`/api/cms/${spaceId}/fb-albums`, { method: 'POST', body: JSON.stringify({ name, album_id: albumId }) }).then(handleResponse),
 };

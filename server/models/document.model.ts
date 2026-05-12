@@ -1,4 +1,4 @@
-﻿// server/models/document.model.ts
+// server/models/document.model.ts
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { PoolClient } from 'pg';
@@ -20,6 +20,7 @@ export interface DocumentFilterOptions {
     spaceId?: number | string | null;
     spaceIds?: (number | string)[];
     excludeTypeNames?: string[];
+    excludeCmsSpaceId?: number | string;
 }
 
 export interface DocumentConfig {
@@ -108,6 +109,10 @@ export const documentModel = {
         if (filters.excludeTypeNames && filters.excludeTypeNames.length > 0) {
             whereClauses.push(`dt.name != ALL($${paramIndex++})`);
             params.push(filters.excludeTypeNames);
+        }
+        if (filters.excludeCmsSpaceId) {
+            whereClauses.push(`NOT EXISTS (SELECT 1 FROM cms_articles ca WHERE ca.source_document_id = d.id AND ca.space_id = $${paramIndex++})`);
+            params.push(filters.excludeCmsSpaceId);
         }
 
         const whereClauseString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';

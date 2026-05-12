@@ -225,7 +225,10 @@ export const aiConfigController = {
     },
 
     /**
-     * Trả về Gemini API key, Voice và Style của owner AI config để dùng cho Voice Reading và Live Stream.
+     * Trả về ephemeral token (thay vì raw API key) + Voice/Style config của owner AI config
+     * để dùng cho Voice Live Stream. Ephemeral token có hiệu lực 30 phút, chỉ dùng 1 phiên.
+     * 
+     * Điều này ngăn không cho API key bị lộ ra client-side (nguyên nhân Google vô hiệu hóa key).
      */
     async getAiVoiceKey(req: Request, res: Response) {
         try {
@@ -235,7 +238,8 @@ export const aiConfigController = {
             const aiConfig = (await aiConfigModel.findById(aiId)) as AIConfig | null;
             if (!aiConfig) return res.status(404).json({ message: 'AI config not found.' });
 
-            let targetUserId = aiConfig.ownerId; // fallback to ai owner
+            // Tìm owner: ưu tiên Space owner, fallback AI owner
+            let targetUserId = aiConfig.ownerId;
             if (aiConfig.spaceId) {
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [aiConfig.spaceId]);
                 if (spaceRes.rows.length > 0 && spaceRes.rows[0].user_id) {
@@ -243,36 +247,43 @@ export const aiConfigController = {
                 }
             }
 
-            if (targetUserId) {
-                const owner = await userModel.findById(targetUserId);
-                if (owner) {
-                    const { systemModel } = await import('../models/system.model.js');
-                    const systemConfig = await systemModel.getConfig();
-                    const systemGeminiKey = systemConfig?.systemKeys?.gemini || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-                    
-                    return res.json({
-                        geminiKey: owner.apiKeys?.gemini || systemGeminiKey,
-                        geminiVoice: owner.apiKeys?.geminiVoice || 'Algieba',
-                        geminiStyle: owner.apiKeys?.geminiStyle || '',
-                        geminiTemperature: parseFloat(owner.apiKeys?.geminiTemperature ?? '1') || 1,
-                    });
-                }
+            if (!targetUserId) {
+                return res.status(404).json({ message: 'AI owner not found.' });
             }
 
-            // Fallback to system config if no owner
-            const { systemModel } = await import('../models/system.model.js');
-            const systemConfig = await systemModel.getConfig();
-            const systemGeminiKey = systemConfig?.systemKeys?.gemini || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-            if (systemGeminiKey) {
-                return res.json({ 
-                    geminiKey: systemGeminiKey,
-                    geminiVoice: 'Algieba',
-                    geminiStyle: '',
-                    geminiTemperature: 1
+            const owner = await userModel.findById(targetUserId);
+            const realGeminiKey = owner?.apiKeys?.gemini;
+
+            if (!realGeminiKey) {
+                return res.status(404).json({ message: 'Gemini API key not configured for this AI owner.' });
+            }
+
+            // Tạo ephemeral token thay vì trả raw key
+            try {
+                const { GoogleGenAI } = await import('@google/genai');
+                const client = new GoogleGenAI({ apiKey: realGeminiKey });
+                const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+                const newSessionExpireTime = new Date(Date.now() + 2 * 60 * 1000);
+
+                const token = await (client as any).authTokens.create({
+                    config: {
+                        uses: 1,
+                        expireTime,
+                        newSessionExpireTime,
+                        httpOptions: { apiVersion: 'v1alpha' },
+                    },
                 });
-            }
 
-            return res.status(404).json({ message: 'Gemini API key not configured for this AI.' });
+                return res.json({
+                    ephemeralToken: token.name,
+                    geminiVoice: owner?.apiKeys?.geminiVoice || 'Algieba',
+                    geminiStyle: owner?.apiKeys?.geminiStyle || '',
+                    geminiTemperature: parseFloat(owner?.apiKeys?.geminiTemperature ?? '1') || 1,
+                });
+            } catch (tokenErr: any) {
+                logger.error('Failed to create ephemeral token, check if the Gemini key is valid:', tokenErr?.message || tokenErr);
+                return res.status(500).json({ message: 'Failed to create secure voice session. The Gemini API key may be invalid.' });
+            }
         } catch (error: any) {
             logger.error('Error fetching AI voice key:', error);
             res.status(500).json({ message: 'Failed to fetch voice key.' });

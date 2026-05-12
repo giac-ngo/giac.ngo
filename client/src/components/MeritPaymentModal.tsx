@@ -182,15 +182,16 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
     useEffect(() => {
         let isMounted = true;
         fetch('/api/exchange-rate')
-            .then(res => res.json())
-            .then(data => {
-                if (isMounted) {
-                    if (data.rate) setUsdVndRate(data.rate);
-                }
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const ct = res.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) throw new Error('Not JSON');
+                return res.json();
             })
-            .catch(err => {
-                console.error("Failed to load exchange rate", err);
-            });
+            .then(data => {
+                if (isMounted && data.rate) setUsdVndRate(data.rate);
+            })
+            .catch(() => { /* silent — use default 25000 */ });
         return () => { isMounted = false; };
     }, []);
 

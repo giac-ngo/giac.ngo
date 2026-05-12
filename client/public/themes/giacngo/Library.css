@@ -156,7 +156,7 @@ html[data-theme="giacngo"] .library-topic-list {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    gap: 0.35rem;
     width: 100%;
 }
 
@@ -164,12 +164,13 @@ html[data-theme="giacngo"] .library-topic-list button {
     background-color: transparent;
     color: var(--color-text-main);
     border: none;
-    padding: 0;
+    padding: 0.2rem 0;
     border-radius: 0;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.4;
 }
 html[data-theme="giacngo"] .library-topic-list button:hover {
     color: var(--color-primary);
@@ -180,10 +181,38 @@ html[data-theme="giacngo"] .library-topic-list button.active {
     color: var(--color-primary);
     font-weight: 700;
     border-radius: 0.75rem;
-    padding: 0.5rem 1.5rem;
+    padding: 0.35rem 1.2rem;
     width: auto;
     height: auto;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Mobile: compact library menu to show more of the topics list */
+@media (max-width: 768px) {
+    html[data-theme="giacngo"] .library-menu {
+        padding: 0.75rem 0.5rem;
+        gap: 0.75rem;
+    }
+    html[data-theme="giacngo"] .library-menu-toggles {
+        width: 100%;
+        padding: 0.15rem;
+    }
+    html[data-theme="giacngo"] .library-menu-toggles button {
+        padding: 0.3rem 0.4rem;
+        font-size: 0.75rem;
+    }
+    html[data-theme="giacngo"] .library-menu-section {
+        gap: 0.25rem;
+    }
+    html[data-theme="giacngo"] .library-topic-list {
+        gap: 0.1rem;
+    }
+    html[data-theme="giacngo"] .library-topic-list button {
+        font-size: 0.85rem;
+    }
+    html[data-theme="giacngo"] .library-topic-list button.active {
+        padding: 0.25rem 1rem;
+    }
 }
 
 

@@ -222,7 +222,7 @@ export const PracticeSpacePage: React.FC<{
     const [feedbackStatus, setFeedbackStatus] = useState<{ [messageId: string]: 'liked' | 'disliked' | null }>({});
 
     // Owner voice config — lấy voice/style/temperature từ owner AI config
-    const [ownerVoiceConfig, setOwnerVoiceConfig] = useState<{ geminiKey?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null>(null);
+    const [ownerVoiceConfig, setOwnerVoiceConfig] = useState<{ ephemeralToken?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null>(null);
     useEffect(() => {
         if (!currentAiConfig?.id) { setOwnerVoiceConfig(null); return; }
         apiService.getAiVoiceKey(currentAiConfig.id)
@@ -991,10 +991,18 @@ export const PracticeSpacePage: React.FC<{
     useEffect(() => {
         const textarea = textareaRef.current;
         if (!textarea) return;
-        // Reset height to auto first so scrollHeight recalculates correctly
-        textarea.style.height = 'auto';
-        // Clamp between 1 line (~40px) and max (~200px)
-        const newHeight = Math.min(textarea.scrollHeight, 200);
+        
+        if (!newMessage) {
+            textarea.style.height = '24px';
+            return;
+        }
+        
+        // Force shrink to 0 to get accurate scrollHeight based only on content
+        textarea.style.height = '0px';
+        const scrollHeight = textarea.scrollHeight;
+        
+        // Base height is 24px, max height is 200px
+        const newHeight = Math.min(Math.max(scrollHeight, 24), 200);
         textarea.style.height = `${newHeight}px`;
     }, [newMessage]);
 
@@ -1128,7 +1136,7 @@ export const PracticeSpacePage: React.FC<{
             try {
                 const res = await apiService.generateTtsAudio(
                     cleanText, ttsProvider, ttsModel,
-                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature,
+                    geminiVoice, language, user.id as number, geminiStyle, Number(geminiTemperature),
                     currentAiConfig?.id
                 );
                 
@@ -1184,7 +1192,7 @@ export const PracticeSpacePage: React.FC<{
             try {
                 const res = await apiService.generateTtsAudio(
                     cleanText, ttsProvider, ttsModel,
-                    geminiVoice, language, user.id as number, geminiStyle, geminiTemperature,
+                    geminiVoice, language, user.id as number, geminiStyle, Number(geminiTemperature),
                     currentAiConfig?.id
                 );
                 const byteChars = atob(res.audioContent);
@@ -1401,132 +1409,36 @@ export const PracticeSpacePage: React.FC<{
                                         <div className="chat-messages-list">
                                             {isLoadingMore && <div className="text-center text-xs text-gray-500 p-2">{t.loadingOlderMessages}</div>}
                                             {messages.map((msg, index) => {
-                                                const segments = (() => {
-                                                    if (msg.sender !== 'ai') return [msg.text];
-                                                    const rawSegs = msg.text.split(/^-{3,}\s*$|\n{2,}/m).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-                                                    if (rawSegs.length <= 1) return rawSegs;
+                                                const msgText = msg.text;
 
-                                                    // A short single-line segment (likely a kệ/verse line)
-                                                    // Exclude: numbered list items (1. 2. ...), bullets (- * •), headings (#)
-                                                    const isKeLine = (seg: string): boolean =>
-                                                        !seg.includes('\n') && seg.length >= 4 && seg.length <= 140
-                                                        && !/^\d+\.\s/.test(seg)
-                                                        && !/^[-*•]\s/.test(seg)
-                                                        && !/^#+\s/.test(seg);
-
-                                                    // Strategy 1: Numbered sections (e.g. "1. TAM VÕ", "2. THẤY MÌNH")
-                                                    // → group each section's content together, join kệ lines with \n (no blank line)
-                                                    const isSectionHeading = (seg: string): boolean =>
-                                                        /^\d+\.\s+\S/.test(seg) && !seg.includes('\n') && seg.length < 100;
-
-                                                    if (rawSegs.some(isSectionHeading)) {
-                                                        const sections: string[][] = [];
-                                                        let current: string[] = [];
-                                                        for (const seg of rawSegs) {
-                                                            if (isSectionHeading(seg) && current.length > 0) {
-                                                                sections.push(current);
-                                                                current = [seg];
-                                                            } else {
-                                                                current.push(seg);
-                                                            }
-                                                        }
-                                                        if (current.length > 0) sections.push(current);
-
-                                                        // Within each section, join kệ lines with \n (no blank gap)
-                                                        const sectionTexts = sections.map((segs: string[]) => {
-                                                            const parts: string[] = [];
-                                                            let i = 0;
-                                                            while (i < segs.length) {
-                                                                if (isKeLine(segs[i])) {
-                                                                    const block: string[] = [segs[i]];
-                                                                    while (i + 1 < segs.length && isKeLine(segs[i + 1])) {
-                                                                        i++;
-                                                                        block.push(segs[i]);
-                                                                    }
-                                                                    // kệ lines: join with \n (no blank line between verses)
-                                                                    parts.push(block.join('\n'));
-                                                                } else {
-                                                                    parts.push(segs[i]);
-                                                                }
-                                                                i++;
-                                                            }
-                                                            return parts.join('\n\n');
-                                                        });
-
-                                                        // Max 2 bubbles for numbered sections
-                                                        const sTotal = sectionTexts.join('').length;
-                                                        if (sTotal < 1200 || sectionTexts.length <= 2) return [sectionTexts.join('\n\n')];
-                                                        const sHalf = Math.ceil(sectionTexts.length / 2);
-                                                        return [
-                                                            sectionTexts.slice(0, sHalf).join('\n\n'),
-                                                            sectionTexts.slice(sHalf).join('\n\n'),
-                                                        ].filter((s: string) => s.trim().length > 0);
-                                                    }
-
-                                                    // Strategy 2: No numbered sections
-                                                    // → merge consecutive short single-line segs as kệ (joined with \n)
-                                                    const merged: string[] = [];
-                                                    let i = 0;
-                                                    while (i < rawSegs.length) {
-                                                        if (isKeLine(rawSegs[i])) {
-                                                            const block: string[] = [rawSegs[i]];
-                                                            while (i + 1 < rawSegs.length && isKeLine(rawSegs[i + 1])) {
-                                                                i++;
-                                                                block.push(rawSegs[i]);
-                                                            }
-                                                            // kệ lines: join with \n (no blank line)
-                                                            merged.push(block.join('\n'));
-                                                        } else {
-                                                            merged.push(rawSegs[i]);
-                                                        }
-                                                        i++;
-                                                    }
-
-                                                    if (merged.length <= 1) return merged;
-                                                    const totalChars = merged.join('').length;
-                                                    // For short-to-medium responses → single bubble
-                                                    if (totalChars < 1200) return [merged.join('\n\n')];
-                                                    // For long responses → max 2 bubbles (less scattered)
-                                                    const half = Math.ceil(merged.length / 2);
-                                                    const grouped: string[] = [
-                                                        merged.slice(0, half).join('\n\n'),
-                                                        merged.slice(half).join('\n\n'),
-                                                    ].filter((s: string) => s.trim().length > 0);
-                                                    return grouped;
-                                                })();
-
-                                                return segments.filter((s: string) => s.trim().length > 0).map((segText: string, segIndex: number) => (
-                                                    <div key={`${msg.id || index}-${segIndex}`} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>
+                                                return (
+                                                    <div key={msg.id || index} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>
                                                         <div className="chat-message-content group">
                                                             <div className={`chat-message-bubble ${msg.sender}`}>
                                                                 <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{
                                                                     // Convert mọi single newline → markdown hard break (2 spaces + \n)
                                                                     // để bài kệ/thơ giữ đúng format xuống dòng.
                                                                     // Double newline (\n\n) vẫn giữ nguyên làm paragraph break.
-                                                                    segText
+                                                                    msgText
                                                                         .replace(/\n\n/g, '\x00PARA\x00')     // tạm giữ double newline
                                                                         .replace(/\n/g, '  \n')               // single newline → hard break
                                                                         .replace(/\x00PARA\x00/g, '\n\n')     // khôi phục paragraph
                                                                 }</ReactMarkdown></div>
-                                                                {msg.imageUrl && segIndex === 0 && <img src={msg.imageUrl} alt="Uploaded content" className="mt-2 rounded-lg max-w-full h-auto" />}
+                                                                {msg.imageUrl && <img src={msg.imageUrl} alt="Uploaded content" className="mt-2 rounded-lg max-w-full h-auto" />}
                                                             </div>
                                                             {msg.sender === 'ai' && !isTyping && !isAiThinking && msg.id && (
                                                                 <div className="chat-message-toolbar">
-                                                                    {segIndex === segments.length - 1 && (
-                                                                        <>
-                                                                            <button onClick={() => handleFeedback(msg.id!, 'liked')} title={t.like} className={`p-1.5 rounded-full hover:bg-background-light ${feedbackStatus[String(msg.id!)] === 'liked' ? 'text-primary' : 'text-text-light'}`}><ThumbsUpIcon className="w-4 h-4" /></button>
-                                                                            <button onClick={() => handleFeedback(msg.id!, 'disliked')} title={t.dislike} className={`p-1.5 rounded-full hover:bg-background-light ${feedbackStatus[String(msg.id!)] === 'disliked' ? 'text-accent-red' : 'text-text-light'}`}><ThumbsDownIcon className="w-4 h-4" /></button>
-                                                                        </>
-                                                                    )}
-                                                                    <button onClick={() => handleCopy(segText)} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
-                                                                    <button onClick={() => handleSpeak(segText, `${msg.id}-${segIndex}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${speakingMessageId === `${msg.id}-${segIndex}` ? 'text-primary' : loadingTtsId === `${msg.id}-${segIndex}` ? 'text-primary' : 'text-text-light'}`}>{loadingTtsId === `${msg.id}-${segIndex}` ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <SpeakerWaveIcon className="w-4 h-4" />}</button>
-                                                                    <button onClick={() => handleDownload(segText, `${msg.id}-${segIndex}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
-                                                                    <button onClick={() => handleShare(segments.join('\n\n'), currentAiConfig?.name, messages[index - 1]?.text)} title={language === 'vi' ? 'Chia sẻ lên cộng đồng' : 'Share to community'} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><ShareIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleFeedback(msg.id!, 'liked')} title={t.like} className={`p-1.5 rounded-full hover:bg-background-light ${feedbackStatus[String(msg.id!)] === 'liked' ? 'text-primary' : 'text-text-light'}`}><ThumbsUpIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleFeedback(msg.id!, 'disliked')} title={t.dislike} className={`p-1.5 rounded-full hover:bg-background-light ${feedbackStatus[String(msg.id!)] === 'disliked' ? 'text-accent-red' : 'text-text-light'}`}><ThumbsDownIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleCopy(msgText)} title={t.copy} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><CopyIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleSpeak(msgText, `${msg.id}`)} title={t.speak} className={`p-1.5 rounded-full hover:bg-background-light ${speakingMessageId === `${msg.id}` ? 'text-primary' : loadingTtsId === `${msg.id}` ? 'text-primary' : 'text-text-light'}`}>{loadingTtsId === `${msg.id}` ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <SpeakerWaveIcon className="w-4 h-4" />}</button>
+                                                                    <button onClick={() => handleDownload(msgText, `${msg.id}`)} title={t.download} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><DownloadIcon className="w-4 h-4" /></button>
+                                                                    <button onClick={() => handleShare(msgText, currentAiConfig?.name, messages[index - 1]?.text)} title={language === 'vi' ? 'Chia sẻ lên cộng đồng' : 'Share to community'} className="p-1.5 rounded-full hover:bg-background-light text-text-light"><ShareIcon className="w-4 h-4" /></button>
                                                                 </div>
                                                             )}
                                                         </div>
                                                     </div>
-                                                ));
+                                                );
                                             })}
                                             {(isAiThinking || isTyping) && (
                                                 <div className="chat-message-row ai">
@@ -1603,8 +1515,8 @@ export const PracticeSpacePage: React.FC<{
                                                 onChange={(e) => setNewMessage(e.target.value)}
                                                 onKeyDown={handleTextareaKeyDown}
                                                 placeholder={placeholder}
-                                                disabled={isChatDisabled}
                                                 rows={1}
+                                                disabled={isChatDisabled}
                                                 className={`chat-input-field ${isChatDisabled && !isOwned ? 'border-red-300 bg-red-50' : ''}`}
                                             />
                                             <button

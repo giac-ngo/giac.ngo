@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AIConfig, User } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { useToast } from '../ToastProvider';
+import { apiService } from '../../services/apiService';
 import { SpeakerWaveIcon } from '../Icons';
 
 // ─── Model ─────────────────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ interface VoiceChatProps {
     /** Called when session ends with the list of transcript turns (may be empty if no text extracted) */
     onSaveSession?: (turns: VoiceTurn[]) => void;
     /** Owner voice config fetched from AI config's owner — provides voice/style/temperature for TTS and Live */
-    ownerVoiceConfig?: { geminiKey?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null;
+    ownerVoiceConfig?: { ephemeralToken?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null;
 }
 
 // ─── Audio Helpers ─────────────────────────────────────────────────────────────
@@ -131,7 +132,6 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
-    const geminiKey = (user?.apiKeys as any)?.gemini;
     // Voice priority: AI config TTS voice → owner voice config → user personal config → default
     const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
 
@@ -270,12 +270,6 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     // ─── Start Live Session ──────────────────────────────────────────────────
     const startLiveSession = useCallback(async () => {
-        if (!geminiKey) {
-            showToast('Cần Gemini API Key. Vào Cài đặt → API Keys để thêm.', 'error');
-            setVoiceState('error');
-            setStatusText('⚠️ Chưa có Gemini API Key.');
-            return;
-        }
         if (!currentAiConfig) {
             showToast('Chưa chọn AI config.', 'error');
             return;
@@ -284,6 +278,18 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
         try {
             setVoiceState('connecting');
             setStatusText('Đang kết nối Gemini Live...');
+
+            // 0. Fetch ephemeral token from backend (never expose raw API key to client)
+            let ephemeralToken: string;
+            try {
+                const voiceConfig = await apiService.getAiVoiceKey(currentAiConfig.id!);
+                ephemeralToken = voiceConfig.ephemeralToken;
+            } catch (err: any) {
+                showToast(err?.message || 'Không thể lấy token cho Voice Live. Kiểm tra Gemini API Key của chủ AI.', 'error');
+                setVoiceState('error');
+                setStatusText('⚠️ Không thể khởi tạo phiên Voice.');
+                return;
+            }
 
             // 1. Mic stream — request low-latency audio
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -323,8 +329,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                 langInstruction,
             ].filter(Boolean).join('\n\n');
 
-            // 4. Connect to Gemini Live
-            const ai = new GoogleGenAI({ apiKey: geminiKey });
+            // 4. Connect to Gemini Live using ephemeral token (not raw API key)
+            const ai = new GoogleGenAI({ apiKey: ephemeralToken });
 
             const session = await (ai as any).live.connect({
                 model: LIVE_MODEL,
@@ -473,7 +479,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                     : `⚠️ ${err?.message || 'Không thể kết nối Gemini Live.'}`
             );
         }
-    }, [geminiKey, geminiVoice, currentAiConfig, language, scheduleAudio, cleanup, showToast, startSpeechRecognition, flushPlaybackQueue]);
+    }, [geminiVoice, currentAiConfig, language, scheduleAudio, cleanup, showToast, startSpeechRecognition, flushPlaybackQueue]);
 
     // ─── Mic button click ────────────────────────────────────────────────────
     const handleMicClick = () => {

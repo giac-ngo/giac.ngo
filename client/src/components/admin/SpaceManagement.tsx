@@ -1,6 +1,6 @@
 
 // client/src/components/admin/SpaceManagement.tsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Space, User, SpaceType } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
@@ -314,6 +314,9 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
     const [editingSpace, setEditingSpace] = useState<Partial<Space> | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [pagesSpaceId, setPagesSpaceId] = useState<number | null>(null);
+    const [ownerSearch, setOwnerSearch] = useState('');
+    const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
+    const ownerDropdownRef = useRef<HTMLDivElement>(null);
 
     const isSuperAdmin = user.permissions?.includes('roles');
 
@@ -322,11 +325,18 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
         try {
             const [spaceData, userData, typeData] = await Promise.all([
                 apiService.getSpaces(),
-                isSuperAdmin ? apiService.getAllUsers(1, 999, '') : Promise.resolve([user]),
+                isSuperAdmin ? apiService.getAllUsers(1, 999, '') : apiService.getSpaceOwners().catch(() => [user]),
                 apiService.getSpaceTypes()
             ]);
             setSpaces(spaceData || []);
-            setAllUsers(userData || []);
+            // For non-admin: merge current user into owner list to ensure they appear
+            if (!isSuperAdmin) {
+                const owners = userData || [];
+                if (!owners.find((u: any) => u.id === user.id)) owners.push(user);
+                setAllUsers(owners);
+            } else {
+                setAllUsers(userData || []);
+            }
             setSpaceTypes(typeData || []);
         } catch (error) {
             showToast('Failed to load initial data.', 'error');
@@ -338,6 +348,19 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Close owner dropdown on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (ownerDropdownRef.current && !ownerDropdownRef.current.contains(e.target as Node)) {
+                setIsOwnerDropdownOpen(false);
+            }
+        };
+        if (isOwnerDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [isOwnerDropdownOpen]);
 
     // Filtering
     const filteredSpaces = useMemo(() => {
@@ -488,7 +511,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                             <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colImage}</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colName}</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colType}</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colOwner}</th>
+                            {isSuperAdmin && <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colOwner}</th>}
                             <th className="px-6 py-3 text-left text-xs font-semibold text-text-light uppercase">{t.colStats}</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-text-light uppercase">{t.colRank}</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-text-light uppercase">{t.colActions}</th>
@@ -496,7 +519,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                     </thead>
                     <tbody className="bg-background-panel divide-y divide-border-color">
                         {isLoading ? (
-                            <tr><td colSpan={7} className="text-center p-8 text-text-light">{t.loading}</td></tr>
+                            <tr><td colSpan={isSuperAdmin ? 7 : 6} className="text-center p-8 text-text-light">{t.loading}</td></tr>
                         ) : paginatedSpaces.map((space) => (
                             <tr key={space.id} className="hover:bg-background-light">
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -513,9 +536,9 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                         {getTypeName(space.typeId ?? null)}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-main">
+                                {isSuperAdmin && <td className="px-6 py-4 whitespace-nowrap text-sm text-text-main">
                                     {getUserName(space.userId)}
-                                </td>
+                                </td>}
                                 <td className="px-6 py-4 whitespace-nowrap text-xs text-text-light">
                                     <div className="flex gap-3">
                                         <span className="flex items-center gap-1"><UsersIcon className="w-3 h-3" /> {space.membersCount}</span>
@@ -671,13 +694,59 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                             <div><label className="block text-sm font-medium mb-1">{t.rank}</label><input type="number" name="spaceSort" value={editingSpace.spaceSort ?? ''} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" /></div>
                                             <div><label className="block text-sm font-medium mb-1">{t.rating}</label><input type="number" step="0.1" name="rating" value={editingSpace.rating ?? ''} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" /></div>
                                         </div>
-                                        <div>
+                                        {isSuperAdmin && (
+                                        <div ref={ownerDropdownRef} className="relative">
                                             <label className="block text-sm font-medium mb-1">{t.owner}</label>
-                                            <select name="userId" value={editingSpace.userId ?? ''} onChange={handleInputChange} disabled={!isSuperAdmin} className="w-full p-2 border rounded-md text-sm bg-gray-50 disabled:cursor-not-allowed">
-                                                <option value="">{t.noOwner}</option>
-                                                {allUsers.map(u => <option key={u.id as number} value={u.id as number}>{u.name}</option>)}
-                                            </select>
+                                            <div
+                                                className="w-full p-2 border rounded-md text-sm bg-background-light cursor-pointer flex justify-between items-center hover:border-primary transition-colors"
+                                                onClick={() => { setIsOwnerDropdownOpen(!isOwnerDropdownOpen); setOwnerSearch(''); }}
+                                            >
+                                                <span className={editingSpace.userId ? 'text-text-main' : 'text-text-light'}>
+                                                    {editingSpace.userId
+                                                        ? (() => { const u = allUsers.find(u => u.id === editingSpace.userId); return u ? `${u.name} (${u.email || ''})` : t.noOwner; })()
+                                                        : t.noOwner}
+                                                </span>
+                                                <svg className={`w-4 h-4 text-text-light transition-transform ${isOwnerDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                            </div>
+                                            {isOwnerDropdownOpen && (
+                                                <div className="absolute z-50 mt-1 w-full bg-background-panel border border-border-color rounded-lg shadow-lg max-h-60 flex flex-col">
+                                                    <div className="p-2 border-b border-border-color">
+                                                        <input
+                                                            type="text"
+                                                            value={ownerSearch}
+                                                            onChange={e => setOwnerSearch(e.target.value)}
+                                                            placeholder="Tìm tên hoặc email..."
+                                                            className="w-full px-3 py-1.5 border rounded-md text-sm bg-background-light focus:outline-none focus:border-primary"
+                                                            autoFocus
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                    </div>
+                                                    <div className="overflow-y-auto flex-1">
+                                                        <div
+                                                            className={`px-3 py-2 text-sm cursor-pointer hover:bg-background-light transition-colors ${!editingSpace.userId ? 'bg-primary-light text-primary font-medium' : 'text-text-light'}`}
+                                                            onClick={() => { setEditingSpace(prev => prev ? { ...prev, userId: null } : null); setIsOwnerDropdownOpen(false); }}
+                                                        >{t.noOwner}</div>
+                                                        {allUsers
+                                                            .filter(u => {
+                                                                if (!ownerSearch) return true;
+                                                                const q = ownerSearch.toLowerCase();
+                                                                return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+                                                            })
+                                                            .map(u => (
+                                                                <div
+                                                                    key={u.id as number}
+                                                                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-background-light transition-colors ${editingSpace.userId === u.id ? 'bg-primary-light text-primary font-medium' : 'text-text-main'}`}
+                                                                    onClick={() => { setEditingSpace(prev => prev ? { ...prev, userId: u.id as number } : null); setIsOwnerDropdownOpen(false); }}
+                                                                >
+                                                                    <span className="font-medium">{u.name}</span>
+                                                                    {u.email && <span className="text-text-light ml-1">({u.email})</span>}
+                                                                </div>
+                                                            ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
+                                        )}
 
                                         {/* Feature Toggles */}
                                         {isSuperAdmin && (

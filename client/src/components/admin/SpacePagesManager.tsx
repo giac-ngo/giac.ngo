@@ -4,7 +4,7 @@ import { SpacePage, SpacePageAsset } from '../../types';
 import { useToast } from '../ToastProvider';
 import { PlusIcon, PhotoIcon, PencilIcon, TrashIcon } from '../Icons';
 
-const API_BASE = '/api/spaces';
+const API_BASE = '/api/space-pages';
 
 const SHORTCODES = [
     { code: '{{dharma_talks}}', label: 'Pháp thoại' },

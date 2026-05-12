@@ -577,3 +577,57 @@ export interface OfferingPlan {
     topLabel?: string;
     suggestedAmount?: number;
 }
+
+export interface FbAlbum {
+    id: number;
+    space_id: number;
+    name: string;
+    album_id: string;
+    created_at?: string;
+}
+
+export interface CmsArticle {
+    id: number | 'new';
+    spaceId: number;
+    userId?: number;
+    userName?: string;
+    userAvatarUrl?: string;
+    title: string;
+    content?: string;
+    imageUrls: string[];
+    status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
+    scheduledAt?: string;
+    targetPlatforms: string[];
+    sourceDocumentId?: number;
+    sourceDocumentTitle?: string;
+    tags: string[];
+    author?: string;
+    fbAlbumId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    publishLogs?: CmsPublishLog[];
+}
+
+export interface CmsPublishLog {
+    id: number;
+    articleId: number;
+    platform: string;
+    status: 'pending' | 'success' | 'failed';
+    externalPostId?: string;
+    externalUrl?: string;
+    errorMessage?: string;
+    publishedAt?: string;
+    n8nExecutionId?: string;
+    createdAt?: string;
+}
+
+export interface CmsSocialConnection {
+    id: number;
+    spaceId: number;
+    platform: 'facebook' | 'instagram' | 'threads';
+    pageName?: string;
+    accessToken?: string; // masked on frontend
+    connectedBy?: number;
+    connectedAt?: string;
+    isActive: boolean;
+}
