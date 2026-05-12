@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Space, User, SpaceType } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
-import { PlusIcon, PencilIcon, TrashIcon, SearchIcon, XIcon, EyeIcon, HeartIcon, UsersIcon, PhotoIcon } from '../Icons';
+import { PlusIcon, PencilIcon, TrashIcon, SearchIcon, XIcon, EyeIcon, EyeOffIcon, CopyIcon, HeartIcon, UsersIcon, PhotoIcon } from '../Icons';
 import { SpacePagesManager } from './SpacePagesManager';
 import { MediaPickerModal } from './MediaPickerModal';
 
@@ -325,6 +325,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
     // Editing State
     const [editingSpace, setEditingSpace] = useState<Partial<Space> | null>(null);
     const [activeModalTab, setActiveModalTab] = useState<'info' | 'config'>('info');
+    const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [pagesSpaceId, setPagesSpaceId] = useState<number | null>(null);
     const [ownerSearch, setOwnerSearch] = useState('');
@@ -442,6 +443,16 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
         }
 
         setEditingSpace(prev => prev ? { ...prev, [name]: processedValue } : null);
+    };
+
+    const toggleKeyVisibility = (key: string) => {
+        setVisibleKeys(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handleCopy = (text: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        showToast('Đã sao chép vào bộ nhớ tạm!', 'success');
     };
 
     const handleSave = async () => {
@@ -952,11 +963,65 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-sm font-medium mb-1">Google AI Studio (Gemini)</label>
-                                                <input type="password" name="apiKeys.gemini" value={editingSpace.apiKeys?.gemini || ''} onChange={handleInputChange} placeholder="AIzaSy..." className="w-full p-2.5 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20" />
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <input 
+                                                            type={visibleKeys['gemini'] ? "text" : "password"} 
+                                                            name="apiKeys.gemini" 
+                                                            value={editingSpace.apiKeys?.gemini || ''} 
+                                                            onChange={handleInputChange} 
+                                                            placeholder="AIzaSy..." 
+                                                            className="w-full p-2.5 pr-10 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20 transition-all" 
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleKeyVisibility('gemini')}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-text-light hover:text-primary transition-colors focus:outline-none"
+                                                            title={visibleKeys['gemini'] ? "Ẩn" : "Hiện"}
+                                                        >
+                                                            {visibleKeys['gemini'] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(editingSpace.apiKeys?.gemini || '')}
+                                                        className="p-2.5 border rounded-md bg-background-light hover:bg-background-hover text-text-light hover:text-primary transition-all flex-shrink-0"
+                                                        title="Sao chép"
+                                                    >
+                                                        <CopyIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium mb-1">OpenAI (ChatGPT)</label>
-                                                <input type="password" name="apiKeys.gpt" value={editingSpace.apiKeys?.gpt || ''} onChange={handleInputChange} placeholder="sk-..." className="w-full p-2.5 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20" />
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <input 
+                                                            type={visibleKeys['gpt'] ? "text" : "password"} 
+                                                            name="apiKeys.gpt" 
+                                                            value={editingSpace.apiKeys?.gpt || ''} 
+                                                            onChange={handleInputChange} 
+                                                            placeholder="sk-..." 
+                                                            className="w-full p-2.5 pr-10 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20 transition-all" 
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleKeyVisibility('gpt')}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-text-light hover:text-primary transition-colors focus:outline-none"
+                                                            title={visibleKeys['gpt'] ? "Ẩn" : "Hiện"}
+                                                        >
+                                                            {visibleKeys['gpt'] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(editingSpace.apiKeys?.gpt || '')}
+                                                        className="p-2.5 border rounded-md bg-background-light hover:bg-background-hover text-text-light hover:text-primary transition-all flex-shrink-0"
+                                                        title="Sao chép"
+                                                    >
+                                                        <CopyIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
