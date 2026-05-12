@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { pool } from '../db.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,10 +103,16 @@ export const documentController = {
             return res.status(400).json({ message: 'Missing required fields: provider, model, userId, and file.' });
         }
         try {
-            const user = await userModel.findById(parseInt(userId, 10));
-            const systemConfig = await systemModel.getConfig();
-            const apiKey = user?.apiKeys?.[provider] || systemConfig?.systemKeys?.[provider];
-            const htmlContent = await ocrService.extractAndFormat(file, provider, model, apiKey as string);
+            // Need a dummy aiConfig to use the helper since this endpoint is generic
+            // We just pass the provider to the override
+            const dummyAiConfig: any = { modelType: provider, ownerId: parseInt(userId, 10) };
+            const apiKey = await getApiKeyForAi(dummyAiConfig, provider).catch(() => null);
+            
+            if (!apiKey) {
+                return res.status(400).json({ message: `API Key for ${provider} not configured.` });
+            }
+            
+            const htmlContent = await ocrService.extractAndFormat(file, provider, model, apiKey);
             res.json({ htmlContent });
         } catch (error: unknown) {
             res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) || 'Failed to extract text from file.' });

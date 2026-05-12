@@ -483,6 +483,9 @@ export interface Space {
   hasCommunity?: boolean;
   smtpFromName?: string;
   emailTemplate?: string;
+  apiKeys?: Record<string, string>;
+  guestMessageLimit?: number;
+  guestDailyLimit?: number;
 }
 
 export interface SpacePage {

@@ -11,6 +11,7 @@ import { userModel } from '../models/user.model.js';
 import { trainingDataModel } from '../models/trainingData.model.js';
 import { fileParserService } from './fileParserService.js';
 import { initProgress, updateFileProgress, getSyncProgress } from './syncProgressStore.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
 // ── Gemini Embedding (self-hosted, bypasses text2vec-google module) ──────────
 // Weaviate Cloud's text2vec-google requires Vertex AI projectId — we bypass it.
@@ -353,27 +354,18 @@ const weaviateService = {
             throw new Error(`AI config with ID ${aiConfigId} does not belong to a space.`);
         }
 
-        const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [aiConfig.spaceId]);
-        if (spaceRes.rows.length === 0) {
-            throw new Error(`Space with ID ${aiConfig.spaceId} not found for AI ${aiConfigId}.`);
-        }
-
-        const owner = await userModel.findById(spaceRes.rows[0].user_id);
-        if (!owner) {
-            throw new Error(`Owner (User ID: ${spaceRes.rows[0].user_id}) for Space ${aiConfig.spaceId} not found.`);
-        }
-
-        const ownerKeys = owner.apiKeys || {};
         const dataSources = await trainingDataModel.findByAiId(aiConfigId);
 
         console.log(`Found ${dataSources.length} data sources to sync for AI ${aiConfigId}.`);
 
         const targetModelType = aiConfig.modelType;
         if (!targetModelType) throw new Error('modelType is missing');
-        const ownerKey = (ownerKeys as any)[targetModelType];
+
+        // Retrieve API key using the prioritized fallback utility
+        const ownerKey = await getApiKeyForAi(aiConfig, targetModelType).catch(() => null);
 
         if (!ownerKey) {
-            throw new Error(`Cannot sync: Owner's ${targetModelType.toUpperCase()} API Key is missing.`);
+            throw new Error(`Cannot sync: API Key for ${targetModelType.toUpperCase()} is missing in Space, Owner, and System configs.`);
         }
 
         // Specific checks for Vertex

@@ -39,6 +39,12 @@ const translations = {
         setAsMainHint: 'Khi chọn tùy chọn này, những User mới đăng ký từ trang chủ sẽ tự động được gán làm Thành viên của Không gian này. Tên miền custom sẽ bị ghi đè thành Tên miền chính.',
         groupMailServer: '📧 Mail Server (Space)',
         mailServerHint: 'Cấu hình SMTP riêng cho space. Nếu để trống, hệ thống dùng mail chung.',
+        groupApiKeys: '🔑 API Keys (AI Services)',
+        apiKeysHint: 'API Keys riêng biệt cho Không gian này. Sẽ ghi đè cấu hình của Chủ sở hữu và Hệ thống.',
+        groupGuestConfig: '👤 Cài đặt Khách (Guest)',
+        guestConfigHint: 'Cấu hình giới hạn truy cập cho người dùng chưa đăng nhập.',
+        guestMessageLimit: 'Giới hạn tin nhắn (trước khi yêu cầu Tên)',
+        guestDailyLimit: 'Giới hạn chat mỗi ngày (số tin nhắn)',
 
         name: 'Tên (VI)',
         nameEn: 'Tên (EN)',
@@ -137,6 +143,12 @@ const translations = {
         setAsMainHint: 'When selected, new Users registering from the homepage will automatically be assigned as Members of this Space. The custom domain will be overwritten as the Main Domain.',
         groupMailServer: '📧 Mail Server (Space)',
         mailServerHint: 'SMTP config for this space. Leave empty to use the global mail server.',
+        groupApiKeys: '🔑 API Keys (AI Services)',
+        apiKeysHint: 'Separate API Keys for this space. Overrides Owner and System configs.',
+        groupGuestConfig: '👤 Guest Configuration',
+        guestConfigHint: 'Access limits for non-logged-in users.',
+        guestMessageLimit: 'Message Limit (before name request)',
+        guestDailyLimit: 'Daily Chat Limit (messages)',
 
         name: 'Name (VI)',
         nameEn: 'Name (EN)',
@@ -399,7 +411,10 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 hasMeditation: false,
                 hasLibrary: false,
                 hasDharmaTalks: false,
-                hasCommunity: false
+                hasCommunity: false,
+                apiKeys: {},
+                guestMessageLimit: 5,
+                guestDailyLimit: 20
             });
         }
         setIsModalOpen(true);
@@ -414,6 +429,15 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
         if (type === 'checkbox') processedValue = (e.target as HTMLInputElement).checked;
         if (name === 'userId' && value === '') processedValue = null;
         if (name === 'typeId' && value === '') processedValue = null;
+
+        if (name.startsWith('apiKeys.')) {
+            const keyName = name.split('.')[1];
+            setEditingSpace(prev => prev ? {
+                ...prev,
+                apiKeys: { ...(prev.apiKeys || {}), [keyName]: processedValue }
+            } : null);
+            return;
+        }
 
         setEditingSpace(prev => prev ? { ...prev, [name]: processedValue } : null);
     };
@@ -815,7 +839,41 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                         </div>
                                     </div>
 
+                                    {/* API Keys Group */}
+                                    <div className="bg-background-panel p-4 rounded-lg border border-border-color space-y-4">
+                                        <div>
+                                            <h3 className="font-bold border-b pb-2 mb-1 text-text-main">{t.groupApiKeys}</h3>
+                                            <p className="text-xs text-text-light mb-3">{t.apiKeysHint}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Google AI Studio (Gemini)</label>
+                                            <input type="password" name="apiKeys.gemini" value={editingSpace.apiKeys?.gemini || ''} onChange={handleInputChange} placeholder="AIzaSy..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">OpenAI (ChatGPT)</label>
+                                            <input type="password" name="apiKeys.gpt" value={editingSpace.apiKeys?.gpt || ''} onChange={handleInputChange} placeholder="sk-..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Grok (X.AI)</label>
+                                            <input type="password" name="apiKeys.grok" value={editingSpace.apiKeys?.grok || ''} onChange={handleInputChange} placeholder="xai-..." className="w-full p-2 border rounded-md text-sm bg-background-light font-mono" />
+                                        </div>
+                                    </div>
 
+                                    {/* Guest Config Group */}
+                                    <div className="bg-background-panel p-4 rounded-lg border border-border-color space-y-4">
+                                        <div>
+                                            <h3 className="font-bold border-b pb-2 mb-1 text-text-main">{t.groupGuestConfig}</h3>
+                                            <p className="text-xs text-text-light mb-3">{t.guestConfigHint}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">{t.guestMessageLimit}</label>
+                                            <input type="number" name="guestMessageLimit" value={editingSpace.guestMessageLimit ?? 5} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">{t.guestDailyLimit}</label>
+                                            <input type="number" name="guestDailyLimit" value={editingSpace.guestDailyLimit ?? 20} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm bg-background-light" />
+                                        </div>
+                                    </div>
 
                                 </div>
 

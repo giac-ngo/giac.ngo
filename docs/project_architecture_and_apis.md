@@ -13,8 +13,11 @@ Hệ thống được thiết kế theo mô hình **Multi-Tenant**, trong đó m
 
 ### 2. Dữ liệu độc lập theo Space
 Hầu hết các tài nguyên trong hệ thống đều được gắn thẻ `space_id` để đảm bảo tính cô lập dữ liệu (Data Isolation):
+- **API Keys (AI Studio, ChatGPT, Grok)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI cần key, hệ thống tra theo thứ tự: `Space.apiKeys → Owner.apiKeys (fallback)`. Personal Access Token vẫn giữ ở user settings.
+- **Cài đặt Khách**: Giới hạn tin nhắn cho khách (`guest_message_limit`, `guest_daily_limit`) được cấu hình riêng trên từng Space.
 - **Kho Văn Bản (Documents)**: Tài liệu của Space nào chỉ phục vụ RAG cho AI của Space đó.
 - **Cấu Hình AI (AiConfig)**: Các bot AI, Prompt, cấu hình Giọng nói (TTS) được setup riêng cho từng Space.
+- **Voice Live (Gemini Live)**: Sử dụng ephemeral token (ngắn hạn 30 phút, 1 lần dùng) thay vì trả raw API key cho client. Backend tạo token qua `authTokens.create()` rồi gửi cho frontend.
 - **Pháp Thoại (Dharma Talks) & Thiền (Meditation)**: Dữ liệu bài giảng và lịch sử thiền được quản lý theo Space.
 - **Giao dịch & Cúng Dường (Merits)**: Mỗi Space có cấu hình thanh toán/QR riêng. Merits (điểm công đức) của người dùng được cộng riêng dựa trên giao dịch vào từng Space.
 

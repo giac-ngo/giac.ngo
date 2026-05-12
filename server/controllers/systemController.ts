@@ -13,6 +13,7 @@ import multer from 'multer';
 import { getUserManagedSpaceIds, isAdmin } from '../middleware/authMiddleware.js';
 import { User, AIConfig } from '../types/index.js';
 import { pool } from '../db.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,12 +242,11 @@ export const systemController = {
             let finalVoice = voice;
             let finalStyle = styleInstruction || '';
             let finalTemp = temperature;
-            let finalApiKey = user?.apiKeys?.[provider] || systemConfig?.systemKeys?.[provider] || process.env[`${provider.toUpperCase()}_API_KEY`] || process.env[`VITE_${provider.toUpperCase()}_API_KEY`];
-
+            
             let finalProvider = provider;
             let finalModel = model;
 
-            // If AI Config found, use its specific TTS settings (fallback to space owner's api keys)
+            // If AI Config found, use its specific TTS settings
             if (aiConfig) {
                 if (aiConfig.ttsProvider) finalProvider = aiConfig.ttsProvider;
                 if (aiConfig.ttsModel) finalModel = aiConfig.ttsModel;
@@ -255,24 +255,17 @@ export const systemController = {
                 if (aiConfig.ttsTemperature !== undefined && aiConfig.ttsTemperature !== null) {
                     finalTemp = typeof aiConfig.ttsTemperature === 'number' ? aiConfig.ttsTemperature : parseFloat(aiConfig.ttsTemperature);
                 }
+            }
 
-                // Fetch owner API key — only when needed, single query with JOIN
-                let targetUserId = aiConfig.ownerId;
-                if (aiConfig.spaceId) {
-                    const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [aiConfig.spaceId]);
-                    if (spaceRes.rows.length > 0 && spaceRes.rows[0].user_id) {
-                        targetUserId = spaceRes.rows[0].user_id;
-                    }
-                }
-                
-                if (targetUserId && targetUserId !== userId) {
-                    const owner = (await userModel.findById(targetUserId)) as User | null;
-                    if (owner?.apiKeys && owner.apiKeys[finalProvider]) {
-                        finalApiKey = owner.apiKeys[finalProvider];
-                    }
-                } else if (targetUserId === userId && user?.apiKeys?.[finalProvider]) {
-                    finalApiKey = user.apiKeys[finalProvider];
-                }
+            let finalApiKey: string | null = null;
+            if (aiConfig) {
+                // If we have an AI config, resolve key through the hierarchy (Space -> Owner -> System)
+                finalApiKey = await getApiKeyForAi(aiConfig, finalProvider).catch(() => null);
+            } 
+            
+            if (!finalApiKey) {
+                // Fallback logic for pure text-to-speech calls without an AI config
+                finalApiKey = user?.apiKeys?.[finalProvider] || systemConfig?.systemKeys?.[finalProvider] || process.env[`${finalProvider.toUpperCase()}_API_KEY`] || process.env[`VITE_${finalProvider.toUpperCase()}_API_KEY`] || null;
             }
 
             if (!finalApiKey) {

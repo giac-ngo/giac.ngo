@@ -13,6 +13,8 @@ import { fileParserService } from '../services/fileParserService.js';
 import weaviateService from '../services/weaviateService.js';
 import { vertexService } from '../services/vertexService.js';
 import { AIConfig, User } from '../types/index.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
+import { spaceModel } from '../models/space.model.js';
 
 const mapAndSanitizeUser = (user: User | null) => {
     if (!user) return null;
@@ -20,22 +22,7 @@ const mapAndSanitizeUser = (user: User | null) => {
     return sanitizedUser;
 };
 
-async function getApiKeyForAi(aiConfig: AIConfig) {
-    if (!aiConfig.ownerId) {
-        const systemConfig = await systemModel.getConfig();
-        const apiKey = systemConfig?.systemKeys?.[aiConfig.modelType];
-        if (!apiKey) throw new Error(`System API Key for ${aiConfig.modelType.toUpperCase()} not configured, and AI has no owner.`);
-        return apiKey;
-    }
-
-    const owner = await userModel.findById(aiConfig.ownerId);
-    if (!owner) throw new Error(`AI owner with ID ${aiConfig.ownerId} not found.`);
-
-    const apiKey = owner.apiKeys?.[aiConfig.modelType];
-    if (!apiKey) throw new Error(`Owner's API key for ${aiConfig.modelType.toUpperCase()} is missing.`);
-
-    return apiKey;
-}
+// Helper function getApiKeyForAi removed (now imported from utils)
 
 export const chatController = {
     async sendMessageStream(req: Request, res: Response) {
@@ -152,8 +139,18 @@ export const chatController = {
                     }
                 } else {
                     const systemConfig = await systemModel.getConfig();
-                    const guestRegisterThreshold = (systemConfig as any).guestMessageLimit || 5;
-                    const guestDailyLimit = (systemConfig as any).guestDailyLimit || 20;
+                    
+                    let guestRegisterThreshold = 5;
+                    let guestDailyLimit = 20;
+
+                    if (aiConfig.spaceId) {
+                        const space = await spaceModel.findById(aiConfig.spaceId);
+                        guestRegisterThreshold = space?.guestMessageLimit ?? (systemConfig as any).guestMessageLimit ?? 5;
+                        guestDailyLimit = space?.guestDailyLimit ?? (systemConfig as any).guestDailyLimit ?? 20;
+                    } else {
+                        guestRegisterThreshold = (systemConfig as any).guestMessageLimit || 5;
+                        guestDailyLimit = (systemConfig as any).guestDailyLimit || 20;
+                    }
 
                     if (guestTurnCount !== undefined && guestTurnCount >= guestDailyLimit) {
                         return onError(new Error("Bạn đã hết 20 lượt chat miễn phí hôm nay. Vui lòng đăng nhập để tiếp tục."));

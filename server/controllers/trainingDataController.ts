@@ -14,6 +14,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { pool } from '../db.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -134,9 +135,7 @@ export const trainingDataController = {
                         const aiConf = await aiConfigModel.findById(aiId);
                         if (!aiConf) return;
 
-                        const owner = aiConf.ownerId ? await userModel.findById(aiConf.ownerId) : null;
-                        // @ts-ignore
-                        const apiKey = owner?.apiKeys?.[aiConf.modelType];
+                        const apiKey = await getApiKeyForAi(aiConf, aiConf.modelType).catch(() => null);
                         if (!apiKey) {
                             logger.warn(`[AUTO-INDEX] Skipping: owner API key missing for modelType ${aiConf.modelType}`);
                             return;
@@ -181,9 +180,7 @@ export const trainingDataController = {
             const aiConfig = await aiConfigModel.findById(source.aiConfigId);
             if (!aiConfig) return res.status(404).json({ message: 'Associated AI config not found.' });
 
-            const owner = aiConfig.ownerId ? await userModel.findById(aiConfig.ownerId) : null;
-            // @ts-ignore
-            const apiKey = owner?.apiKeys?.[aiConfig.modelType];
+            const apiKey = await getApiKeyForAi(aiConfig, aiConfig.modelType).catch(() => null);
             if (!apiKey) return res.status(400).json({ message: `Owner's API key not set.` });
 
             const text = await fileParserService.extractText(source.fileUrl, source.fileName);
@@ -218,9 +215,7 @@ export const trainingDataController = {
                 // Iterate through all providers (gpt, gemini, etc.) that have this file indexed
                 if (sourceToDelete.indexedProviders && Array.isArray(sourceToDelete.indexedProviders)) {
                     for (const provider of sourceToDelete.indexedProviders) {
-                        const providerKey = owner?.apiKeys?.[provider];
-                        // We try to delete even if key is missing (service might handle it or just log error)
-                        // Ideally we need key to init client with headers
+                        const providerKey = await getApiKeyForAi(aiConfig, provider).catch(() => null);
                         if (providerKey) {
                             await weaviateService.deleteDataBySourceId(provider, sourceToDelete.id, sourceToDelete.type, providerKey)
                                 .catch(err => logger.error(`Weaviate cleanup failed for provider ${provider}:`, err.message));
@@ -261,7 +256,7 @@ export const trainingDataController = {
                     // Same logic: iterate through all indexed providers
                     if (deletedSource.indexedProviders && Array.isArray(deletedSource.indexedProviders)) {
                         for (const provider of deletedSource.indexedProviders) {
-                            const providerKey = owner?.apiKeys?.[provider];
+                            const providerKey = await getApiKeyForAi(aiConfig, provider).catch(() => null);
                             if (providerKey) {
                                 await weaviateService.deleteDataBySourceId(provider, deletedSource.id, 'qa', providerKey)
                                     .catch(err => logger.error(`Weaviate cleanup failed for provider ${provider}:`, err.message));

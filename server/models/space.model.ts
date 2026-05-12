@@ -1,4 +1,4 @@
-﻿// server/models/space.model.ts
+// server/models/space.model.ts
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { userModel, enrichUserWithPermissions } from './user.model.js';
@@ -89,6 +89,9 @@ export const spaceModel = {
             hasDharmaTalks: 'has_dharma_talks',
             hasCommunity: 'has_community',
             emailTemplate: 'email_template',
+            apiKeys: 'api_keys',
+            guestMessageLimit: 'guest_message_limit',
+            guestDailyLimit: 'guest_daily_limit',
         };
 
         for (const [key, value] of Object.entries(data)) {
@@ -162,6 +165,9 @@ export const spaceModel = {
             hasDharmaTalks: 'has_dharma_talks',
             hasCommunity: 'has_community',
             emailTemplate: 'email_template',
+            apiKeys: 'api_keys',
+            guestMessageLimit: 'guest_message_limit',
+            guestDailyLimit: 'guest_daily_limit',
         };
 
         for (const [key, value] of Object.entries(data)) {

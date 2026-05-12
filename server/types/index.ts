@@ -57,6 +57,9 @@ export interface Space {
     views?: number;
     likes?: number;
     merits?: number;
+    apiKeys?: Record<string, string>;
+    guestMessageLimit?: number;
+    guestDailyLimit?: number;
     [key: string]: any;
 }
 
