@@ -198,6 +198,9 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
 - **Xác thực và Phân quyền (JWT)**: Sử dụng JWT tokens quản lý session qua `authMiddleware.js`.
 - Phân tách quyền lực rõ ràng: `isAdmin` (Super Admin hệ thống) vs. `isSpaceOwner`/Member (Chỉ quản lý Space của mình).
 - **Socket.IO Real-time**: Tham gia các phòng (`room`) thông qua tên gọi `space-{spaceId}` hoặc `user-{userId}` để đẩy (push) log đồng bộ Vector hoặc tiến trình huấn luyện AI.
+- **Bảo mật dữ liệu nhạy cảm (Sanitization)**: 
+  - Tại `spacesController.ts`, hệ thống sử dụng hàm `mapAndSanitizeSpace` để lọc bỏ các trường nhạy cảm (`apiKeys`, `smtpPass`, `payosApiKey`, `payosChecksumKey`) trước khi gửi dữ liệu về Client.
+  - **Quyền hạn**: Chỉ có SuperAdmin (quyền `roles`) hoặc Space Owner (được xác thực qua `canAccessSpace`) mới nhận được dữ liệu thô (Raw) chứa các Key này để phục vụ việc quản trị. Khách vãng lai hoặc Member bình thường sẽ nhận được bản đã lọc sạch (Sanitized).
 
 ---
 

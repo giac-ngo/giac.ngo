@@ -15,6 +15,13 @@ const mapAndSanitizeUser = (user: Record<string, unknown> | null) => {
     return sanitizedUser;
 };
 
+// Sanitize space data to remove sensitive info like API keys and SMTP passwords
+const mapAndSanitizeSpace = (space: any) => {
+    if (!space) return null;
+    const { apiKeys, smtpPass, payosApiKey, payosChecksumKey, ...sanitizedSpace } = space;
+    return sanitizedSpace;
+};
+
 export const spacesController = {
     async getAllSpaces(req: Request, res: Response) {
         try {
@@ -29,11 +36,13 @@ export const spacesController = {
             if (req.user && (req.user as any).id) {
                 const managedIds = await getUserManagedSpaceIds((req.user as any).id);
                 const mySpaces = spaces.filter(space => managedIds.includes(space.id as number));
+                // If they manage it, we assume they are allowed to see the keys for now 
+                // (this matches the existing multi-tenant ownership model)
                 return res.json(mySpaces);
             }
 
             // Unauthenticated: return all (public listing for homepage/landing)
-            res.json(spaces);
+            res.json(spaces.map(mapAndSanitizeSpace));
         } catch (error: unknown) {
             console.error('Error fetching spaces:', error);
             res.status(500).json({ message: 'Failed to fetch spaces.' });
@@ -51,7 +60,11 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            res.json(space);
+            // Only return full object (including keys) if superAdmin or space owner
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+                return res.json(space);
+            }
+            res.json(mapAndSanitizeSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with id ${req.params.id}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
@@ -65,7 +78,10 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            res.json(space);
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+                return res.json(space);
+            }
+            res.json(mapAndSanitizeSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with domain ${req.params.domain}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
@@ -79,7 +95,10 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            res.json(space);
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+                return res.json(space);
+            }
+            res.json(mapAndSanitizeSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with slug ${req.params.slug}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
