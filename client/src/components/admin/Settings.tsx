@@ -105,37 +105,18 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
     const t = translations[language];
     const { showToast } = useToast();
 
-    const [localSystemConfig, setLocalSystemConfig] = useState<SystemConfig>(systemConfig);
     const [localUser, setLocalUser] = useState<User>(user);
     const [isSaving, setIsSaving] = useState(false);
     const [showToken, setShowToken] = useState(false);
-    const [showKeys, setShowKeys] = useState<Record<string, boolean>>({ gemini: false, gpt: false });
 
-    useEffect(() => { setLocalSystemConfig(systemConfig); }, [systemConfig]);
     useEffect(() => { setLocalUser(user); }, [user]);
-
-    const handleSystemChange = (value: number) => {
-        setLocalSystemConfig(prev => ({ ...prev, guestMessageLimit: value }));
-    };
-
-    const handleKeyChange = (keyName: string, value: string) => {
-        setLocalUser(prev => ({
-            ...prev,
-            apiKeys: { ...(prev.apiKeys || {}), [keyName]: value }
-        }));
-    };
 
     const handleSaveAll = async () => {
         setIsSaving(true);
         try {
             const promises = [];
 
-            // 1. Cập nhật System Config (nếu là admin)
-            if (user.permissions?.includes('settings')) {
-                promises.push(apiService.updateSystemConfig(localSystemConfig).then(onSystemConfigUpdate));
-            }
-
-            // 2. Cập nhật User Keys
+            // 1. Cập nhật User Keys (Personal Token)
             const userPayload: Partial<User> = {
                 id: localUser.id,
                 apiKeys: localUser.apiKeys || {},
@@ -176,28 +157,6 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
             <h1 className="text-3xl font-bold mb-8 font-serif text-primary">{t.title}</h1>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
-                {/* Guest Settings Card */}
-                {isAdmin && (
-                    <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <UsersIcon className="w-5 h-5 text-primary" />
-                            {t.guestSettings}
-                        </h2>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-text-main mb-1">{t.guestMessageLimit}</label>
-                                <input
-                                    type="number"
-                                    value={localSystemConfig.guestMessageLimit ?? 0}
-                                    onChange={e => handleSystemChange(parseInt(e.target.value) || 0)}
-                                    className="w-full p-2.5 bg-background-light border border-border-color rounded-lg focus:ring-2 focus:ring-primary/20"
-                                />
-                                <p className="text-xs text-text-light mt-2 italic">{t.guestMessageLimitDesc}</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* Personal Token Card */}
                 <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -225,58 +184,6 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
                         </button>
                     </div>
                     <button onClick={handleRegenerateToken} className="mt-4 text-xs font-bold text-accent-red hover:underline uppercase tracking-wider">{t.regenerateToken}</button>
-                </div>
-
-                {/* Personal API Keys Card */}
-                <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color xl:col-span-2">
-                    <h2 className="text-xl font-bold mb-2">{t.personalApiKeys}</h2>
-                    <p className="text-sm text-text-light mb-8 italic">{t.personalApiKeysDesc}</p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* AI Studio API Key + Gemini Voice selector */}
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-text-main mb-1.5">{t.aiStudioKey}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showKeys['gemini'] ? 'text' : 'password'}
-                                        value={(localUser.apiKeys as any)?.gemini || ''}
-                                        onChange={e => handleKeyChange('gemini', e.target.value)}
-                                        className="w-full p-2.5 bg-background-light border border-border-color rounded-lg pr-12 font-mono text-sm focus:ring-2 focus:ring-primary/20"
-                                    />
-                                    <button
-                                        onClick={() => setShowKeys(prev => ({ ...prev, gemini: !prev['gemini'] }))}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-primary"
-                                    >
-                                        {showKeys['gemini'] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Other API Keys */}
-                        {[
-                            { id: 'gpt', label: t.gptKey }
-                        ].map(key => (
-                            <div key={key.id}>
-                                <label className="block text-sm font-bold text-text-main mb-1.5">{key.label}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showKeys[key.id] ? 'text' : 'password'}
-                                        value={(localUser.apiKeys as any)?.[key.id] || ''}
-                                        onChange={e => handleKeyChange(key.id, e.target.value)}
-                                        className="w-full p-2.5 bg-background-light border border-border-color rounded-lg pr-12 font-mono text-sm focus:ring-2 focus:ring-primary/20"
-                                    />
-                                    <button
-                                        onClick={() => setShowKeys(prev => ({ ...prev, [key.id]: !prev[key.id] }))}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-primary"
-                                    >
-                                        {showKeys[key.id] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
 
