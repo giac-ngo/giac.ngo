@@ -45,7 +45,7 @@ export const spaceMemberModel = {
 
     async getMembersBySpace(spaceId: number | string): Promise<SpaceMember[]> {
         const res = await pool.query(
-            `SELECT sm.*, u.name, u.email, u.avatar_url
+            `SELECT sm.*, u.name, u.email, u.avatar_url, u.is_active
              FROM space_members sm
              JOIN users u ON sm.user_id = u.id
              WHERE sm.space_id = $1

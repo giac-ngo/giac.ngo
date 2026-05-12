@@ -196,11 +196,19 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
 
 ## III. Cơ chế Bảo mật và Middleware
 - **Xác thực và Phân quyền (JWT)**: Sử dụng JWT tokens quản lý session qua `authMiddleware.js`.
-- Phân tách quyền lực rõ ràng: `isAdmin` (Super Admin hệ thống) vs. `isSpaceOwner`/Member (Chỉ quản lý Space của mình).
+- Phân tách quyền lực rõ ràng: `isGlobalAdmin` (Super Admin hệ thống — chỉ `true` khi truy cập từ Root Domain `/admin`) vs. `isSpaceOwner`/Manager (Quản lý Space của mình qua `/:slug/admin`).
+- **QUY TẮC QUAN TRỌNG**: KHÔNG dùng `user.permissions?.includes('roles')` để xác định SuperAdmin. Thay vào đó, `AdminPage.tsx` truyền prop `isGlobalAdmin` xuống tất cả các component con. Việc dùng `permissions.includes('roles')` sẽ gây lỗi bảo mật vì Space Owner cũng có thể có quyền `roles`.
 - **Socket.IO Real-time**: Tham gia các phòng (`room`) thông qua tên gọi `space-{spaceId}` hoặc `user-{userId}` để đẩy (push) log đồng bộ Vector hoặc tiến trình huấn luyện AI.
 - **Bảo mật dữ liệu nhạy cảm (Sanitization)**: 
   - Tại `spacesController.ts`, hệ thống sử dụng hàm `mapAndSanitizeSpace` để lọc bỏ các trường nhạy cảm (`apiKeys`, `smtpPass`, `payosApiKey`, `payosChecksumKey`) trước khi gửi dữ liệu về Client.
-  - **Quyền hạn**: Chỉ có SuperAdmin (quyền `roles`) hoặc Space Owner (được xác thực qua `canAccessSpace`) mới nhận được dữ liệu thô (Raw) chứa các Key này để phục vụ việc quản trị. Khách vãng lai hoặc Member bình thường sẽ nhận được bản đã lọc sạch (Sanitized).
+  - **Quyền hạn**: Chỉ có SuperAdmin hoặc Space Owner (được xác thực qua `canAccessSpace`) mới nhận được dữ liệu thô (Raw) chứa các Key này.
+- **Cơ chế Kế thừa Quyền hạn (Inherited Role Allocation)**:
+  - Khi Space Owner tạo mới hoặc cấp phát Quyền (Role) cho người dùng, hệ thống giới hạn danh sách quyền được phép cấp phát **chỉ trong phạm vi những quyền mà Space Owner đang sở hữu**.
+  - Kiểm soát ở giao diện (ẩn checkbox) và API (`roleController.ts` lọc quyền vượt cấp).
+- **Space-Scoped Roles**: Bảng `roles` có cột `space_id`.
+  - `space_id IS NULL` → Role hệ thống (Global Admin quản lý, read-only cho Space Owner).
+  - `space_id = X` → Role do Space Owner tạo (chỉnh sửa được bởi Space Owner/Manager).
+  - UNIQUE constraint: `(name, COALESCE(space_id, 0))` — cho phép trùng tên giữa các Space.
 
 ---
 
@@ -220,8 +228,10 @@ Hệ thống Frontend được xây dựng bằng **React + TypeScript + Vite**,
   - **MeditationTimer (Đồng hồ thiền)**: Tính thời gian và ghi lại lịch sử thực hành.
   - **Community (Bảng tin MXH)**: Nơi post bài, đăng ảnh, tương tác thả tim và bình luận nội bộ.
   - Tích hợp **Voice Chat (Gemini Live)**: Chức năng Live Stream bằng giọng nói `window.SpeechRecognition`.
-- **`AdminPage.tsx`**: Bảng điều khiển quản trị (Dashboard) cực lớn, quản lý AI Config, CMS, Users, Billing (Thanh toán/Rút tiền) dựa trên quyền `isGlobalAdmin` hoặc `Space Owner`.
-  - **SpaceManagement**: Giao diện được chia thành 2 tab (Thông tin chung & Cấu hình mở rộng). Đã ẩn tính năng xóa Space đối với các quản trị viên không phải là SuperAdmin. Đã gỡ bỏ cấu hình Grok API. Hỗ trợ chặn auto-fill trình duyệt trên các ô tìm kiếm.
+- **`AdminPage.tsx`**: Bảng điều khiển quản trị (Dashboard) cực lớn, quản lý AI Config, CMS, Users, Billing dựa trên `isGlobalAdmin` (từ Root Domain) hoặc Space context (từ `/:slug/admin`).
+  - **Quy tắc truyền prop**: Tất cả component con (`SpaceManagement`, `RoleManagement`, `AiManagement`, `UserManagement`) nhận `isGlobalAdmin` và `currentSpace` từ `AdminPage`.
+  - **SpaceManagement**: Non-admin chỉ thấy space mình thuộc về, sửa được nhưng không xóa. Tab "Cấu hình mở rộng" chỉ hiện cho Owner/SuperAdmin.
+  - **AiManagement**: Non-admin chỉ thấy AI thuộc space, có thể sửa nếu có quyền `ai` (`isSpaceManager`).
 
 ### 3. Quản lý Trạng Thái & Giao diện (State & Theming)
 - **Theming (Giao diện động)**: Hệ thống sử dụng thuộc tính CSS `data-theme` được tiêm thẳng vào thẻ `<html>` thông qua `document.documentElement.setAttribute('data-theme', themeToApply)`. Việc này cho phép cấu hình màu sắc, Dark/Light mode khác nhau cho từng Space.

@@ -158,8 +158,14 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         if (isGlobalAdminProp) {
             apiService.getAllRoles().then(setRoles).catch(err => showToast(err.message, 'error'));
             apiService.getSpaces().then(setSpaces).catch(console.error);
+        } else if (space?.id) {
+            // Space Owner/Manager: load only space-scoped roles
+            apiService.getSpaceRoles(space.id).then((data: Role[]) => {
+                // Filter out system roles (read-only), only show editable space roles
+                setRoles(data.filter((r: any) => !r._readOnly));
+            }).catch(err => showToast(err.message, 'error'));
         }
-    }, [showToast, isGlobalAdminProp]);
+    }, [showToast, isGlobalAdminProp, space?.id]);
 
     const fetchUsers = useCallback(async () => {
         // Nếu là Space Owner/Admin: CHỜ đến khi space?.id có giá trị mới fetch
@@ -245,9 +251,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
 
     const handleRoleChange = (roleId: number) => {
         if (!editingUser) return;
-        const currentRoles = editingUser.roleIds || [];
-        const newRoles = currentRoles.includes(roleId) ? currentRoles.filter(id => id !== roleId) : [...currentRoles, roleId];
-        setEditingUser(prev => prev ? { ...prev, roleIds: newRoles } : null);
+        setEditingUser(prev => prev ? { ...prev, roleIds: [roleId] } : null);
     };
 
     const handleAvatarSelect = (url: string) => {
@@ -506,12 +510,12 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                             {!isSpaceOwner && (
                                 <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
                             )}
-                            {/* Roles: chỉ Global Admin */}
-                            {!isSpaceOwner && (
+                            {/* Roles: Global Admin sees all, Space Owner/Manager sees space-scoped roles */}
+                            {(roles.length > 0) && (
                                 <div>
                                     <label className="block text-sm font-medium">{t.modal.roles}</label>
                                     <div className="mt-2 grid grid-cols-3 gap-2 p-4 border rounded-md bg-background-light border-border-color">
-                                        {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="checkbox" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
+                                        {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="radio" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
                                     </div>
                                 </div>
                             )}

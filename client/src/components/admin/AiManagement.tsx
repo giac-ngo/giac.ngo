@@ -685,7 +685,7 @@ const SelectDocumentModal: React.FC<{
 };
 
 
-export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ language, user }) => {
+export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGlobalAdmin?: boolean, space?: Space | null }> = ({ language, user, isGlobalAdmin, space: contextSpace }) => {
     const [, setSearchParams] = useSearchParams();
     const [aiList, setAiList] = useState<AIConfig[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -771,7 +771,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
 
     // Initialize spaceIdFilter: empty for admin (show all), user's space for regular users
     const [spaceIdFilter, setSpaceIdFilter] = useState<string>(() => {
-        if (user.permissions?.includes('roles')) return ''; // Admin sees all by default
+        if (isGlobalAdmin) return ''; // Admin sees all by default
         // Regular user: will be set after spaces load
         return '';
     });
@@ -781,26 +781,31 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
 
     // --- Derived State ---
     const isOwner = selectedAi?.ownerId === user.id;
-    const canEdit = user.permissions?.includes('roles') || isOwner;
+    const isSpaceManager = !isGlobalAdmin && !!contextSpace?.id && selectedAi?.spaceId === contextSpace?.id && user.permissions?.includes('ai');
+    const canEdit = isGlobalAdmin || isOwner || isSpaceManager;
     const isApiKeyMissing = !!selectedAi && !user.apiKeys?.[selectedAi.modelType] && !apiKeyWarningDismissed;
     const isFormDisabled = !canEdit || isApiKeyMissing;
-    const isSuperAdmin = user.permissions?.includes('roles');
+    const isSuperAdmin = isGlobalAdmin;
 
     const filesNeedingSummaryCount = useMemo(() => {
         return trainingData.filter(d => d.type === 'file' && !d.summary && typeof d.id === 'number' && !isQaFile(d.fileName)).length;
     }, [trainingData]);
 
     const manageableSpaces = useMemo(() => {
-        if (user.permissions?.includes('roles')) {
+        if (isGlobalAdmin) {
             return allSpaces; // Admins can manage all spaces
         }
         return allSpaces.filter(space => space.userId === user.id);
     }, [allSpaces, user]);
 
     const filteredAiList = useMemo(() => {
+        // Non-global-admin: always filter by their space
+        if (!isGlobalAdmin && contextSpace?.id) {
+            return aiList.filter(ai => ai.spaceId === contextSpace.id);
+        }
         if (!spaceIdFilter) return aiList;
         return aiList.filter(ai => String(ai.spaceId) === spaceIdFilter);
-    }, [aiList, spaceIdFilter]);
+    }, [aiList, spaceIdFilter, isGlobalAdmin, contextSpace?.id]);
 
     const isFormDirty = useCallback(() => {
         if (!selectedAi || !pristineAi) return false;
@@ -908,7 +913,9 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                 setAllSpaces(spaces || []);
 
                 // Set default space for regular users
-                if (!user.permissions?.includes('roles') && spaces && spaces.length > 0) {
+                if (!isGlobalAdmin && contextSpace?.id) {
+                    setSpaceIdFilter(String(contextSpace.id));
+                } else if (!isGlobalAdmin && spaces && spaces.length > 0) {
                     const userSpace = spaces.find(s => s.userId === user.id);
                     if (userSpace) {
                         setSpaceIdFilter(String(userSpace.id));
@@ -1305,7 +1312,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
         const target = ai || selectedAi;
         if (!target || typeof target.id !== 'number') return;
         const isTargetOwner = target.ownerId === user.id;
-        const canDelete = user.permissions?.includes('roles') || isTargetOwner;
+        const canDelete = isGlobalAdmin || isTargetOwner;
         if (!canDelete) return;
         setAiToDelete(target);
         setIsDeleteConfirmModalOpen(true);
@@ -1894,7 +1901,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                         <span key={tag} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">{tag}</span>
                                     ))}
                                 </div>
-                                {user.permissions?.includes('roles') && (
+                                {isGlobalAdmin && (
                                     <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 border border-gray-200 max-w-full truncate">
                                         <svg className="w-2.5 h-2.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
                                         <span className="truncate">{getOwnerName(ai.ownerId)}</span>
@@ -1935,7 +1942,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ 
                                             </button>
                                         );
                                     })()}
-                                    {(user.permissions?.includes('roles') || ai.ownerId === user.id) && typeof ai.id === 'number' && (
+                                    {(isGlobalAdmin || ai.ownerId === user.id) && typeof ai.id === 'number' && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleInitiateDelete(ai); }}
                                             title={language === 'vi' ? 'Xóa AI này' : 'Delete this AI'}

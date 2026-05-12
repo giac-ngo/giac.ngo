@@ -1,4 +1,4 @@
-// server/controllers/userController.ts
+ï»¿// server/controllers/userController.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { userModel } from '../models/user.model.js';
@@ -17,7 +17,7 @@ export const userController = {
         try {
             res.json(mapAndSanitizeUser(req.user as User));
         } catch (error: unknown) {
-            res.status(500).json({ message: 'Không th? t?i thông tin h? so.' });
+            res.status(500).json({ message: 'Khï¿½ng th? t?i thï¿½ng tin h? so.' });
         }
     },
     async getAllUsers(req: Request, res: Response) {
@@ -42,7 +42,7 @@ export const userController = {
             // If user has none of these permissions, they are forbidden.
             return res.status(403).json({ message: 'Forbidden: You do not have permission to view users.' });
         } catch (error: unknown) {
-            res.status(500).json({ message: 'Không th? t?i danh sách ngu?i dùng.' });
+            res.status(500).json({ message: 'Khï¿½ng th? t?i danh sï¿½ch ngu?i dï¿½ng.' });
         }
     },
 
@@ -114,14 +114,14 @@ export const userController = {
             const newUser = await userModel.create(req.body);
             res.status(201).json(mapAndSanitizeUser(newUser));
         } catch (error: unknown) {
-            res.status(500).json({ message: `L?i khi t?o ngu?i dùng: ${(error instanceof Error ? error.message : String(error))}` });
+            res.status(500).json({ message: `L?i khi t?o ngu?i dï¿½ng: ${(error instanceof Error ? error.message : String(error))}` });
         }
     },
 
     async updateUser(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
-            if (isNaN(id)) return res.status(400).json({ message: 'User ID không h?p l?.' });
+            if (isNaN(id)) return res.status(400).json({ message: 'User ID khï¿½ng h?p l?.' });
 
             const user = req.user as User;
             const isAdmin = user && user.permissions && user.permissions.includes('users');
@@ -141,31 +141,31 @@ export const userController = {
             const updatedUser = await userModel.update(id, payload);
             res.json(mapAndSanitizeUser(updatedUser));
         } catch (error: unknown) {
-            logger.error("L?i khi c?p nh?t ngu?i dùng:", error);
-            res.status(500).json({ message: 'L?i khi c?p nh?t ngu?i dùng.' });
+            logger.error("L?i khi c?p nh?t ngu?i dï¿½ng:", error);
+            res.status(500).json({ message: 'L?i khi c?p nh?t ngu?i dï¿½ng.' });
         }
     },
 
     async deleteUser(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
-            if (isNaN(id)) return res.status(400).json({ message: 'User ID không h?p l?.' });
+            if (isNaN(id)) return res.status(400).json({ message: 'User ID khï¿½ng h?p l?.' });
             
             const user = req.user as User;
             if (user && user.id === id) {
-                return res.status(400).json({ message: 'B?n không th? xóa chính mình.' });
+                return res.status(400).json({ message: 'B?n khï¿½ng th? xï¿½a chï¿½nh mï¿½nh.' });
             }
             await userModel.delete(id);
             res.status(204).send();
         } catch (error: unknown) {
-            res.status(500).json({ message: 'L?i khi xóa ngu?i dùng.' });
+            res.status(500).json({ message: 'L?i khi xï¿½a ngu?i dï¿½ng.' });
         }
     },
 
     async regenerateApiToken(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
-            if (isNaN(id)) return res.status(400).json({ message: 'User ID không h?p l?.' });
+            if (isNaN(id)) return res.status(400).json({ message: 'User ID khï¿½ng h?p l?.' });
             const updatedUser = await userModel.regenerateApiToken(id);
             res.json(mapAndSanitizeUser(updatedUser));
         } catch (error: unknown) {
@@ -199,12 +199,12 @@ export const userController = {
     async getUserSpaces(req: Request, res: Response) {
         try {
             const userId = parseInt(String(req.params.id), 10);
-            if (isNaN(userId)) return res.status(400).json({ message: 'User ID không h?p l?.' });
+            if (isNaN(userId)) return res.status(400).json({ message: 'User ID khï¿½ng h?p l?.' });
             const spaces = await spaceMemberModel.getSpacesByUser(userId);
             res.json(spaces);
         } catch (error: unknown) {
             logger.error('Error fetching user spaces:', error);
-            res.status(500).json({ message: 'L?i khi t?i danh sách không gian.' });
+            res.status(500).json({ message: 'L?i khi t?i danh sï¿½ch khï¿½ng gian.' });
         }
     },
 };

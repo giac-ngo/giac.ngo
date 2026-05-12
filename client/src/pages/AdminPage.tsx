@@ -326,7 +326,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         }
         return <MediaLibrary space={currentSpace} language={language} />;
       case 'spaces':
-        return <SpaceManagement language={language} user={user} />;
+        return <SpaceManagement language={language} user={user} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'meditation':
         return <MeditationManagement language={language} />;
       case 'dharma-talks':
@@ -336,11 +336,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'space-billing':
         return <SpaceOwnerBilling user={user} language={language} />;
       case 'ai':
-        return <AiManagement language={language} user={user} />;
+        return <AiManagement language={language} user={user} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'users':
         return <UserManagement user={user} language={language} onUserUpdate={onUserUpdate} space={currentSpace} isGlobalAdmin={!!isGlobalAdmin} />;
       case 'roles':
-        return <RoleManagement language={language} user={user} onUserUpdate={onUserUpdate} />;
+        return <RoleManagement language={language} user={user} onUserUpdate={onUserUpdate} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'comments':
         return <CommentManagement language={language} />;
       case 'conversations':

@@ -1,6 +1,6 @@
 // client/src/components/admin/RoleManagement.tsx
 import React, { useState, useEffect } from 'react';
-import { Role, User } from '../../types';
+import { Role, User, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
 import { SettingsIcon, BookOpenIcon, AiIcon, UsersIcon, BillingIcon } from '../Icons';
@@ -23,6 +23,9 @@ const translations = {
         deleteSuccess: 'Xóa quyền thành công!',
         deleteError: 'Xóa quyền thất bại: {message}',
         fetchError: 'Không thể tải danh sách quyền.',
+        systemRoleLabel: '🔒 Quyền hệ thống (chỉ xem)',
+        spaceRoleLabel: '📝 Quyền Space (có thể chỉnh sửa)',
+        readOnlyWarning: 'Quyền này do Admin Root tạo. Bạn không thể chỉnh sửa.',
         groupSystem: 'Tổng quan & Hệ thống',
         groupContent: 'Nội dung & Thư viện',
         groupAi: 'AI & Dữ liệu',
@@ -74,6 +77,9 @@ const translations = {
         deleteSuccess: 'Role deleted successfully!',
         deleteError: 'Failed to delete role: {message}',
         fetchError: 'Could not load roles.',
+        systemRoleLabel: '🔒 System Role (read-only)',
+        spaceRoleLabel: '📝 Space Role (editable)',
+        readOnlyWarning: 'This role was created by the Root Admin. You cannot edit it.',
         groupSystem: 'Overview & System',
         groupContent: 'Content & Library',
         groupAi: 'AI & Data',
@@ -112,7 +118,7 @@ const translations = {
 
 type PermissionKey = keyof typeof translations['vi']['permissionLabels'];
 
-const permissionGroups: { titleKey: keyof Omit<typeof translations['vi'], 'permissionLabels' | 'title' | 'loading' | 'roleList' | 'newRole' | 'noRoleSelected' | 'roleName' | 'permissions' | 'save' | 'saving' | 'delete' | 'confirmDelete' | 'saveSuccess' | 'saveError' | 'deleteSuccess' | 'deleteError' | 'fetchError'>; icon: React.FC<{ className?: string }>; permissions: PermissionKey[] }[] = [
+const permissionGroups: { titleKey: keyof Omit<typeof translations['vi'], 'permissionLabels' | 'title' | 'loading' | 'roleList' | 'newRole' | 'noRoleSelected' | 'roleName' | 'permissions' | 'save' | 'saving' | 'delete' | 'confirmDelete' | 'saveSuccess' | 'saveError' | 'deleteSuccess' | 'deleteError' | 'fetchError' | 'systemRoleLabel' | 'spaceRoleLabel' | 'readOnlyWarning'>; icon: React.FC<{ className?: string }>; permissions: PermissionKey[] }[] = [
     { titleKey: 'groupSystem', icon: SettingsIcon, permissions: ['dashboard', 'settings', 'templates', 'notifications'] },
     { titleKey: 'groupContent', icon: BookOpenIcon, permissions: ['files', 'media-library', 'spaces', 'dharma-talks', 'meditation', 'comments', 'cms'] },
     { titleKey: 'groupAi', icon: AiIcon, permissions: ['ai', 'conversations', 'finetune'] },
@@ -122,9 +128,9 @@ const permissionGroups: { titleKey: keyof Omit<typeof translations['vi'], 'permi
 ];
 
 
-export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUserUpdate: (data: Partial<User>) => void }> = ({ language, onUserUpdate }) => {
+export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUserUpdate: (data: Partial<User>) => void; isGlobalAdmin?: boolean; space?: Space | null }> = ({ language, user, onUserUpdate, isGlobalAdmin, space }) => {
     const [roles, setRoles] = useState<Role[]>([]);
-    const [selectedRole, setSelectedRole] = useState<Partial<Role> | null>(null);
+    const [selectedRole, setSelectedRole] = useState<Partial<Role> & { _readOnly?: boolean } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { showToast } = useToast();
@@ -133,7 +139,14 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
     const fetchRoles = async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.getAllRoles();
+            let data: Role[];
+            if (!isGlobalAdmin && space?.id) {
+                // Space Owner: get space-scoped roles + their assigned system roles
+                data = await apiService.getSpaceRoles(space.id);
+            } else {
+                // Global Admin: get all roles
+                data = await apiService.getAllRoles();
+            }
             setRoles(data);
         } catch (error) {
             showToast(t.fetchError, 'error');
@@ -144,10 +157,10 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
 
     useEffect(() => {
         fetchRoles();
-    }, []);
+    }, [space?.id]);
 
     const handleNewRole = () => {
-        setSelectedRole({ id: 'new', name: '', permissions: [] });
+        setSelectedRole({ id: 'new', name: '', permissions: [], _readOnly: false });
     };
 
     const handleFormChange = (field: keyof Role, value: any) => {
@@ -157,7 +170,7 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
     };
 
     const handlePermissionChange = (permission: string) => {
-        if (selectedRole) {
+        if (selectedRole && !selectedRole._readOnly) {
             const currentPermissions = selectedRole.permissions || [];
             const newPermissions = currentPermissions.includes(permission)
                 ? currentPermissions.filter(p => p !== permission)
@@ -168,14 +181,24 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
 
     const handleSave = async () => {
         if (!selectedRole || !selectedRole.name?.trim()) return;
+        if (selectedRole._readOnly) return; // Safety check
         setIsSaving(true);
         try {
             let savedRole;
+            const payload: any = {
+                name: selectedRole.name,
+                permissions: selectedRole.permissions,
+            };
+
+            // If Space Owner creating a new role, attach spaceId
+            if (!isGlobalAdmin && space?.id) {
+                payload.spaceId = space.id;
+            }
+
             if (selectedRole.id === 'new') {
-                const { id, ...createPayload } = selectedRole;
-                savedRole = await apiService.createRole(createPayload);
+                savedRole = await apiService.createRole(payload);
             } else {
-                savedRole = await apiService.updateRole(selectedRole as Role);
+                savedRole = await apiService.updateRole({ ...payload, id: selectedRole.id } as Role);
             }
             showToast(t.saveSuccess);
             await fetchRoles();
@@ -197,6 +220,7 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
 
     const handleDelete = async () => {
         if (!selectedRole || selectedRole.id === 'new') return;
+        if (selectedRole._readOnly) return; // Safety check
         if (window.confirm(t.confirmDelete.replace('{name}', selectedRole.name || ''))) {
             try {
                 await apiService.deleteRole(selectedRole.id as number);
@@ -209,17 +233,28 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
         }
     };
 
-    const renderPermissionCheckbox = (permissionKey: PermissionKey) => (
-        <label key={permissionKey} className="flex items-center space-x-3 cursor-pointer">
-            <input
-                type="checkbox"
-                checked={selectedRole?.permissions?.includes(permissionKey) || false}
-                onChange={() => handlePermissionChange(permissionKey)}
-                className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-            />
-            <span className="text-sm text-text-main">{t.permissionLabels[permissionKey]}</span>
-        </label>
-    );
+    const isReadOnly = selectedRole?._readOnly === true;
+
+    const renderPermissionCheckbox = (permissionKey: PermissionKey) => {
+        // Space Owner must inherit permissions: they can only grant what they have
+        // Only Global Admin (SuperAdmin) can see and assign ALL permissions
+        if (!isGlobalAdmin && user && user.permissions && !user.permissions.includes(permissionKey)) {
+            return null; // Do not render if the current user doesn't have this permission
+        }
+
+        return (
+            <label key={permissionKey} className={`flex items-center space-x-3 ${isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input
+                    type="checkbox"
+                    checked={selectedRole?.permissions?.includes(permissionKey) || false}
+                    onChange={() => handlePermissionChange(permissionKey)}
+                    disabled={isReadOnly}
+                    className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary disabled:opacity-50"
+                />
+                <span className="text-sm text-text-main">{t.permissionLabels[permissionKey]}</span>
+            </label>
+        );
+    };
 
     return (
         <div className="flex h-full bg-background-light">
@@ -231,9 +266,31 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                 <div className="flex-1 overflow-y-auto">
                     {isLoading ? <p className="p-4">{t.loading}</p> : (
                         <ul>
-                            {roles.map(role => (
+                            {/* Section label for non-global-admin */}
+                            {!isGlobalAdmin && roles.some((r: any) => r._readOnly) && (
+                                <li className="px-3 pt-3 pb-1">
+                                    <span className="text-xs font-semibold text-text-light uppercase tracking-wider">{t.systemRoleLabel}</span>
+                                </li>
+                            )}
+                            {roles.filter((r: any) => !isGlobalAdmin ? r._readOnly : true).map(role => (
                                 <li key={role.id}>
-                                    <button onClick={() => setSelectedRole(role)} className={`w-full text-left p-3 border-b border-border-color ${selectedRole?.id === role.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
+                                    <button onClick={() => setSelectedRole({ ...role, _readOnly: !isGlobalAdmin && !(role as any).spaceId })} className={`w-full text-left p-3 border-b border-border-color ${selectedRole?.id === role.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
+                                        <div className="flex items-center gap-2">
+                                            {!isGlobalAdmin && <span className="text-xs">🔒</span>}
+                                            <p className="font-semibold text-text-main">{role.name}</p>
+                                        </div>
+                                    </button>
+                                </li>
+                            ))}
+                            {/* Space roles section */}
+                            {!isGlobalAdmin && (
+                                <li className="px-3 pt-4 pb-1">
+                                    <span className="text-xs font-semibold text-text-light uppercase tracking-wider">{t.spaceRoleLabel}</span>
+                                </li>
+                            )}
+                            {!isGlobalAdmin && roles.filter((r: any) => !r._readOnly && (r as any).spaceId).map(role => (
+                                <li key={role.id}>
+                                    <button onClick={() => setSelectedRole({ ...role, _readOnly: false })} className={`w-full text-left p-3 border-b border-border-color ${selectedRole?.id === role.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
                                         <p className="font-semibold text-text-main">{role.name}</p>
                                     </button>
                                 </li>
@@ -246,13 +303,21 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
             <main className="bg-background-panel flex-1 overflow-y-auto p-8">
                 {selectedRole ? (
                     <div className="space-y-6">
+                        {/* Read-only warning banner */}
+                        {isReadOnly && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                                <span className="text-lg">🔒</span>
+                                <span>{t.readOnlyWarning}</span>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-text-main">{t.roleName}</label>
                             <input
                                 type="text"
                                 value={selectedRole.name || ''}
                                 onChange={e => handleFormChange('name', e.target.value)}
-                                className="mt-1 w-full p-2 border border-border-color rounded-md focus:ring-primary focus:border-primary bg-white"
+                                disabled={isReadOnly}
+                                className="mt-1 w-full p-2 border border-border-color rounded-md focus:ring-primary focus:border-primary bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                             />
                         </div>
                         <div>
@@ -260,6 +325,12 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {permissionGroups.map((group) => {
                                     const Icon = group.icon;
+                                    // For non-global-admin, filter out groups with no visible permissions
+                                    const visiblePermissions = group.permissions.filter(p => 
+                                        isGlobalAdmin || !user?.permissions || user.permissions.includes(p)
+                                    );
+                                    if (visiblePermissions.length === 0) return null;
+
                                     return (
                                         <div key={group.titleKey} className="bg-white border border-border-color rounded-lg p-4 shadow-sm">
                                             <h3 className="flex items-center gap-2 font-semibold mb-4 text-text-main border-b border-border-color pb-2">
@@ -274,14 +345,16 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                                 })}
                             </div>
                         </div>
-                        <div className="flex justify-end items-center space-x-4 pt-4 border-t border-border-color">
-                            {selectedRole.id !== 'new' && (
-                                <button onClick={handleDelete} className="px-4 py-2 bg-accent-red text-text-on-primary rounded-md hover:bg-accent-red-hover">{t.delete}</button>
-                            )}
-                            <button onClick={handleSave} disabled={isSaving} className="px-6 py-2 bg-primary text-text-on-primary rounded-md hover:bg-primary-hover disabled:opacity-70">
-                                {isSaving ? t.saving : t.save}
-                            </button>
-                        </div>
+                        {!isReadOnly && (
+                            <div className="flex justify-end items-center space-x-4 pt-4 border-t border-border-color">
+                                {selectedRole.id !== 'new' && (
+                                    <button onClick={handleDelete} className="px-4 py-2 bg-accent-red text-text-on-primary rounded-md hover:bg-accent-red-hover">{t.delete}</button>
+                                )}
+                                <button onClick={handleSave} disabled={isSaving} className="px-6 py-2 bg-primary text-text-on-primary rounded-md hover:bg-primary-hover disabled:opacity-70">
+                                    {isSaving ? t.saving : t.save}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-full"><p className="text-text-light">{t.noRoleSelected}</p></div>

@@ -2,6 +2,54 @@
 
 ## 2026-05-12
 
+### 🔐 Phân quyền Multi-Tenant: Triển khai `isGlobalAdmin` toàn hệ thống & Space-Scoped Roles
+
+**Vấn đề gốc**: Tất cả các component admin (`SpaceManagement`, `RoleManagement`, `AiManagement`, `UserManagement`) sử dụng `user.permissions?.includes('roles')` để xác định SuperAdmin. Nhưng Space Owner/Manager cũng được cấp quyền `roles` → hệ thống hiểu nhầm họ là SuperAdmin → hiển thị toàn bộ dữ liệu hệ thống.
+
+**Giải pháp tổng thể**: Thay thế toàn bộ bằng prop `isGlobalAdmin` do `AdminPage.tsx` truyền xuống. Prop này chỉ `true` khi truy cập từ Root Domain (`/admin`), `false` khi vào từ Space domain (`/:slug/admin`).
+
+**Chi tiết thay đổi**:
+
+1. **AdminPage.tsx** — Truyền `isGlobalAdmin` và `currentSpace` cho tất cả các component: `SpaceManagement`, `RoleManagement`, `UserManagement`, `AiManagement`.
+
+2. **SpaceManagement.tsx** — Nhận `isGlobalAdmin` & `space` prop.
+   - `isSuperAdmin` dùng `!!isGlobalAdmin` thay vì `permissions.includes('roles')`.
+   - Non-global-admin chỉ thấy space mà mình thuộc về (dùng `contextSpace` từ URL).
+   - Tab "Cấu hình mở rộng" chỉ hiện cho Owner/SuperAdmin.
+
+3. **RoleManagement.tsx** — Nhận `isGlobalAdmin` & `space` prop.
+   - Non-global-admin: gọi `getSpaceRoles(spaceId)` thay vì `getAllRoles()` → chỉ thấy role hệ thống (read-only) + role do Space tạo (editable).
+   - Role hệ thống hiện banner 🔒, không cho sửa/xóa.
+   - Space Owner chỉ tạo role mới kế thừa từ quyền mình có.
+
+4. **AiManagement.tsx** — Nhận `isGlobalAdmin` & `space` prop.
+   - Thay thế **8 chỗ** `user.permissions?.includes('roles')` bằng `isGlobalAdmin`.
+   - Filter `aiList` theo `contextSpace.id` cho non-admin.
+   - `canEdit`: cho phép sửa AI nếu user có quyền `ai` + AI thuộc space (`isSpaceManager`).
+
+5. **UserManagement.tsx** — Load space-scoped roles cho Space context.
+   - Phần chọn Quyền hiện khi `roles.length > 0` (không chỉ Global Admin).
+   - Space Owner/Manager thấy & gán role do mình tạo.
+
+6. **Backend `roleController.ts`** — Import `getUserManagedSpaceIds`.
+   - Xác định Global Admin: có quyền `roles` VÀ không sở hữu Space nào.
+   - Chặn sửa/xóa role hệ thống (`space_id IS NULL`) nếu không phải Global Admin.
+   - Auto-gán `spaceId` khi Space Owner tạo role mới.
+
+7. **Backend `role.model.ts`** — Thêm `spaceId` vào interface & queries.
+   - `findBySpaceId(spaceId)`, `findSystemRoles()`, `findById(id)`.
+
+8. **DB Migration** — `server/migrations/add_space_id_to_roles.sql`:
+   - `ALTER TABLE roles ADD COLUMN space_id INTEGER REFERENCES spaces(id)`.
+   - Thay UNIQUE constraint `roles_name_key` → `(name, COALESCE(space_id, 0))`.
+
+9. **Bug fix: Trạng thái user** — `spaceMember.model.ts`:
+   - Thêm `u.is_active` vào query `getMembersBySpace()` → sửa bug hiển thị sai trạng thái.
+
+**Commit**: `[Manual Update]` — `feat: isGlobalAdmin refactor, space-scoped roles, multi-tenant admin enforcement`
+
+---
+
 ### 🔐 Bảo mật: Sửa lỗ hổng lộ Gemini API Key
 
 **Vấn đề**: Endpoint `GET /api/ai-configs/:id/voice-key` trả raw Gemini API key cho client. Client (VoiceChat.tsx) dùng key trực tiếp trên browser để kết nối Gemini Live API → Google phát hiện key bị expose ở client-side → vô hiệu hóa key vĩnh viễn (lỗi 403 "API key was reported as leaked").

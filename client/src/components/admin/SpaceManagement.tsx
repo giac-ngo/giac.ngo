@@ -300,7 +300,7 @@ const SpaceTypeManagerModal: React.FC<{
     );
 };
 
-export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = ({ language, user }) => {
+export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGlobalAdmin?: boolean, space?: Space | null }> = ({ language, user, isGlobalAdmin, space: contextSpace }) => {
     const t = translations[language];
     const { showToast } = useToast();
 
@@ -332,7 +332,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
     const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
     const ownerDropdownRef = useRef<HTMLDivElement>(null);
 
-    const isSuperAdmin = user.permissions?.includes('roles');
+    const isSuperAdmin = !!isGlobalAdmin;
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -342,7 +342,17 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                 isSuperAdmin ? apiService.getAllUsers(1, 999, '') : apiService.getSpaceOwners().catch(() => [user]),
                 apiService.getSpaceTypes()
             ]);
-            setSpaces(spaceData || []);
+            // Non-global-admin: show only the space they belong to (from URL context)
+            if (!isSuperAdmin) {
+                if (contextSpace) {
+                    setSpaces([contextSpace]);
+                } else {
+                    // Fallback: filter to owned spaces
+                    setSpaces((spaceData || []).filter((s: any) => s.userId === user.id));
+                }
+            } else {
+                setSpaces(spaceData || []);
+            }
             // For non-admin: merge current user into owner list to ensure they appear
             if (!isSuperAdmin) {
                 const owners = userData || [];
@@ -673,12 +683,14 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                             >
                                 Thông tin chung
                             </button>
-                            <button
-                                onClick={() => setActiveModalTab('config')}
-                                className={`pb-3 font-bold transition-colors ${activeModalTab === 'config' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
-                            >
-                                Cấu hình mở rộng
-                            </button>
+                            {(isSuperAdmin || editingSpace.userId === user.id) && (
+                                <button
+                                    onClick={() => setActiveModalTab('config')}
+                                    className={`pb-3 font-bold transition-colors ${activeModalTab === 'config' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
+                                >
+                                    Cấu hình mở rộng
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6">
@@ -952,7 +964,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User }> = 
                                 </div>
                             )}
 
-                            {activeModalTab === 'config' && (
+                            {activeModalTab === 'config' && (isSuperAdmin || editingSpace.userId === user.id) && (
                                 <div className="max-w-3xl mx-auto space-y-8">
                                     {/* API Keys Group */}
                                     <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
