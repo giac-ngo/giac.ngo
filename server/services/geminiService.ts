@@ -351,7 +351,17 @@ Summary:`;
 
             let fullResponseText = '';
             for await (const chunk of result) {
-                const chunkText = chunk.text;
+                // Manually extract text from parts to avoid the SDK warning:
+                // "there are non-text parts thoughtSignature in the response"
+                // which occurs when using the convenient chunk.text getter.
+                let chunkText = '';
+                const parts = chunk?.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                    if (part.text) {
+                        chunkText += part.text;
+                    }
+                }
+
                 if (chunkText) {
                     fullResponseText += chunkText;
                     callbacks.onChunk(chunkText);

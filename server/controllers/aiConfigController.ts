@@ -7,6 +7,7 @@ import weaviateService from '../services/weaviateService.js';
 import { pool } from '../db.js';
 import { billingModel } from '../models/billing.model.js';
 import { AIConfig, User } from '../types/index.js';
+import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
 const mapAndSanitizeUser = (user: User | null) => {
     if (!user) return null;
@@ -238,24 +239,33 @@ export const aiConfigController = {
             const aiConfig = (await aiConfigModel.findById(aiId)) as AIConfig | null;
             if (!aiConfig) return res.status(404).json({ message: 'AI config not found.' });
 
-            // Tìm owner: ưu tiên Space owner, fallback AI owner
-            let targetUserId = aiConfig.ownerId;
+            let realGeminiKey: string;
+            try {
+                realGeminiKey = await getApiKeyForAi(aiConfig, 'gemini');
+            } catch (err: any) {
+                return res.status(404).json({ message: err.message || 'Gemini API key not configured.' });
+            }
+
+            // Tìm config voice từ Space hoặc Owner
+            let geminiVoice = 'Algieba';
+            let geminiStyle = '';
+            let geminiTemperature = 1;
+
             if (aiConfig.spaceId) {
-                const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [aiConfig.spaceId]);
-                if (spaceRes.rows.length > 0 && spaceRes.rows[0].user_id) {
-                    targetUserId = spaceRes.rows[0].user_id;
+                const spaceRes = await pool.query('SELECT api_keys FROM spaces WHERE id = $1', [aiConfig.spaceId]);
+                if (spaceRes.rows.length > 0 && spaceRes.rows[0].api_keys) {
+                    const spaceKeys = spaceRes.rows[0].api_keys;
+                    if (spaceKeys.geminiVoice) geminiVoice = spaceKeys.geminiVoice;
+                    if (spaceKeys.geminiStyle) geminiStyle = spaceKeys.geminiStyle;
+                    if (spaceKeys.geminiTemperature) geminiTemperature = parseFloat(spaceKeys.geminiTemperature);
                 }
-            }
-
-            if (!targetUserId) {
-                return res.status(404).json({ message: 'AI owner not found.' });
-            }
-
-            const owner = await userModel.findById(targetUserId);
-            const realGeminiKey = owner?.apiKeys?.gemini;
-
-            if (!realGeminiKey) {
-                return res.status(404).json({ message: 'Gemini API key not configured for this AI owner.' });
+            } else if (aiConfig.ownerId) {
+                const owner = await userModel.findById(aiConfig.ownerId);
+                if (owner?.apiKeys) {
+                    if (owner.apiKeys.geminiVoice) geminiVoice = owner.apiKeys.geminiVoice;
+                    if (owner.apiKeys.geminiStyle) geminiStyle = owner.apiKeys.geminiStyle;
+                    if (owner.apiKeys.geminiTemperature) geminiTemperature = parseFloat(String(owner.apiKeys.geminiTemperature));
+                }
             }
 
             // Tạo ephemeral token thay vì trả raw key
@@ -276,9 +286,9 @@ export const aiConfigController = {
 
                 return res.json({
                     ephemeralToken: token.name,
-                    geminiVoice: owner?.apiKeys?.geminiVoice || 'Algieba',
-                    geminiStyle: owner?.apiKeys?.geminiStyle || '',
-                    geminiTemperature: parseFloat(owner?.apiKeys?.geminiTemperature ?? '1') || 1,
+                    geminiVoice,
+                    geminiStyle,
+                    geminiTemperature,
                 });
             } catch (tokenErr: any) {
                 logger.error('Failed to create ephemeral token, check if the Gemini key is valid:', tokenErr?.message || tokenErr);
