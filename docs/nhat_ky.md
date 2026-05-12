@@ -50,6 +50,35 @@
 
 ---
 
+### 🐛 Sửa lỗi Quản lý Người dùng, Ánh xạ ID và Trùng lặp Quyền (Roles)
+
+**Vấn đề**:
+1. **Lỗi "User not found after update"**: Khi Space Manager cập nhật quyền cho thành viên trong Space, hệ thống báo lỗi không tìm thấy người dùng.
+2. **Lỗi "Lưu quyền xong edit thì mất"**: Sau khi lưu thành công, mở lại form chỉnh sửa thì các ô chọn Quyền bị bỏ tick (dữ liệu biến mất).
+3. **Lỗi "Trùng quyền ở Root Admin"**: Global Admin nhìn thấy danh sách các Quyền lặp lại rất nhiều lần (Manager, Owner AI, User) ở trang Quản lý Quyền hệ thống.
+
+**Giải pháp & Chi tiết thay đổi**:
+
+1. **Khắc phục lỗi "User not found after update" (`spaceMember.model.ts`)**:
+   - *Nguyên nhân*: Hàm `getMembersBySpace` dùng lệnh `SELECT sm.*, u.name...` khiến cột `id` trên UI bị ghi đè bởi `id` của bảng quan hệ `space_members`. Khi nhấn "Lưu", UI gửi `PUT /api/users/[space_members.id]`, khiến DB UPDATE sai target và ném lỗi không tìm thấy.
+   - *Khắc phục*: Cập nhật lại query SQL thành `SELECT sm.*, sm.id as space_member_id, u.id, u.name...` để chỉ định rõ ID gửi về Client là `u.id` (users ID).
+
+2. **Khắc phục lỗi "Lưu quyền xong edit thì mất" (`spaceMember.model.ts`)**:
+   - *Nguyên nhân*: API tải danh sách thành viên Không gian không lấy kèm thông tin `roleIds` của user.
+   - *Khắc phục*: Áp dụng hàm `enrichUserWithPermissions` (từ `user.model.ts`) vào danh sách thành viên được truy vấn ra từ DB để đính kèm đầy đủ `roleIds` trước khi trả về client.
+
+3. **Khắc phục lỗi "Trùng quyền Root Admin" (`roleController.ts`)**:
+   - *Nguyên nhân*: Hàm `getAllRoles` trả về `roleModel.findAll()` lấy TẤT CẢ quyền trong Database (bao gồm cả các quyền Custom do các Space tạo riêng rẽ). Dẫn đến việc Global Admin nhìn thấy mọi Quyền của mọi Không gian bị mix lại.
+   - *Khắc phục*: Điều chỉnh để khi đăng nhập với quyền Global Admin (không có param `spaceId`), hệ thống chỉ truy vấn `roleModel.findSystemRoles()` (lấy những quyền có `space_id IS NULL`).
+
+4. **Cải thiện Debug Alert (`userController.ts`)**:
+   - Khôi phục bộ ký tự Unicode tiếng Việt bị lỗi mã hóa (`L?i khi c?p nh?t...`) trong `userController.ts`.
+   - Nối thẳng thông báo lỗi thật (`error.message`) vào nội dung JSON trả về mã 500 để người dùng / dev nhìn thấy chính xác DB phàn nàn gì ở Client.
+
+**Commit**: `[Manual Update]` — `fix: correct user id mapping, enrich roles, restrict root admin role view`
+
+---
+
 ### 🔐 Bảo mật: Sửa lỗ hổng lộ Gemini API Key
 
 **Vấn đề**: Endpoint `GET /api/ai-configs/:id/voice-key` trả raw Gemini API key cho client. Client (VoiceChat.tsx) dùng key trực tiếp trên browser để kết nối Gemini Live API → Google phát hiện key bị expose ở client-side → vô hiệu hóa key vĩnh viễn (lỗi 403 "API key was reported as leaked").

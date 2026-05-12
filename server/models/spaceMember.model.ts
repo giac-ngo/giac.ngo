@@ -1,6 +1,7 @@
 // server/models/spaceMember.model.ts
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
+import { enrichUserWithPermissions } from './user.model.js';
 
 export interface SpaceMember {
     spaceId: number;
@@ -45,14 +46,21 @@ export const spaceMemberModel = {
 
     async getMembersBySpace(spaceId: number | string): Promise<SpaceMember[]> {
         const res = await pool.query(
-            `SELECT sm.*, u.name, u.email, u.avatar_url, u.is_active
+            `SELECT sm.*, sm.id as space_member_id, u.id, u.name, u.email, u.avatar_url, u.is_active
              FROM space_members sm
              JOIN users u ON sm.user_id = u.id
              WHERE sm.space_id = $1
              ORDER BY sm.joined_at DESC`,
             [spaceId]
         );
-        return res.rows.map(mapRowToCamelCase);
+        const members = res.rows.map(mapRowToCamelCase);
+        
+        const enrichedMembers = await Promise.all(members.map(async (m) => {
+            const enriched = await enrichUserWithPermissions(m);
+            return enriched as unknown as SpaceMember;
+        }));
+        
+        return enrichedMembers;
     },
 
     async countBySpace(spaceId: number | string): Promise<number> {

@@ -7,7 +7,7 @@ export const roleController = {
     async getAllRoles(req: Request, res: Response) {
         try {
             const user = req.user as any;
-            const spaceId = req.params.spaceId;
+            const spaceId = req.params.spaceId as string;
 
             // If a spaceId is provided in the URL, return:
             // 1. The user's own assigned roles (system roles, read-only for display)
@@ -30,7 +30,7 @@ export const roleController = {
             }
 
             // Global Admin: return all system roles
-            const roles = await roleModel.findAll();
+            const roles = await roleModel.findSystemRoles();
             res.json(roles);
         } catch (error: unknown) {
             res.status(500).json({ message: 'Không thể tải danh sách quyền.' });
@@ -64,7 +64,7 @@ export const roleController = {
     async updateRole(req: Request, res: Response) {
         try {
             const user = req.user as any;
-            const roleId = req.params.id;
+            const roleId = req.params.id as string;
 
             // Check if this user is truly a Global Admin
             const managedSpaceIds = user?.id ? await getUserManagedSpaceIds(user.id) : [];
@@ -87,7 +87,7 @@ export const roleController = {
             }
 
             // @ts-ignore
-            const updatedRole = await roleModel.update(req.params.id, req.body);
+            const updatedRole = await roleModel.update(roleId, req.body);
             res.json(updatedRole);
         } catch (error: unknown) {
             res.status(500).json({ message: 'Lỗi khi cập nhật quyền.' });
@@ -97,7 +97,7 @@ export const roleController = {
     async deleteRole(req: Request, res: Response) {
         try {
             const user = req.user as any;
-            const roleId = req.params.id;
+            const roleId = req.params.id as string;
 
             // Check if this user is truly a Global Admin
             const managedSpaceIds = user?.id ? await getUserManagedSpaceIds(user.id) : [];
