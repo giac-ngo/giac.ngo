@@ -3,6 +3,23 @@ import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { userModel, enrichUserWithPermissions } from './user.model.js';
 import { Space, User } from '../types/index.js';
+import { cryptoService } from '../services/cryptoService.js';
+
+const enrichSpaceWithKeys = (space: Space | null): Space | null => {
+    if (!space) return null;
+    if (space.apiKeys) {
+        const decryptedKeys: Record<string, string> = {};
+        for (const key in space.apiKeys) {
+            if (space.apiKeys[key]) {
+                decryptedKeys[key] = cryptoService.decrypt(space.apiKeys[key]);
+            } else {
+                decryptedKeys[key] = '';
+            }
+        }
+        space.apiKeys = decryptedKeys;
+    }
+    return space;
+};
 
 const BASE_SPACE_QUERY = `
     SELECT 
@@ -17,22 +34,22 @@ const BASE_SPACE_QUERY = `
 export const spaceModel = {
     async findAll(): Promise<Space[]> {
         const res = await pool.query(BASE_SPACE_QUERY + ' ORDER BY s.space_sort ASC NULLS LAST');
-        return res.rows.map(mapRowToCamelCase);
+        return res.rows.map(mapRowToCamelCase).map(enrichSpaceWithKeys) as Space[];
     },
 
     async findById(id: number | string): Promise<Space | null> {
         const res = await pool.query(`${BASE_SPACE_QUERY} WHERE s.id = $1`, [id]);
-        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+        return enrichSpaceWithKeys(res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null);
     },
 
     async findBySlug(slug: string): Promise<Space | null> {
         const res = await pool.query(`${BASE_SPACE_QUERY} WHERE s.slug = $1`, [slug]);
-        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+        return enrichSpaceWithKeys(res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null);
     },
 
     async findByCustomDomain(domain: string): Promise<Space | null> {
         const res = await pool.query(`${BASE_SPACE_QUERY} WHERE s.custom_domain = $1`, [domain]);
-        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+        return enrichSpaceWithKeys(res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null);
     },
 
     async create(data: Record<string, unknown>): Promise<Space> {
@@ -98,7 +115,20 @@ export const spaceModel = {
             const columnName = keyMap[key];
             if (columnName) {
                 fields.push(columnName);
-                values.push(value);
+                if (key === 'apiKeys' && value) {
+                    const encryptedKeys: Record<string, string> = {};
+                    const incomingApiKeys = value as Record<string, string>;
+                    for (const k in incomingApiKeys) {
+                        if (incomingApiKeys[k]) {
+                            encryptedKeys[k] = cryptoService.encrypt(incomingApiKeys[k]);
+                        } else {
+                            encryptedKeys[k] = '';
+                        }
+                    }
+                    values.push(encryptedKeys);
+                } else {
+                    values.push(value);
+                }
                 placeholders.push(`$${index++}`);
             }
         }
@@ -109,7 +139,7 @@ export const spaceModel = {
 
         const query = `INSERT INTO spaces (${fields.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
         const res = await pool.query(query, values);
-        return mapRowToCamelCase(res.rows[0]);
+        return enrichSpaceWithKeys(mapRowToCamelCase(res.rows[0])) as Space;
     },
 
     async update(id: number | string, data: Record<string, unknown>): Promise<Space | null> {
@@ -174,7 +204,20 @@ export const spaceModel = {
             const columnName = keyMap[key];
             if (columnName) {
                 fields.push(`${columnName} = $${index++}`);
-                values.push(value);
+                if (key === 'apiKeys' && value) {
+                    const encryptedKeys: Record<string, string> = {};
+                    const incomingApiKeys = value as Record<string, string>;
+                    for (const k in incomingApiKeys) {
+                        if (incomingApiKeys[k]) {
+                            encryptedKeys[k] = cryptoService.encrypt(incomingApiKeys[k]);
+                        } else {
+                            encryptedKeys[k] = '';
+                        }
+                    }
+                    values.push(encryptedKeys);
+                } else {
+                    values.push(value);
+                }
             }
         }
 
@@ -185,7 +228,7 @@ export const spaceModel = {
         values.push(id);
         const query = `UPDATE spaces SET ${fields.join(', ')} WHERE id = $${index} RETURNING *`;
         const res = await pool.query(query, values);
-        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+        return enrichSpaceWithKeys(res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null);
     },
 
 
