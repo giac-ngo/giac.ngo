@@ -6,6 +6,7 @@ import { userModel } from '../models/user.model.js';
 import weaviateService from '../services/weaviateService.js';
 import { pool } from '../db.js';
 import { billingModel } from '../models/billing.model.js';
+import { spaceModel } from '../models/space.model.js';
 import { AIConfig, User } from '../types/index.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
 
@@ -252,12 +253,12 @@ export const aiConfigController = {
             let geminiTemperature = 1;
 
             if (aiConfig.spaceId) {
-                const spaceRes = await pool.query('SELECT api_keys FROM spaces WHERE id = $1', [aiConfig.spaceId]);
-                if (spaceRes.rows.length > 0 && spaceRes.rows[0].api_keys) {
-                    const spaceKeys = spaceRes.rows[0].api_keys;
+                const space = await spaceModel.findById(aiConfig.spaceId);
+                if (space?.apiKeys) {
+                    const spaceKeys = space.apiKeys;
                     if (spaceKeys.geminiVoice) geminiVoice = spaceKeys.geminiVoice;
                     if (spaceKeys.geminiStyle) geminiStyle = spaceKeys.geminiStyle;
-                    if (spaceKeys.geminiTemperature) geminiTemperature = parseFloat(spaceKeys.geminiTemperature);
+                    if (spaceKeys.geminiTemperature) geminiTemperature = parseFloat(String(spaceKeys.geminiTemperature));
                 }
             } else if (aiConfig.ownerId) {
                 const owner = await userModel.findById(aiConfig.ownerId);

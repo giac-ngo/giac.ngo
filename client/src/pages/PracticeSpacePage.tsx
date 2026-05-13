@@ -408,8 +408,9 @@ export const PracticeSpacePage: React.FC<{
 
     const streamBufferRef = useRef<string>('');
     const testAudioRef = useRef<HTMLAudioElement | null>(null);
-    // Client-side TTS cache: key = text hash, value = blob URL
-    const ttsCacheRef = useRef<Map<string, { blobUrl: string; mimeType: string }>>(new Map());
+    const speakingQueueRef = useRef<string | number | null>(null); // Track current TTS session for cancel
+    // Client-side TTS cache: key = text hash, value = blob URL (or array for chunked)
+    const ttsCacheRef = useRef<Map<string, { blobUrl: string; mimeType: string; chunkUrls?: string[] }>>(new Map());
 
     const liveSessionPromiseRef = useRef<Promise<any> | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -1077,23 +1078,65 @@ export const PracticeSpacePage: React.FC<{
             .trim();
     };
 
+    // Split text into chunks at sentence boundaries for parallel TTS
+    const splitTtsChunks = (text: string, maxLen = 350): string[] => {
+        if (text.length <= maxLen) return [text];
+        const chunks: string[] = [];
+        // Split by sentence-ending punctuation followed by space/newline
+        const sentences = text.split(/(?<=[.!?。…]\s)|(?<=\n)/g).filter(s => s.trim());
+        let current = '';
+        for (const sentence of sentences) {
+            if (current.length + sentence.length > maxLen && current.length > 0) {
+                chunks.push(current.trim());
+                current = sentence;
+            } else {
+                current += sentence;
+            }
+        }
+        if (current.trim()) chunks.push(current.trim());
+        // If splitting by sentences didn't work (e.g. no punctuation), force split by length
+        if (chunks.length <= 1 && text.length > maxLen) {
+            const forced: string[] = [];
+            for (let i = 0; i < text.length; i += maxLen) {
+                forced.push(text.slice(i, i + maxLen).trim());
+            }
+            return forced.filter(Boolean);
+        }
+        return chunks.length > 0 ? chunks : [text];
+    };
+
+    // Helper: convert Base64 audio to Blob URL
+    const base64ToBlobUrl = (audioContent: string, mimeType: string): string => {
+        const byteCharacters = atob(audioContent);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        const blob = new Blob([byteArray], { type: mimeType || 'audio/wav' });
+        return URL.createObjectURL(blob);
+    };
+
     const handleSpeak = async (text: string, msgId: string | number) => {
+        // Toggle off if already playing/loading this message
         if (speakingMessageId === msgId || loadingTtsId === msgId) {
             window.speechSynthesis.cancel();
             if (testAudioRef.current) {
                 testAudioRef.current.pause();
+                testAudioRef.current.currentTime = 0;
             }
+            speakingQueueRef.current = null;
             setSpeakingMessageId(null);
             setLoadingTtsId(null);
             return;
         }
         window.speechSynthesis.cancel();
+        speakingQueueRef.current = msgId;
         setLoadingTtsId(msgId);
         setSpeakingMessageId(null);
 
         // Pre-create Audio element synchronously to bypass Autoplay restrictions!
         const audio = new Audio();
-        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; // 1 sample silent wav
+        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
         audio.play().catch(e => console.warn('Silent unlock play failed:', e));
         testAudioRef.current = audio;
 
@@ -1103,70 +1146,137 @@ export const PracticeSpacePage: React.FC<{
         const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? (parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1);
         const ttsProvider = (currentAiConfig?.ttsProvider || 'gemini') as ModelType;
         const ttsModel = currentAiConfig?.ttsModel || 'gemini-3.1-flash-tts-preview';
+        const cacheKey = `${ttsProvider}:${ttsModel}:${geminiVoice}:${String(msgId)}`;
 
-        // Helper to play blob URL on the unlocked audio element
-        const playBlobUrl = (blobUrl: string) => {
-            audio.src = blobUrl;
-            audio.onended = () => setSpeakingMessageId(null);
-            audio.onerror = () => setSpeakingMessageId(null);
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch((e) => {
+        // ── Play a sequence of blob URLs on the unlocked audio element ──
+        const playChunkSequence = async (urls: string[]) => {
+            for (let i = 0; i < urls.length; i++) {
+                if (speakingQueueRef.current !== msgId) return; // cancelled
+                audio.src = urls[i];
+                audio.onerror = () => { speakingQueueRef.current = null; setSpeakingMessageId(null); };
+                try {
+                    await audio.play();
+                } catch (e) {
                     console.error('Autoplay blocked:', e);
+                    // Fallback to browser SpeechSynthesis for remaining text
+                    speakingQueueRef.current = null;
                     setSpeakingMessageId(null);
                     const utterance = new SpeechSynthesisUtterance(cleanText);
                     utterance.lang = language === 'vi' ? 'vi-VN' : 'en-US';
                     utterance.onend = () => setSpeakingMessageId(null);
                     window.speechSynthesis.speak(utterance);
-                });
+                    return;
+                }
+                // Wait for this chunk to finish playing
+                await new Promise<void>(resolve => { audio.onended = () => resolve(); });
+            }
+            // All chunks done
+            if (speakingQueueRef.current === msgId) {
+                speakingQueueRef.current = null;
+                setSpeakingMessageId(null);
             }
         };
 
         if (user?.id) {
-            // ── CLIENT-SIDE CACHE: check if we already have this audio ──
-            const cacheKey = `${ttsProvider}:${ttsModel}:${geminiVoice}:${String(msgId)}`;
+            // ── CACHE HIT: play cached chunks immediately ──
             const cached = ttsCacheRef.current.get(cacheKey);
             if (cached) {
                 setLoadingTtsId(null);
                 setSpeakingMessageId(msgId);
-                playBlobUrl(cached.blobUrl);
+                const urls = cached.chunkUrls || [cached.blobUrl];
+                playChunkSequence(urls);
                 return;
             }
 
             try {
-                const res = await apiService.generateTtsAudio(
-                    cleanText, ttsProvider, ttsModel,
-                    geminiVoice, language, user.id as number, geminiStyle, Number(geminiTemperature),
-                    currentAiConfig?.id
-                );
-                
-                // Convert Base64 to Blob URL
-                const byteCharacters = atob(res.audioContent);
-                const byteArray = new Uint8Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteArray[i] = byteCharacters.charCodeAt(i);
-                }
-                const blob = new Blob([byteArray], { type: res.mimeType || 'audio/wav' });
-                const blobUrl = URL.createObjectURL(blob);
-                
-                // Store in client cache (don't revoke — keep for repeat plays)
-                ttsCacheRef.current.set(cacheKey, { blobUrl, mimeType: res.mimeType });
-                // Evict old entries if cache grows too large (keep 50)
-                if (ttsCacheRef.current.size > 50) {
-                    const firstKey = ttsCacheRef.current.keys().next().value;
-                    if (firstKey) {
-                        const old = ttsCacheRef.current.get(firstKey);
-                        if (old) URL.revokeObjectURL(old.blobUrl);
-                        ttsCacheRef.current.delete(firstKey);
+                const chunks = splitTtsChunks(cleanText);
+                console.log(`[TTS Pipeline] ${chunks.length} chunks, sizes: ${chunks.map(c => c.length).join(', ')}`);
+
+                const fetchChunk = (chunkText: string) =>
+                    apiService.generateTtsAudio(
+                        chunkText, ttsProvider, ttsModel,
+                        geminiVoice, language, user.id as number, geminiStyle, Number(geminiTemperature),
+                        currentAiConfig?.id
+                    ).then(res => base64ToBlobUrl(res.audioContent, res.mimeType));
+
+                // Pipeline: fetch chunk[0], play it; while playing, fetch chunk[1]; etc.
+                const allUrls: string[] = [];
+
+                for (let i = 0; i < chunks.length; i++) {
+                    if (speakingQueueRef.current !== msgId) return; // cancelled
+
+                    // Start fetching this chunk
+                    const urlPromise = fetchChunk(chunks[i]);
+
+                    // For chunk[0], also start pre-fetching chunk[1] while we wait
+                    let nextUrlPromise: Promise<string> | null = null;
+                    if (i === 0 && chunks.length > 1) {
+                        // Delay the 2nd request by 1s to avoid rate limit
+                        nextUrlPromise = new Promise<string>(resolve => {
+                            setTimeout(() => resolve(fetchChunk(chunks[1])), 1000);
+                        });
+                    }
+
+                    const url = await urlPromise;
+                    if (speakingQueueRef.current !== msgId) return;
+                    allUrls.push(url);
+
+                    // First chunk: remove loading spinner, show speaking state
+                    if (i === 0) {
+                        setLoadingTtsId(null);
+                        setSpeakingMessageId(msgId);
+                    }
+
+                    // Play this chunk
+                    audio.src = url;
+                    audio.onerror = () => { speakingQueueRef.current = null; setSpeakingMessageId(null); };
+                    try { await audio.play(); } catch { break; }
+
+                    // While audio plays, pre-fetch next chunk (if not already started)
+                    if (i + 1 < chunks.length && !nextUrlPromise) {
+                        nextUrlPromise = fetchChunk(chunks[i + 1]);
+                    }
+
+                    // Wait for this chunk to finish playing
+                    await new Promise<void>(resolve => { audio.onended = () => resolve(); });
+
+                    // If we pre-fetched next chunk, resolve it now (should be ready)
+                    if (nextUrlPromise && i + 1 < chunks.length) {
+                        const nextUrl = await nextUrlPromise;
+                        if (speakingQueueRef.current !== msgId) return;
+                        allUrls.push(nextUrl);
+
+                        // Play the pre-fetched chunk
+                        audio.src = nextUrl;
+                        try { await audio.play(); } catch { break; }
+                        await new Promise<void>(resolve => { audio.onended = () => resolve(); });
+
+                        i++; // skip next iteration since we already played it
+                        nextUrlPromise = null;
                     }
                 }
 
-                setLoadingTtsId(null);
-                setSpeakingMessageId(msgId);
-                playBlobUrl(blobUrl);
+                // All done — cache all chunk URLs for instant replay
+                if (allUrls.length > 0) {
+                    ttsCacheRef.current.set(cacheKey, { blobUrl: allUrls[0], mimeType: 'audio/wav', chunkUrls: allUrls });
+                    if (ttsCacheRef.current.size > 50) {
+                        const firstKey = ttsCacheRef.current.keys().next().value;
+                        if (firstKey) {
+                            const old = ttsCacheRef.current.get(firstKey);
+                            if (old) (old.chunkUrls || [old.blobUrl]).forEach(u => URL.revokeObjectURL(u));
+                            ttsCacheRef.current.delete(firstKey);
+                        }
+                    }
+                }
+
+                if (speakingQueueRef.current === msgId) {
+                    speakingQueueRef.current = null;
+                    setSpeakingMessageId(null);
+                }
                 return;
             } catch (e) {
-                console.error('Gemini TTS API call failed, falling back to SpeechSynthesis:', e);
+                console.error('Chunked TTS failed, falling back to SpeechSynthesis:', e);
+                speakingQueueRef.current = null;
                 setLoadingTtsId(null);
             }
         }
@@ -1176,7 +1286,7 @@ export const PracticeSpacePage: React.FC<{
         setSpeakingMessageId(msgId);
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = language === 'vi' ? 'vi-VN' : 'en-US';
-        utterance.onend = () => setSpeakingMessageId(null);
+        utterance.onend = () => { speakingQueueRef.current = null; setSpeakingMessageId(null); };
         window.speechSynthesis.speak(utterance);
     };
 

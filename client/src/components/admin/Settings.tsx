@@ -1,7 +1,7 @@
 
 // client/src/components/admin/Settings.tsx
 import React, { useState, useEffect } from 'react';
-import { SystemConfig, User } from '../../types';
+import { SystemConfig, User, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
 import { EyeIcon, EyeOffIcon, SpinnerIcon, CopyIcon, UsersIcon, KeyIcon, SpeakerWaveIcon } from '../Icons';
@@ -99,17 +99,22 @@ interface SettingsProps {
     systemConfig: SystemConfig;
     onSystemConfigUpdate: (newConfig: SystemConfig) => void;
     onUserUpdate: (updatedData: Partial<User>) => void;
+    space?: Space | null;
+    onSpaceUpdate?: (space: Space) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig, onSystemConfigUpdate, onUserUpdate }) => {
+export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig, onSystemConfigUpdate, onUserUpdate, space, onSpaceUpdate }) => {
     const t = translations[language];
     const { showToast } = useToast();
 
     const [localUser, setLocalUser] = useState<User>(user);
+    const [localSpaceData, setLocalSpaceData] = useState<Partial<Space>>(space || {});
     const [isSaving, setIsSaving] = useState(false);
     const [showToken, setShowToken] = useState(false);
+    const [showSmtpPass, setShowSmtpPass] = useState(false);
 
     useEffect(() => { setLocalUser(user); }, [user]);
+    useEffect(() => { if (space) setLocalSpaceData(space); }, [space]);
 
     const handleSaveAll = async () => {
         setIsSaving(true);
@@ -122,6 +127,11 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
                 apiKeys: localUser.apiKeys || {},
             };
             promises.push(apiService.updateUser(userPayload as any).then(onUserUpdate));
+
+            // 2. Cập nhật Space (SMTP config)
+            if (space && onSpaceUpdate) {
+                promises.push(apiService.updateSpace(space.id, localSpaceData).then(onSpaceUpdate));
+            }
 
             await Promise.all(promises);
             showToast(t.saveSuccess, 'success');
@@ -185,6 +195,81 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
                     </div>
                     <button onClick={handleRegenerateToken} className="mt-4 text-xs font-bold text-accent-red hover:underline uppercase tracking-wider">{t.regenerateToken}</button>
                 </div>
+
+                {/* Mail Server Card (SMTP) */}
+                {space && (
+                    <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <span>📧</span>
+                            {t.groupMailServer}
+                        </h2>
+                        <p className="text-sm text-text-light mb-6">{t.mailServerHint}</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">{t.smtpHost}</label>
+                                <input
+                                    type="text"
+                                    value={localSpaceData.smtpHost || ''}
+                                    onChange={(e) => setLocalSpaceData({ ...localSpaceData, smtpHost: e.target.value })}
+                                    className="w-full p-2.5 bg-background-light border border-border-color rounded-lg text-sm"
+                                    placeholder="smtp.gmail.com"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">{t.smtpPort}</label>
+                                    <input
+                                        type="number"
+                                        value={localSpaceData.smtpPort || ''}
+                                        onChange={(e) => setLocalSpaceData({ ...localSpaceData, smtpPort: parseInt(e.target.value) || 0 })}
+                                        className="w-full p-2.5 bg-background-light border border-border-color rounded-lg text-sm"
+                                        placeholder="465"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">{t.smtpFromName}</label>
+                                    <input
+                                        type="text"
+                                        value={localSpaceData.smtpFromName || ''}
+                                        onChange={(e) => setLocalSpaceData({ ...localSpaceData, smtpFromName: e.target.value })}
+                                        className="w-full p-2.5 bg-background-light border border-border-color rounded-lg text-sm"
+                                        placeholder={space.name}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">{t.smtpUser}</label>
+                                <input
+                                    type="email"
+                                    value={localSpaceData.smtpUser || ''}
+                                    onChange={(e) => setLocalSpaceData({ ...localSpaceData, smtpUser: e.target.value })}
+                                    className="w-full p-2.5 bg-background-light border border-border-color rounded-lg text-sm"
+                                    placeholder="your-email@example.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">{t.smtpPass}</label>
+                                <div className="relative">
+                                    <input
+                                        type={showSmtpPass ? 'text' : 'password'}
+                                        value={localSpaceData.smtpPass || ''}
+                                        onChange={(e) => setLocalSpaceData({ ...localSpaceData, smtpPass: e.target.value })}
+                                        className="w-full p-2.5 bg-background-light border border-border-color rounded-lg pr-10 text-sm"
+                                        placeholder="Mật khẩu ứng dụng"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSmtpPass(!showSmtpPass)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-primary"
+                                    >
+                                        {showSmtpPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
 

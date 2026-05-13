@@ -14,6 +14,7 @@ Hệ thống được thiết kế theo mô hình **Multi-Tenant**, trong đó m
 ### 2. Dữ liệu độc lập theo Space
 Hầu hết các tài nguyên trong hệ thống đều được gắn thẻ `space_id` để đảm bảo tính cô lập dữ liệu (Data Isolation):
 - **API Keys (AI Studio, ChatGPT)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI cần key, hệ thống tra theo thứ tự: `Space.apiKeys → Owner.apiKeys (fallback)`. Personal Access Token vẫn giữ ở user settings.
+- **Cấu hình Mail (SMTP)**: SMTP Host, Port, User, Pass... được quản lý riêng theo từng Space tại trang Cài đặt (Settings), phục vụ cho việc gửi thông báo nội bộ và luồng email khôi phục mật khẩu.
 - **Cài đặt Khách**: Giới hạn chat hàng ngày cho khách (`guest_daily_limit`). Khi đạt giới hạn, người dùng bắt buộc phải đăng nhập để tiếp tục. Không còn dùng nấc gợi ý đăng nhập (nudge) trung gian.
 - **Kho Văn Bản (Documents)**: Tài liệu của Space nào chỉ phục vụ RAG cho AI của Space đó.
 - **Cấu Hình AI (AiConfig)**: Các bot AI, Prompt, cấu hình Giọng nói (TTS) được setup riêng cho từng Space.

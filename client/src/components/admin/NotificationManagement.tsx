@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from '../../services/apiService';
 import { User, Space } from '../../types';
-import { MailServerSettings } from './MailServerSettings';
 import { useToast } from '../ToastProvider';
 
 interface Member {
@@ -235,24 +234,24 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
     void (user.permissions?.includes('users') || user.permissions?.includes('roles')); // isSuperAdmin check for future use
     const { showToast } = useToast();
     
-    const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'smtp' | 'template'>('compose');
+    const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'template'>('compose');
     const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview');
 
-    // SMTP state
+    // Template state
     const [localSpaceData, setLocalSpaceData] = useState<Partial<Space>>({});
-    const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
-    const handleSaveSmtp = async () => {
+    const handleSaveTemplate = async () => {
         if (!space || typeof space.id !== 'number') return;
-        setIsSavingSmtp(true);
+        setIsSavingTemplate(true);
         try {
-            const updatedSpace = await apiService.updateSpace(space.id, localSpaceData);
+            const updatedSpace = await apiService.updateSpace(space.id, { emailTemplate: localSpaceData.emailTemplate });
             onSpaceUpdate(updatedSpace);
-            showToast('Lưu Cấu hình SMTP thành công!', 'success');
+            showToast('Lưu Cấu hình Template thành công!', 'success');
         } catch (e: any) {
-            showToast('Lưu SMTP thất bại: ' + (e?.message || String(e)), 'error');
+            showToast('Lưu Template thất bại: ' + (e?.message || String(e)), 'error');
         } finally {
-            setIsSavingSmtp(false);
+            setIsSavingTemplate(false);
         }
     };
 
@@ -408,15 +407,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                 >
                     📋 Lịch sử gửi
                 </button>
-                <button
-                    onClick={() => setActiveTab('smtp')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'smtp'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-text-light hover:text-text-main'
-                        }`}
-                >
-                    ⚙️ Cấu hình SMTP
-                </button>
+
                 <button
                     onClick={() => setActiveTab('template')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'template'
@@ -612,31 +603,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                 </div>
             )}
 
-            {/* ─── TAB: SMTP ─── */}
-            {activeTab === 'smtp' && (
-                <div className="space-y-6">
-                    {space ? (
-                        <>
-                            <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color">
-                                <MailServerSettings space={space} language={language} onChange={(data) => setLocalSpaceData(prev => ({...prev, ...data}))} />
-                            </div>
-                            <div className="flex justify-end pt-4">
-                                <button
-                                    onClick={handleSaveSmtp}
-                                    disabled={isSavingSmtp}
-                                    className="px-6 py-2 bg-primary text-text-on-primary rounded-lg font-bold shadow hover:bg-primary-hover transition-colors disabled:opacity-70"
-                                >
-                                    {isSavingSmtp ? 'Đang lưu...' : 'Lưu Cấu hình SMTP'}
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="text-center py-12 text-text-light">
-                            Vui lòng chọn một Không gian cụ thể để cấu hình SMTP riêng.
-                        </div>
-                    )}
-                </div>
-            )}
+
 
             {/* ─── TAB: TEMPLATE ─── */}
             {activeTab === 'template' && (
@@ -685,11 +652,11 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                         </div>
                         <div className="flex justify-end pt-6">
                             <button
-                                onClick={handleSaveSmtp}
-                                disabled={isSavingSmtp}
+                                onClick={handleSaveTemplate}
+                                disabled={isSavingTemplate}
                                 className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold shadow transition-colors disabled:opacity-70"
                             >
-                                {isSavingSmtp ? 'Đang lưu...' : 'Lưu Template'}
+                                {isSavingTemplate ? 'Đang lưu...' : 'Lưu Template'}
                             </button>
                         </div>
                     </div>

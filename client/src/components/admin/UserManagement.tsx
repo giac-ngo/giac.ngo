@@ -56,11 +56,11 @@ const translations = {
             saveSuccess: 'Lưu người dùng thành công!',
             saveError: 'Lưu thất bại: {message}',
             deleteConfirm: 'Bạn có chắc muốn xóa "{name}" khỏi toàn bộ nền tảng?',
-            removeFromSpaceConfirm: 'Bạn có chắc muốn loại "{name}" khỏi Không gian này?',
+            removeFromSpaceConfirm: 'Bạn có chắc muốn loại bỏ "{name}" khỏi Không gian này?',
             deleteSuccess: 'Xóa người dùng thành công!',
-            removeSuccess: 'Đã loại người dùng khỏi Không gian thành công!',
+            removeSuccess: 'Đã loại bỏ người dùng khỏi Không gian thành công!',
             deleteError: 'Thao tác thất bại: {message}',
-            cannotDeleteSelf: 'Bạn không thể thao tác lên chính mình.',
+            cannotDeleteSelf: 'Bạn không thể thao tác trên chính mình.',
             errorAvatarRequired: 'Vui lòng cung cấp ảnh đại diện.',
         }
     },
@@ -387,7 +387,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                     <thead className="bg-background-light sticky top-0"><tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.name}</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.email}</th>
-                        {!isSpaceOwner && <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.roles}</th>}
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.roles}</th>
                         {!isSpaceOwner && <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.merits}</th>}
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.status}</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold uppercase">{t.table.actions}</th>
@@ -403,8 +403,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                     </td>
                                     <td className="px-4 py-3">{u.email}</td>
 
-                                    {/* Global Admin only columns */}
-                                    {!isSpaceOwner && <td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td>}
+                                    <td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td>
                                     {!isSpaceOwner && <td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>}
 
                                     {/* Status badge */}

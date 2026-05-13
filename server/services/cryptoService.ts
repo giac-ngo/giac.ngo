@@ -1,4 +1,4 @@
-﻿// server/services/cryptoService.js
+// server/services/cryptoService.js
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import crypto from 'crypto';
@@ -44,8 +44,9 @@ export const cryptoService = {
         try {
             const textParts = text.split(':');
             if (textParts.length < 2) return text; // Malformed encrypted string
-            // @ts-ignore
-            const iv = Buffer.from(textParts.shift(), 'hex');
+            const ivHex = textParts.shift();
+            if (!ivHex || ivHex.length !== 32) return text; // Not a valid 16-byte IV hex
+            const iv = Buffer.from(ivHex, 'hex');
             const encryptedText = Buffer.from(textParts.join(':'), 'hex');
             const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
             let decrypted = decipher.update(encryptedText);

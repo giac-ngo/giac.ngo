@@ -1,5 +1,28 @@
 # Nhật ký thay đổi - Giác Ngộ VN
 
+## 2026-05-13
+
+### 📧 Di chuyển Cấu hình SMTP & Cập nhật Luồng Quên Mật Khẩu
+
+**Vấn đề**:
+1. **Quản trị phân tán**: Cấu hình SMTP trước đây nằm bên trong màn hình Quản lý Thông báo, khiến việc quản trị cấu hình hệ thống (Settings) bị phân mảnh. Cần gom chung lại để Space Owner dễ dàng thiết lập tại một nơi.
+2. **Lỗi Quên Mật Khẩu**: Link khôi phục mật khẩu gửi trong email luôn sử dụng `process.env.BASE_URL` mặc định, khiến người dùng truy cập từ Custom Domain bị chuyển hướng nhầm về domain hệ thống gốc ("ra cái gì đâu không") hoặc link hỏng nếu thiếu cấu hình.
+
+**Giải pháp & Chi tiết thay đổi**:
+1. **Di chuyển Cấu hình SMTP (`Settings.tsx` & `NotificationManagement.tsx`)**:
+   - Chuyển tab "Cấu hình SMTP" từ `NotificationManagement` sang `Settings`.
+   - Update `AdminPage.tsx` để truyền tải dữ liệu Không gian (Space) xuống `Settings.tsx`.
+   - Bổ sung UI Card "Cấu hình Mail Server" mới trong `Settings.tsx`, tích hợp logic lưu chung (User Token + SMTP config).
+   - Làm rõ logic "Template Email" bên trong `NotificationManagement`.
+
+2. **Cập nhật URL Quên Mật Khẩu (`mailService.ts`)**:
+   - Cập nhật hàm `sendPasswordResetEmail` để ưu tiên lấy `options.host` làm domain tạo link khôi phục thay vì `process.env.BASE_URL`.
+   - Hỗ trợ chính xác HTTP/HTTPS thông qua check chuỗi `localhost`. Đảm bảo link nhận trong email đúng 100% với tên miền hiện tại của Không gian.
+
+**Commit**: `[Manual Update]` — `feat: migrate smtp settings, fix password reset domain url`
+
+---
+
 ## 2026-05-12
 
 ### 🔐 Phân quyền Multi-Tenant: Triển khai `isGlobalAdmin` toàn hệ thống & Space-Scoped Roles

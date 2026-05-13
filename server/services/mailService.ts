@@ -1,4 +1,4 @@
-﻿// server/services/mailService.js
+// server/services/mailService.js
 import { Request, Response, NextFunction } from 'express';
 import nodemailer from 'nodemailer';
 import { pool } from '../db.js';
@@ -63,7 +63,9 @@ const translations = {
 export const mailService = {
     async sendPasswordResetEmail(to: string, token: string, language: string = 'vi', options: Record<string, any> = {}) {
         const t = (translations as Record<string, any>)[language];
-        const resetUrl = `${process.env.BASE_URL}/reset-password?token=${token}`;
+        const protocol = options.host && options.host.includes('localhost') ? 'http' : 'https';
+        const hostUrl = options.host ? `${protocol}://${options.host}` : process.env.BASE_URL || 'https://login.bodhilab.io';
+        const resetUrl = `${hostUrl}/reset-password?token=${token}`;
         try {
             const { transport, fromString } = await getTransportAndFrom(options);
             const mailOptions = {

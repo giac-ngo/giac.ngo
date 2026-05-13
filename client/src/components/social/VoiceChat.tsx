@@ -190,22 +190,22 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     // ─── Cleanup ────────────────────────────────────────────────────────────
     const cleanup = useCallback(() => {
-        try { processorRef.current?.disconnect(); } catch {}
+        try { processorRef.current?.disconnect(); } catch { }
         processorRef.current = null;
-        try { captureCtxRef.current?.close(); } catch {}
+        try { captureCtxRef.current?.close(); } catch { }
         captureCtxRef.current = null;
         streamRef.current?.getTracks().forEach(t => t.stop());
         streamRef.current = null;
-        try { playbackCtxRef.current?.close(); } catch {}
+        try { playbackCtxRef.current?.close(); } catch { }
         playbackCtxRef.current = null;
         nextPlayTimeRef.current = 0;
-        try { liveSessionRef.current?.close(); } catch {}
+        try { liveSessionRef.current?.close(); } catch { }
         liveSessionRef.current = null;
         // stop speech recognition
-        try { recognitionRef.current?.stop(); } catch {}
+        try { recognitionRef.current?.stop(); } catch { }
         recognitionRef.current = null;
         // close mix context
-        try { mixCtxRef.current?.close(); } catch {}
+        try { mixCtxRef.current?.close(); } catch { }
         mixCtxRef.current = null;
         mixDestRef.current = null;
         setLiveTranscript('');
@@ -257,15 +257,15 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             }
             if (interim) setLiveTranscript(interim);
         };
-        rec.onerror = () => {};
+        rec.onerror = () => { };
         rec.onend = () => {
             // restart if still in listening state
             if (liveSessionRef.current) {
-                try { rec.start(); } catch {}
+                try { rec.start(); } catch { }
             }
         };
         recognitionRef.current = rec;
-        try { rec.start(); } catch {}
+        try { rec.start(); } catch { }
     }, [language]);
 
     // ─── Start Live Session ──────────────────────────────────────────────────
@@ -330,7 +330,10 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             ].filter(Boolean).join('\n\n');
 
             // 4. Connect to Gemini Live using ephemeral token (not raw API key)
-            const ai = new GoogleGenAI({ apiKey: ephemeralToken });
+            const ai = new GoogleGenAI({
+                apiKey: ephemeralToken,
+                httpOptions: { apiVersion: 'v1alpha' }
+            });
 
             const session = await (ai as any).live.connect({
                 model: LIVE_MODEL,
@@ -402,8 +405,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                     onerror: (e: any) => {
                         console.error('[GeminiLive] error:', e);
                         setVoiceState('error');
-                        setStatusText('⚠️ Lỗi kết nối. Nhấn micro để thử lại.');
-                        cleanup();
+                        const errMsg = e instanceof Error ? e.message : (typeof e === 'object' ? JSON.stringify(e) : String(e));
+                        setStatusText(`Lỗi kết nối WS: ${errMsg}`);
                     },
                     onclose: () => {
                         if (liveSessionRef.current) {
@@ -473,11 +476,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
             console.error('[GeminiLive] setup error:', err);
             cleanup();
             setVoiceState('error');
-            setStatusText(
-                err?.name === 'NotAllowedError'
-                    ? '⚠️ Cần cấp quyền microphone.'
-                    : `⚠️ ${err?.message || 'Không thể kết nối Gemini Live.'}`
-            );
+            setStatusText(`Lỗi Setup: ${err?.message || JSON.stringify(err)}`);
         }
     }, [geminiVoice, currentAiConfig, language, scheduleAudio, cleanup, showToast, startSpeechRecognition, flushPlaybackQueue]);
 
@@ -495,7 +494,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
         const next = !isMuted;
         setIsMuted(next);
         if (next) {
-            try { playbackCtxRef.current?.close(); } catch {}
+            try { playbackCtxRef.current?.close(); } catch { }
             playbackCtxRef.current = null;
             nextPlayTimeRef.current = 0;
         }
@@ -517,33 +516,33 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
         window.matchMedia('(prefers-color-scheme: dark)').matches;
     const isGiacngoDark = isGiacngo && isDark;
 
-    const bg        = isGiacngoDark ? 'hsl(28, 22%, 9%)'
-                    : isGiacngo     ? '#f5ede0'
-                    : isDark        ? '#1c1c1e' : '#ffffff';
-    const bgCard    = isGiacngoDark ? 'hsl(28, 20%, 13%)'
-                    : isGiacngo     ? '#fdf8f0'
-                    : isDark        ? '#242526' : '#f7f7f7';
+    const bg = isGiacngoDark ? 'hsl(28, 22%, 9%)'
+        : isGiacngo ? '#f5ede0'
+            : isDark ? '#1c1c1e' : '#ffffff';
+    const bgCard = isGiacngoDark ? 'hsl(28, 20%, 13%)'
+        : isGiacngo ? '#fdf8f0'
+            : isDark ? '#242526' : '#f7f7f7';
     const textColor = isGiacngoDark ? 'hsl(44, 45%, 82%)'
-                    : isGiacngo     ? '#1f2937'
-                    : isDark        ? '#e4e6eb' : '#050505';
-    const muted     = isGiacngoDark ? 'hsl(38, 20%, 55%)'
-                    : isGiacngo     ? '#6b7280'
-                    : isDark        ? '#8e8e93' : '#65676b';
-    const border    = isGiacngoDark ? 'hsl(28, 15%, 22%)'
-                    : isGiacngo     ? '#dcd5bc'
-                    : isDark        ? '#38383a' : '#e4e6ea';
-    const inputBg   = isGiacngoDark ? 'hsl(28, 18%, 18%)'
-                    : isGiacngo     ? '#efe0bd'
-                    : isDark        ? '#2c2c2e' : '#f0f2f5';
-    const primary   = isGiacngo ? '#991b1b' : '#991b1b';
+        : isGiacngo ? '#1f2937'
+            : isDark ? '#e4e6eb' : '#050505';
+    const muted = isGiacngoDark ? 'hsl(38, 20%, 55%)'
+        : isGiacngo ? '#6b7280'
+            : isDark ? '#8e8e93' : '#65676b';
+    const border = isGiacngoDark ? 'hsl(28, 15%, 22%)'
+        : isGiacngo ? '#dcd5bc'
+            : isDark ? '#38383a' : '#e4e6ea';
+    const inputBg = isGiacngoDark ? 'hsl(28, 18%, 18%)'
+        : isGiacngo ? '#efe0bd'
+            : isDark ? '#2c2c2e' : '#f0f2f5';
+    const primary = isGiacngo ? '#991b1b' : '#991b1b';
 
 
     const cfg = {
-        idle:       { color: muted,                     micBg: inputBg,   glow: 'none' },
+        idle: { color: muted, micBg: inputBg, glow: 'none' },
         connecting: { color: isGiacngo ? '#b45309' : '#f39c12', micBg: inputBg, glow: 'none' },
-        listening:  { color: '#dc2626',                 micBg: '#dc2626', glow: '0 0 0 10px rgba(220,38,38,0.15), 0 0 0 20px rgba(220,38,38,0.07)' },
-        speaking:   { color: primary,                   micBg: primary,   glow: `0 0 0 10px ${primary}22, 0 0 0 20px ${primary}10` },
-        error:      { color: '#dc2626',                 micBg: inputBg,   glow: 'none' },
+        listening: { color: '#dc2626', micBg: '#dc2626', glow: '0 0 0 10px rgba(220,38,38,0.15), 0 0 0 20px rgba(220,38,38,0.07)' },
+        speaking: { color: primary, micBg: primary, glow: `0 0 0 10px ${primary}22, 0 0 0 20px ${primary}10` },
+        error: { color: '#dc2626', micBg: inputBg, glow: 'none' },
     }[voiceState];
 
     const isActive = voiceState === 'listening' || voiceState === 'speaking';
@@ -596,7 +595,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                             ? <img src={currentAiConfig.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `2px solid ${border}` }} />
                             : <div style={{ width: 40, height: 40, borderRadius: '50%', background: primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flexShrink: 0 }}>
                                 {currentAiConfig?.name?.[0] || 'AI'}
-                              </div>
+                            </div>
                         }
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 15, color: textColor }}>
@@ -607,11 +606,11 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                             </div>
                             <div style={{ fontSize: 12, color: cfg.color, fontWeight: 600, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: cfg.color, display: 'inline-block', flexShrink: 0 }} />
-                                {voiceState === 'idle'       && (language === 'vi' ? 'Sẵn sàng' : 'Ready')}
+                                {voiceState === 'idle' && (language === 'vi' ? 'Sẵn sàng' : 'Ready')}
                                 {voiceState === 'connecting' && (language === 'vi' ? 'Đang kết nối...' : 'Connecting...')}
-                                {voiceState === 'listening'  && (language === 'vi' ? 'Đang nghe...' : 'Listening...')}
-                                {voiceState === 'speaking'   && (language === 'vi' ? 'AI đang nói...' : 'AI speaking...')}
-                                {voiceState === 'error'      && (language === 'vi' ? 'Có lỗi' : 'Error')}
+                                {voiceState === 'listening' && (language === 'vi' ? 'Đang nghe...' : 'Listening...')}
+                                {voiceState === 'speaking' && (language === 'vi' ? 'AI đang nói...' : 'AI speaking...')}
+                                {voiceState === 'error' && (language === 'vi' ? 'Có lỗi' : 'Error')}
                             </div>
                         </div>
                         {/* Language switcher — clickable, changes app language */}
@@ -651,8 +650,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                         background: isGiacngoDark
                             ? 'hsl(28, 20%, 13%)'
                             : isGiacngo
-                            ? 'linear-gradient(180deg,#fdf8f0 0%,#f5ede0 100%)'
-                            : bgCard,
+                                ? 'linear-gradient(180deg,#fdf8f0 0%,#f5ede0 100%)'
+                                : bgCard,
                         position: 'relative',
                     }}>
                         {/* Centered AI image with pulse rings */}
@@ -753,9 +752,9 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"
                                             stroke={isActive ? '#fff' : (isGiacngo ? primary : muted)}
                                             strokeWidth="2" strokeLinecap="round" />
-                                        <line x1="12" y1="19" x2="12" y2="22" stroke={isActive ? '#fff' : (isGiacngo ? primary : muted)} strokeWidth="2" strokeLinecap="round"/>
-                                        <line x1="8" y1="22" x2="16" y2="22" stroke={isActive ? '#fff' : (isGiacngo ? primary : muted)} strokeWidth="2" strokeLinecap="round"/>
-                                      </svg>
+                                        <line x1="12" y1="19" x2="12" y2="22" stroke={isActive ? '#fff' : (isGiacngo ? primary : muted)} strokeWidth="2" strokeLinecap="round" />
+                                        <line x1="8" y1="22" x2="16" y2="22" stroke={isActive ? '#fff' : (isGiacngo ? primary : muted)} strokeWidth="2" strokeLinecap="round" />
+                                    </svg>
                             }
                         </button>
 
@@ -800,7 +799,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                                 {isRecording && <span className="vc-rec-dot" />}
                                 {!isRecording && (
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.5 }}>
-                                        <circle cx="12" cy="12" r="10"/>
+                                        <circle cx="12" cy="12" r="10" />
                                     </svg>
                                 )}
                                 {isRecording
@@ -812,7 +811,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                         {recordingUrl && !isRecording && (
                             <a
                                 href={recordingUrl}
-                                download={`ghi-am-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.webm`}
+                                download={`ghi-am-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`}
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: 6,
                                     padding: '7px 18px', borderRadius: 20,
@@ -822,7 +821,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
                                 }}
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9v2h14v-2H5z"/>
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9v2h14v-2H5z" />
                                 </svg>
                                 {language === 'vi' ? 'Tải xuống ghi âm' : 'Download Recording'}
                             </a>

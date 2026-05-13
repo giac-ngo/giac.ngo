@@ -362,7 +362,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'finetune':
         return <FineTuneManagement language={language} />;
       case 'settings':
-        return <Settings user={user} language={language} systemConfig={systemConfig} onSystemConfigUpdate={onSystemConfigUpdate} onUserUpdate={onUserUpdate} />;
+        return <Settings user={user} language={language} systemConfig={systemConfig} onSystemConfigUpdate={onSystemConfigUpdate} onUserUpdate={onUserUpdate} space={currentSpace} onSpaceUpdate={setCurrentSpace} />;
       default:
         return null;
     }
