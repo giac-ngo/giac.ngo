@@ -28,7 +28,8 @@ export const cmsController = {
                 page: page ? parseInt(page as string, 10) : 1,
                 limit: limit ? parseInt(limit as string, 10) : 20
             });
-            res.json(result);
+            const counts = await cmsArticleModel.getCountsByStatus(spaceId);
+            res.json({ ...result, counts });
         } catch (error: unknown) {
             logger.error('CMS getArticles error:', error);
             res.status(500).json({ message: 'Failed to fetch articles.' });
@@ -57,6 +58,16 @@ export const cmsController = {
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+
+            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
+            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
+            const hasWrite = req.user?.permissions?.includes('cms_write');
+            const hasApprove = req.user?.permissions?.includes('cms_approve');
+            const canWrite = isGlobalAdmin || isSpaceOwner || hasApprove || hasWrite;
+
+            if (!canWrite) return res.status(403).json({ message: 'Bạn không có quyền viết bài CMS.' });
+
             const { title, content, imageUrls, status, scheduledAt, targetPlatforms, sourceDocumentId, tags, author, fbAlbumId } = req.body;
             if (!title || !title.trim()) {
                 return res.status(400).json({ message: 'Title is required.' });
@@ -65,7 +76,8 @@ export const cmsController = {
                 spaceId: parseInt(spaceId, 10),
                 userId: req.user?.id,
                 title: title.trim(),
-                content, imageUrls, status: status || 'draft',
+                content, imageUrls, 
+                status: 'draft', // Luôn bắt đầu bằng draft khi khởi tạo
                 scheduledAt, targetPlatforms, sourceDocumentId, tags,
                 fbAlbumId
             });
@@ -83,6 +95,30 @@ export const cmsController = {
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+
+            const existingArticle = await cmsArticleModel.findById(id);
+            if (!existingArticle) return res.status(404).json({ message: 'Article not found.' });
+
+            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
+            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
+            const hasWrite = req.user?.permissions?.includes('cms_write');
+            const hasApprove = req.user?.permissions?.includes('cms_approve');
+            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
+            
+            // Writer edit rules
+            if (!canApprove && hasWrite) {
+                if (!['draft', 'pending_approval', 'rejected'].includes(existingArticle.status)) {
+                    return res.status(403).json({ message: 'Không thể sửa bài viết đã được duyệt hoặc đang xuất bản.' });
+                }
+                // Nếu không có quyền approve, thì không được phép tự đổi thành approved/publishing v.v.
+                if (req.body.status && !['draft', 'pending_approval'].includes(req.body.status)) {
+                    return res.status(403).json({ message: 'Bạn không có quyền chuyển sang trạng thái này.' });
+                }
+            } else if (!canApprove && !hasWrite) {
+                return res.status(403).json({ message: 'Bạn không có quyền sửa bài.' });
+            }
+
             const article = await cmsArticleModel.update(id, req.body);
             if (!article) return res.status(404).json({ message: 'Article not found.' });
             res.json(article);
@@ -174,6 +210,17 @@ export const cmsController = {
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+            
+            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
+            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
+            const hasApprove = req.user?.permissions?.includes('cms_approve');
+            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
+
+            if (!canApprove) {
+                return res.status(403).json({ message: 'Bạn không có quyền Xuất bản (Publish) bài viết.' });
+            }
+
             // Remove N8N_WEBHOOK_URL check to allow publishing without it
             // if (!N8N_WEBHOOK_URL) {
             //     return res.status(500).json({ message: 'n8n webhook URL is not configured. Set N8N_CMS_WEBHOOK_URL in .env' });
@@ -204,7 +251,12 @@ export const cmsController = {
             }
 
             if (platformsPayload.length === 0) {
-                return res.status(400).json({ message: 'No connected platforms found. Please connect your social accounts first.' });
+                const allAlreadyPublished = requestedPlatforms.length > 0 && requestedPlatforms.every(p => successfulPlatforms.includes(p));
+                if (allAlreadyPublished) {
+                    await cmsArticleModel.updateStatus(article.id, 'published');
+                    return res.json({ message: 'Bài viết đã được đăng thành công trước đó.' });
+                }
+                return res.status(400).json({ message: 'Không tìm thấy kết nối nền tảng MXH nào được bật. Vui lòng kiểm tra lại.' });
             }
 
             const protocol = req.protocol;
@@ -277,6 +329,17 @@ export const cmsController = {
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+
+            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
+            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
+            const hasApprove = req.user?.permissions?.includes('cms_approve');
+            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
+
+            if (!canApprove) {
+                return res.status(403).json({ message: 'Bạn không có quyền chia sẻ bài viết lên Bảng tin.' });
+            }
+
             const user = req.user;
             if (!user) return res.status(401).json({ message: 'Not authenticated.' });
 

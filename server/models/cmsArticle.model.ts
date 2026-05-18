@@ -136,6 +136,18 @@ export const cmsArticleModel = {
         };
     },
 
+    async getCountsByStatus(spaceId: number | string): Promise<Record<string, number>> {
+        const res = await pool.query(
+            `SELECT status, COUNT(*) as count FROM cms_articles WHERE space_id = $1 GROUP BY status`,
+            [spaceId]
+        );
+        const counts: Record<string, number> = {};
+        for (const row of res.rows) {
+            counts[row.status] = parseInt(row.count, 10);
+        }
+        return counts;
+    },
+
     async findById(id: number | string): Promise<any | null> {
         const res = await pool.query(
             `SELECT a.*, u.name as user_name, u.avatar_url as user_avatar_url,

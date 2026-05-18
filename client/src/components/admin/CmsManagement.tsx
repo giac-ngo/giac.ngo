@@ -6,13 +6,16 @@ import { PencilIcon, TrashIcon } from '../Icons';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#6b7280', scheduled: '#f59e0b',
-  published: '#10b981', failed: '#ef4444', pending: '#9ca3af', success: '#10b981', deleted: '#dc2626'
+  published: '#10b981', failed: '#ef4444', pending: '#3b82f6', publishing: '#3b82f6', success: '#10b981', deleted: '#dc2626',
+  pending_approval: '#8b5cf6', rejected: '#ef4444'
 };
 const STATUS_LABELS_VI: Record<string, string> = {
-  draft: 'Nháp', scheduled: 'Đã lên lịch', published: 'Đã đăng', failed: 'Thất bại', deleted: 'Thùng rác'
+  draft: 'Nháp', scheduled: 'Đã lên lịch', published: 'Đã đăng', failed: 'Thất bại', deleted: 'Thùng rác',
+  pending_approval: 'Chờ duyệt', rejected: 'Từ chối', publishing: 'Đang gửi đăng'
 };
 const STATUS_LABELS_EN: Record<string, string> = {
-  draft: 'Draft', scheduled: 'Scheduled', published: 'Published', failed: 'Failed', deleted: 'Trash'
+  draft: 'Draft', scheduled: 'Scheduled', published: 'Published', failed: 'Failed', deleted: 'Trash',
+  pending_approval: 'Pending Approval', rejected: 'Rejected', publishing: 'Publishing'
 };
 
 const FbIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>;
@@ -22,18 +25,26 @@ const ThIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" he
 const PLATFORM_ICONS: Record<string, React.ReactNode> = { facebook: <FbIcon />, instagram: <IgIcon />, threads: <ThIcon /> };
 const PLATFORMS = ['facebook', 'instagram', 'threads'] as const;
 
-interface Props { user: any; space: Space | null; language: 'vi' | 'en'; }
+interface Props { user: any; space: Space | null; language: 'vi' | 'en'; activeTab?: string; }
 
-export const CmsManagement: React.FC<Props> = ({ space, language }) => {
+export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTab }) => {
   const t = (vi: string, en: string) => language === 'vi' ? vi : en;
   const spaceId = space?.id;
+
+  const isWriteTab = activeTab === 'cms_write';
+  const isApproveTab = activeTab === 'cms_approve';
+
+  const isGlobalAdmin = user?.permissions?.includes('roles');
+  const isSpaceOwner = space?.userId === user?.id;
+  const hasApprove = user?.permissions?.includes('cms_approve');
+  const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
 
   const [tab, setTab] = useState<'articles' | 'connections'>('articles');
   const [apiKey, setApiKey] = useState<string>('YOUR_SECRET');
   const [articles, setArticles] = useState<CmsArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [filterMain, setFilterMain] = useState('pending');
+  const [filterMain, setFilterMain] = useState(activeTab === 'cms_write' ? 'draft' : (canApprove ? 'pending_approval' : 'draft'));
   const [filterSub, setFilterSub] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,6 +73,8 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
   const [showFbAlbumModal, setShowFbAlbumModal] = useState(false);
   const [newFbAlbumName, setNewFbAlbumName] = useState('');
   const [newFbAlbumId, setNewFbAlbumId] = useState('');
+
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -96,6 +109,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
       });
       setArticles(res.data || []);
       setTotal(res.total || 0);
+      if (res.counts) setCounts(res.counts);
     } catch (e: any) { showToast(e.message); }
     setLoading(false);
   }, [spaceId, page, filterMain, filterSub, search]);
@@ -126,6 +140,16 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
   useEffect(() => { loadArticles(); }, [loadArticles]);
   useEffect(() => { loadConnections(); }, [loadConnections]);
   useEffect(() => { loadFbAlbums(); }, [loadFbAlbums]);
+
+  useEffect(() => {
+    if (activeTab === 'cms_write') {
+      setFilterMain('draft');
+      setTab('articles');
+    } else if (activeTab === 'cms_approve') {
+      setFilterMain('pending_approval');
+      setTab('articles');
+    }
+  }, [activeTab]);
 
   // Check OAuth callback params
   useEffect(() => {
@@ -302,6 +326,106 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
     });
   };
 
+  const handleApproveMass = async () => {
+    if (!spaceId || selectedIds.length === 0) return;
+    
+    setConfirmDialog({
+      message: t(`Duyệt và đăng ${selectedIds.length} bài viết đã chọn?`, `Approve and publish ${selectedIds.length} selected articles?`),
+      onConfirm: async () => {
+        setLoading(true);
+        let successCount = 0;
+        let failCount = 0;
+        for (const id of selectedIds) {
+          try {
+            const article = articles.find(a => a.id === id);
+            const targetPlatforms = article?.targetPlatforms || [];
+            const connectedPlatforms = connections.filter(c => c.isActive && targetPlatforms.includes(c.platform)).map(c => c.platform);
+            
+            if (connectedPlatforms.length === 0) {
+                failCount++;
+                continue;
+            }
+            await apiService.publishCmsArticle(spaceId, id, connectedPlatforms);
+            successCount++;
+          } catch (e: any) { failCount++; console.error(e); }
+        }
+        if (failCount > 0) {
+            showToast(t(`Đã duyệt ${successCount} bài. ${failCount} bài bị lỗi (chưa chọn MXH).`, `Approved ${successCount}. ${failCount} failed (no platforms).`));
+        } else {
+            showToast(t(`Đã duyệt thành công ${successCount} bài`, `Successfully approved ${successCount} articles`));
+        }
+        setSelectedIds([]);
+        loadArticles();
+      }
+    });
+  };
+
+  const handleSubmitForApproval = async (id: number) => {
+    if (!spaceId) return;
+    try {
+      setLoading(true);
+      await apiService.updateCmsArticle(spaceId, id, { status: 'pending_approval' });
+      showToast(t('Đã gửi yêu cầu duyệt', 'Submitted for approval'));
+      loadArticles();
+    } catch (e: any) {
+      showToast(e.message);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitForApprovalMass = async () => {
+    if (!spaceId || selectedIds.length === 0) return;
+    setConfirmDialog({
+      message: t(`Gửi yêu cầu duyệt cho ${selectedIds.length} bài viết?`, `Submit ${selectedIds.length} articles for approval?`),
+      onConfirm: async () => {
+        setLoading(true);
+        let successCount = 0;
+        for (const id of selectedIds) {
+          try {
+            await apiService.updateCmsArticle(spaceId, id, { status: 'pending_approval' });
+            successCount++;
+          } catch (e: any) { console.error(e); }
+        }
+        showToast(t(`Đã gửi duyệt ${successCount}/${selectedIds.length} bài`, `Submitted ${successCount}/${selectedIds.length} articles`));
+        setSelectedIds([]);
+        loadArticles();
+      }
+    });
+  };
+
+  const handleReject = async (id: number) => {
+    if (!spaceId) return;
+    try {
+      setLoading(true);
+      await apiService.updateCmsArticle(spaceId, id, { status: 'rejected' });
+      showToast(t('Đã từ chối bài viết', 'Rejected article'));
+      loadArticles();
+    } catch (e: any) {
+      showToast(e.message);
+      setLoading(false);
+    }
+  };
+
+  const handleRejectMass = async () => {
+    if (!spaceId || selectedIds.length === 0) return;
+    setConfirmDialog({
+      message: t(`Từ chối ${selectedIds.length} bài viết đã chọn?`, `Reject ${selectedIds.length} selected articles?`),
+      onConfirm: async () => {
+        setLoading(true);
+        let successCount = 0;
+        for (const id of selectedIds) {
+          try {
+            await apiService.updateCmsArticle(spaceId, id, { status: 'rejected' });
+            successCount++;
+          } catch (e: any) { console.error(e); }
+        }
+        showToast(t(`Đã từ chối ${successCount}/${selectedIds.length} bài`, `Rejected ${successCount}/${selectedIds.length} articles`));
+        setSelectedIds([]);
+        loadArticles();
+      }
+    });
+  };
+
   const handleDeleteMass = async () => {
     if (!spaceId || selectedIds.length === 0) return;
     setConfirmDialog({
@@ -454,7 +578,9 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
       {/* Tab switcher */}
       <div className="flex gap-2 mb-6">
         <button onClick={() => setTab('articles')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'articles' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t('📝 Bài Viết', '📝 Articles')}</button>
-        <button onClick={() => setTab('connections')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'connections' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t('🔗 Kết Nối MXH', '🔗 Social Connections')}</button>
+        {(isGlobalAdmin || isSpaceOwner) && !isWriteTab && (
+          <button onClick={() => setTab('connections')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'connections' ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'}`}>{t('🔗 Kết Nối MXH', '🔗 Social Connections')}</button>
+        )}
       </div>
 
       {/* ═══ CONNECTIONS TAB ═══ */}
@@ -510,34 +636,56 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
         <div>
           {/* Toolbar */}
           <div className="flex flex-col gap-4 mb-6">
-            <div className="flex gap-3 flex-wrap">
-              <button onClick={openNewArticle} className={btnPrimaryClass}>✏️ {t('Tạo bài mới', 'New Article')}</button>
-              <button onClick={() => { setShowImport(true); loadImportDocs(1); }} className={btnOutlineClass}>📥 {t('Import từ Thư viện', 'Import from Library')}</button>
-            </div>
+            {!isApproveTab && (
+              <div className="flex gap-3 flex-wrap">
+                <button onClick={openNewArticle} className={btnPrimaryClass}>✏️ {t('Tạo bài mới', 'New Article')}</button>
+                <button onClick={() => { setShowImport(true); loadImportDocs(1); }} className={btnOutlineClass}>📥 {t('Import từ Thư viện', 'Import from Library')}</button>
+              </div>
+            )}
             
             <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 border-y border-border-color py-3">
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  {/* <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="filterMain" value="" checked={filterMain === ''} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
-                    <span className="text-sm font-medium">{t('Tất cả', 'All')}</span>
-                  </label> */}
+                  {!isApproveTab && (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="filterMain" value="draft" checked={filterMain === 'draft'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                      <span className="text-sm">{t('Nháp', 'Draft')} <span className="text-text-light text-xs">({counts.draft || 0})</span></span>
+                    </label>
+                  )}
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="filterMain" value="pending_approval" checked={filterMain === 'pending_approval'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                    <span className="text-sm font-semibold text-purple-600">{t('Chờ duyệt', 'Needs Approval')} <span className="text-xs">({counts.pending_approval || 0})</span></span>
+                  </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" name="filterMain" value="pending" checked={filterMain === 'pending'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
-                    <span className="text-sm">{t('Chờ đăng', 'Pending')}</span>
+                    <span className="text-sm">{t('Đang đăng', 'Publishing')} <span className="text-text-light text-xs">({(counts.publishing || 0) + (counts.scheduled || 0)})</span></span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="filterMain" value="success" checked={filterMain === 'success'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
-                    <span className="text-sm">{t('Đã đăng', 'Published')}</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="filterMain" value="failed" checked={filterMain === 'failed'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
-                    <span className="text-sm">{t('Thất bại', 'Failed')}</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer ml-4">
-                    <input type="radio" name="filterMain" value="deleted" checked={filterMain === 'deleted'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
-                    <span className="text-sm text-text-light">{t('Thùng rác', 'Trash')}</span>
-                  </label>
+                  {isWriteTab && (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="filterMain" value="rejected" checked={filterMain === 'rejected'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                      <span className="text-sm text-red-600">{t('Từ chối', 'Rejected')} <span className="text-xs">({counts.rejected || 0})</span></span>
+                    </label>
+                  )}
+                  {!isWriteTab && (
+                    <>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="filterMain" value="success" checked={filterMain === 'success'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                        <span className="text-sm">{t('Đã đăng', 'Published')} <span className="text-text-light text-xs">({counts.published || 0})</span></span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="filterMain" value="failed" checked={filterMain === 'failed'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                        <span className="text-sm">{t('Thất bại', 'Failed')} <span className="text-text-light text-xs">({counts.failed || 0})</span></span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="filterMain" value="rejected" checked={filterMain === 'rejected'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                        <span className="text-sm text-red-600">{t('Từ chối', 'Rejected')} <span className="text-xs">({counts.rejected || 0})</span></span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer ml-4">
+                        <input type="radio" name="filterMain" value="deleted" checked={filterMain === 'deleted'} onChange={e => { setFilterMain(e.target.value); setFilterSub('all'); setPage(1); }} className="accent-primary w-4 h-4" />
+                        <span className="text-sm text-text-light">{t('Thùng rác', 'Trash')} <span className="text-xs">({counts.deleted || 0})</span></span>
+                      </label>
+                    </>
+                  )}
                 </div>
                 {['pending', 'success', 'failed'].includes(filterMain) && (
                   <div className="flex flex-wrap gap-x-6 gap-y-2 pl-4 border-l-2 border-border-color mt-1">
@@ -579,9 +727,25 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
                     <span className="text-sm font-medium mr-2">{selectedIds.length} {t('đã chọn', 'selected')}:</span>
                     {filterMain !== 'deleted' && (
                       <>
-                        <button onClick={() => handlePublishMass('facebook')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-primary text-primary hover:bg-primary hover:text-white transition-colors"}>FB</button>
-                        <button onClick={() => handlePublishMass('instagram')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white transition-colors"}>IG</button>
-                        <button onClick={() => handlePublishMass('threads')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-gray-800 text-gray-800 hover:bg-gray-800 hover:text-white transition-colors"}>Threads</button>
+                        {isWriteTab && (filterMain === 'draft' || filterMain === 'rejected') && (
+                            <button onClick={handleSubmitForApprovalMass} className={btnPrimaryClass + " !px-3 !py-1 !text-xs !bg-purple-600 hover:!bg-purple-700 flex items-center gap-1.5"}>
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                              {t('Gửi Yêu cầu Duyệt', 'Submit for Approval')}
+                            </button>
+                        )}
+                        {!isWriteTab && (
+                          <>
+                            {filterMain === 'pending_approval' && (
+                              <>
+                                <button onClick={handleApproveMass} className={btnPrimaryClass + " !px-3 !py-1 !text-xs !bg-green-600 hover:!bg-green-700"}>✅ {t('Duyệt & Đăng', 'Approve & Publish')}</button>
+                                <button onClick={handleRejectMass} className={btnDangerClass + " !px-3 !py-1 !text-xs"}>✕ {t('Từ chối', 'Reject')}</button>
+                              </>
+                            )}
+                            <button onClick={() => handlePublishMass('facebook')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-primary text-primary hover:bg-primary hover:text-white transition-colors"}>FB</button>
+                            <button onClick={() => handlePublishMass('instagram')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white transition-colors"}>IG</button>
+                            <button onClick={() => handlePublishMass('threads')} className={btnOutlineClass + " !px-3 !py-1 !text-xs border-gray-800 text-gray-800 hover:bg-gray-800 hover:text-white transition-colors"}>Threads</button>
+                          </>
+                        )}
                         <button onClick={handleDeleteMass} className={btnDangerClass + " !px-3 !py-1 !text-xs"}>🗑️ {t('Xóa', 'Delete')}</button>
                       </>
                     )}
@@ -630,7 +794,22 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
                         })}
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0 self-start">
+                    <div className="flex gap-2 flex-shrink-0 self-start items-center">
+                      {!isWriteTab && a.status === 'pending_approval' && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); handlePublish(a.id as number, a.targetPlatforms || []); }} className={btnOutlineClass + " !p-2 !border-green-200 hover:!bg-green-50"} title={t('Duyệt & Đăng', 'Approve & Publish')}>
+                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleReject(a.id as number); }} className={btnOutlineClass + " !p-2 !border-red-200 hover:!bg-red-50"} title={t('Từ chối', 'Reject')}>
+                            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </>
+                      )}
+                      {isWriteTab && (a.status === 'draft' || a.status === 'rejected') && (
+                        <button onClick={(e) => { e.stopPropagation(); handleSubmitForApproval(a.id as number); }} className={btnOutlineClass + " !p-2 !border-purple-200 hover:!bg-purple-50"} title={t('Gửi duyệt', 'Submit for Approval')}>
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                      )}
                       {filterMain !== 'deleted' && (
                         <button onClick={() => openEditArticle(a.id as number)} className={btnOutlineClass + " !p-2"} title={t('Sửa', 'Edit')}>
                           <PencilIcon className="w-5 h-5 text-text-main" />
@@ -746,10 +925,39 @@ export const CmsManagement: React.FC<Props> = ({ space, language }) => {
                 <input type="datetime-local" value={editArticle.scheduledAt?.slice(0, 16) || ''} onChange={e => setEditArticle({ ...editArticle, scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className={inputClass} />
               </div>
             </div>
-            </div><div className="px-6 py-4 border-t border-border-color flex gap-3 justify-end flex-shrink-0">
+            </div><div className="px-6 py-4 border-t border-border-color flex gap-3 justify-end flex-shrink-0 bg-background-light">
               <button onClick={() => setShowEditor(false)} className={btnOutlineClass}>{t('Hủy', 'Cancel')}</button>
-              <button onClick={() => handleSave('draft')} disabled={saving} className={btnOutlineClass}>{saving ? '...' : t('Lưu nháp', 'Save Draft')}</button>
-              <button onClick={() => { handleSave(editArticle.scheduledAt ? 'scheduled' : 'draft').then(() => { if (editArticle.id !== 'new') handlePublish(editArticle.id as number, editArticle.targetPlatforms); }); }} disabled={saving} className={btnPrimaryClass}>{t('Lưu và Chờ đăng', 'Save & Pending')}</button>
+              
+              {/* Writer Buttons */}
+              {!canApprove && ['draft', 'pending_approval', 'rejected'].includes(editArticle.status) && (
+                <>
+                  <button onClick={() => handleSave('draft')} disabled={saving} className={btnOutlineClass}>{saving ? '...' : t('Lưu nháp', 'Save Draft')}</button>
+                  <button onClick={() => handleSave('pending_approval')} disabled={saving} className={btnPrimaryClass + " !bg-purple-600 hover:!bg-purple-700"}>{saving ? '...' : t('Gửi yêu cầu Duyệt', 'Submit for Approval')}</button>
+                </>
+              )}
+
+              {/* Approver Buttons */}
+              {canApprove && (
+                <>
+                  <button onClick={() => handleSave('draft')} disabled={saving} className={btnOutlineClass}>{saving ? '...' : t('Lưu nháp', 'Save Draft')}</button>
+                  
+                  {editArticle.status === 'pending_approval' && (
+                    <button onClick={() => handleSave('rejected')} disabled={saving} className={btnDangerClass}>{saving ? '...' : t('Từ chối (Trả lại)', 'Reject')}</button>
+                  )}
+
+                  <button 
+                    onClick={() => { 
+                      handleSave(editArticle.scheduledAt ? 'scheduled' : 'draft').then(() => { 
+                        if (editArticle.id !== 'new') handlePublish(editArticle.id as number, editArticle.targetPlatforms); 
+                      }); 
+                    }} 
+                    disabled={saving} 
+                    className={btnPrimaryClass}
+                  >
+                    {saving ? '...' : (editArticle.status === 'pending_approval' ? t('Duyệt & Đăng bài', 'Approve & Publish') : t('Đăng bài', 'Publish'))}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

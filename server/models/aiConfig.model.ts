@@ -59,7 +59,14 @@ export const aiConfigModel = {
             return res.rows.map(mapRowToCamelCase);
         }
         if (user.permissions.includes('ai')) { // Content Manager can manage AIs in their own space(s)
-            const spaceRes = await pool.query('SELECT id FROM spaces WHERE user_id = $1', [user.id]);
+            const spaceRes = await pool.query(
+                `SELECT DISTINCT id FROM (
+                    SELECT id FROM spaces WHERE user_id = $1
+                    UNION
+                    SELECT space_id AS id FROM space_members WHERE user_id = $1
+                ) AS combined`, 
+                [user.id]
+            );
             if (spaceRes.rows.length === 0) {
                 return []; // This user manages no spaces, so no AIs.
             }

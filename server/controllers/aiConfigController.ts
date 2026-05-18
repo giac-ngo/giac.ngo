@@ -9,6 +9,7 @@ import { billingModel } from '../models/billing.model.js';
 import { spaceModel } from '../models/space.model.js';
 import { AIConfig, User } from '../types/index.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
+import { getUserManagedSpaceIds } from '../middleware/authMiddleware.js';
 
 const mapAndSanitizeUser = (user: User | null) => {
     if (!user) return null;
@@ -67,10 +68,10 @@ export const aiConfigController = {
             if (!req.user.permissions.includes('roles')) {
                 data.isPublic = false;
 
-                // Also verify they own the space they're assigning to.
-                const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [data.spaceId]);
-                if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user.id) {
-                    return res.status(403).json({ message: 'You can only create AIs for spaces you own.' });
+                // Also verify they manage the space they're assigning to.
+                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                if (!managedSpaceIds.includes(Number(data.spaceId))) {
+                    return res.status(403).json({ message: 'You can only create AIs for spaces you manage.' });
                 }
             }
 
@@ -95,21 +96,27 @@ export const aiConfigController = {
 
             const isSuperAdmin = req.user.permissions.includes('roles');
             const isOwner = req.user.id === aiConfig.ownerId;
+            let isSpaceManager = false;
 
-            if (!isSuperAdmin && !isOwner) {
+            if (aiConfig.spaceId) {
+                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                isSpaceManager = managedSpaceIds.includes(Number(aiConfig.spaceId)) && req.user.permissions.includes('ai');
+            }
+
+            if (!isSuperAdmin && !isOwner && !isSpaceManager) {
                 return res.status(403).json({ message: 'Forbidden: You do not have permission to edit this AI.' });
             }
 
             const payload = { ...req.body };
 
-            if (!isSuperAdmin && !isOwner) {
+            if (!isSuperAdmin && !isOwner && !isSpaceManager) {
                 delete payload.isPublic;
             }
 
             if (!isSuperAdmin && payload.spaceId) {
-                const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [payload.spaceId]);
-                if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user.id) {
-                    return res.status(403).json({ message: 'You can only assign AIs to spaces you own.' });
+                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                if (!managedSpaceIds.includes(Number(payload.spaceId))) {
+                    return res.status(403).json({ message: 'You can only assign AIs to spaces you manage.' });
                 }
             }
 
@@ -137,16 +144,15 @@ export const aiConfigController = {
 
             const isSuperAdmin = req.user.permissions.includes('roles');
             const isOwner = req.user.id === aiConfig.ownerId;
+            let isSpaceManager = false;
 
-            if (!isSuperAdmin && !isOwner) {
-                if (aiConfig.spaceId) {
-                    const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [aiConfig.spaceId]);
-                    if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user.id) {
-                        return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this AI.' });
-                    }
-                } else {
-                    return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this AI.' });
-                }
+            if (aiConfig.spaceId) {
+                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                isSpaceManager = managedSpaceIds.includes(Number(aiConfig.spaceId)) && req.user.permissions.includes('ai');
+            }
+
+            if (!isSuperAdmin && !isOwner && !isSpaceManager) {
+                return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this AI.' });
             }
 
             const owner = await userModel.findById(aiConfig.ownerId!);

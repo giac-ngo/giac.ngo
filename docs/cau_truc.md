@@ -206,6 +206,9 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
 - **Cơ chế Kế thừa Quyền hạn (Inherited Role Allocation)**:
   - Khi Space Owner tạo mới hoặc cấp phát Quyền (Role) cho người dùng, hệ thống giới hạn danh sách quyền được phép cấp phát **chỉ trong phạm vi những quyền mà Space Owner đang sở hữu**.
   - Kiểm soát ở giao diện (ẩn checkbox) và API (`roleController.ts` lọc quyền vượt cấp).
+- **Phân quyền Thành viên Quản trị (Space Managers)**:
+  - Hàm `getUserManagedSpaceIds` là trung tâm của việc xác thực quyền sở hữu/quản lý liên Không gian. Một người dùng được coi là "Quản lý" các Không gian mà họ làm **Owner** (`spaces`) HOẶC làm **Member** (`space_members`).
+  - Khi thực hiện các hành động nhạy cảm (vd: Tạo, Sửa, Xóa cấu hình AI của Không gian), hệ thống kết hợp kiểm tra ID Không gian qua `getUserManagedSpaceIds` VÀ kiểm tra xem người dùng có được cấp quyền tương ứng (ví dụ: `user.permissions.includes('ai')`) hay không. Tránh việc chỉ kiểm tra quyền Owner cứng nhắc.
 - **Space-Scoped Roles**: Bảng `roles` có cột `space_id`.
   - `space_id IS NULL` → Role hệ thống (Global Admin quản lý, read-only cho Space Owner).
   - `space_id = X` → Role do Space Owner tạo (chỉnh sửa được bởi Space Owner/Manager).

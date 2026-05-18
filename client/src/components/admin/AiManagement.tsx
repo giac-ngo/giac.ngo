@@ -781,10 +781,10 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     // --- Derived State ---
     const isOwner = selectedAi?.ownerId === user.id;
-    const isSpaceManager = !isGlobalAdmin && !!contextSpace?.id && selectedAi?.spaceId === contextSpace?.id && user.permissions?.includes('ai');
+    const isSpaceManager = !isGlobalAdmin && !!contextSpace?.id && Number(selectedAi?.spaceId) === Number(contextSpace?.id) && user.permissions?.includes('ai');
     const canEdit = isGlobalAdmin || isOwner || isSpaceManager;
-    const isApiKeyMissing = !!selectedAi && !user.apiKeys?.[selectedAi.modelType] && !apiKeyWarningDismissed;
-    const isFormDisabled = !canEdit || isApiKeyMissing;
+    
+    const isFormDisabled = !canEdit;
     const isSuperAdmin = isGlobalAdmin;
 
     const filesNeedingSummaryCount = useMemo(() => {
@@ -795,8 +795,13 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         if (isGlobalAdmin) {
             return allSpaces; // Admins can manage all spaces
         }
-        return allSpaces.filter(space => space.userId === user.id);
-    }, [allSpaces, user]);
+        const managed = allSpaces.filter(space => space.userId === user.id);
+        if (contextSpace && user.permissions?.includes('ai') && !managed.some(s => s.id === contextSpace.id)) {
+            const fullContextSpace = allSpaces.find(s => s.id === contextSpace.id) || contextSpace;
+            managed.push(fullContextSpace);
+        }
+        return managed;
+    }, [allSpaces, user, contextSpace, isGlobalAdmin]);
 
     const filteredAiList = useMemo(() => {
         // Non-global-admin: always filter by their space
@@ -1035,12 +1040,6 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         setModelsError(null);
         setIsModelsLoading(false);
 
-        const userApiKey = user.apiKeys?.[provider];
-        if (!userApiKey) {
-            setAvailableModels([]);
-            setModelsError(t.addKeyForProvider.replace('{provider}', provider.toUpperCase()));
-            return;
-        }
 
         // Static model lists per provider with helpful recommendations
         const MODEL_MAP: Record<string, { value: string, label: string }[]> = {
@@ -1963,20 +1962,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 <div className="flex-1 flex overflow-hidden">
                     <div className={`border-r border-border-color relative flex flex-col h-full transition-all duration-300 ease-in-out ${mainPanelView === 'chat' ? 'hidden' : (isChatExpanded ? 'w-1/3' : 'w-3/5')
                         }`}>
-                        {!!selectedAi && !user.apiKeys?.[selectedAi.modelType] && !apiKeyWarningDismissed && (
-                            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center">
-                                <div className="relative p-5 bg-yellow-100 text-yellow-800 rounded-xl border border-yellow-200 shadow-lg max-w-sm text-center">
-                                    <button
-                                        onClick={() => setApiKeyWarningDismissed(true)}
-                                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-yellow-200 text-yellow-600 font-bold text-sm"
-                                        title="Đóng"
-                                    >✕</button>
-                                    <p>{t.addKeyForProvider.replace('{provider}', selectedAi.modelType.toUpperCase())}</p>
-                                    <p className="text-xs mt-2 text-yellow-600">Nhấn ✕ để đóng và chọn AI khác</p>
-                                </div>
-                            </div>
-                        )}
-                        {(!canEdit && !isApiKeyMissing) && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center"><p className="p-4 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200">{t.readOnly}</p></div>}
+                        {!canEdit && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center"><p className="p-4 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200">{t.readOnly}</p></div>}
 
                         <div className="flex-grow overflow-y-auto p-6 flex flex-col">
                             <div className="flex items-start space-x-6 shrink-0">

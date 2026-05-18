@@ -56,7 +56,8 @@ const translations = {
             'comments': 'Quản lý Bình luận',
             'meditation': 'Thiền',
             'notifications': 'Thông Báo',
-            'cms': 'Quản lý Tin tức (CMS)',
+            'cms_write': 'CMS: Viết bài',
+            'cms_approve': 'CMS: Duyệt & Đăng bài',
             'library': 'Thư Viện (xem)',  // merged with files
         }
     },
@@ -110,7 +111,8 @@ const translations = {
             'media-library': 'Media Library',
             'comments': 'Comment Management',
             'notifications': 'Notifications (Broadcast)',
-            'cms': 'News CMS',
+            'cms_write': 'CMS Writer',
+            'cms_approve': 'CMS Approver (Publish)',
             'library': 'Library',
         }
     }
@@ -120,7 +122,7 @@ type PermissionKey = keyof typeof translations['vi']['permissionLabels'];
 
 const permissionGroups: { titleKey: keyof Omit<typeof translations['vi'], 'permissionLabels' | 'title' | 'loading' | 'roleList' | 'newRole' | 'noRoleSelected' | 'roleName' | 'permissions' | 'save' | 'saving' | 'delete' | 'confirmDelete' | 'saveSuccess' | 'saveError' | 'deleteSuccess' | 'deleteError' | 'fetchError' | 'systemRoleLabel' | 'spaceRoleLabel' | 'readOnlyWarning'>; icon: React.FC<{ className?: string }>; permissions: PermissionKey[] }[] = [
     { titleKey: 'groupSystem', icon: SettingsIcon, permissions: ['dashboard', 'settings', 'templates', 'notifications'] },
-    { titleKey: 'groupContent', icon: BookOpenIcon, permissions: ['files', 'media-library', 'spaces', 'dharma-talks', 'meditation', 'comments', 'cms'] },
+    { titleKey: 'groupContent', icon: BookOpenIcon, permissions: ['files', 'media-library', 'spaces', 'dharma-talks', 'meditation', 'comments', 'cms_write', 'cms_approve'] },
     { titleKey: 'groupAi', icon: AiIcon, permissions: ['ai', 'conversations', 'finetune'] },
     { titleKey: 'groupUsers', icon: UsersIcon, permissions: ['users', 'roles'] },
     { titleKey: 'groupFinance', icon: BillingIcon, permissions: ['pricing', 'user-billing', 'space-billing', 'manual-billing', 'withdrawals', 'payment-settings'] },

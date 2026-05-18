@@ -1,5 +1,33 @@
 # Nhật ký thay đổi - Giác Ngộ VN
 
+## 2026-05-18
+
+### 🔐 Phân quyền: Cấp quyền Quản lý AI cho Thành viên (Space Members)
+
+**Vấn đề**: Thành viên trong Space được phân quyền "Quản lý AI" (có quyền `ai` trong role) nhưng không thể thấy hoặc chỉnh sửa AI của Space đó. Nguyên nhân là các Controller và Model trên Backend, cũng như Frontend, đang kiểm tra quyền quản lý bằng cách xem người dùng có phải là **Owner** của Space hay không (`user_id` trong bảng `spaces`), bỏ qua các thành viên được cấp quyền.
+
+**Giải pháp & Chi tiết thay đổi**:
+1. **Model (`aiConfig.model.ts`)**: Cập nhật hàm `findManageableForUser`. Thay vì chỉ query `spaces WHERE user_id = $1`, đã sử dụng `UNION` để gộp chung các Không gian mà user làm Owner (`spaces`) VÀ làm Member (`space_members`).
+2. **Controller (`aiConfigController.ts`)**: Xóa các dòng query cứng `SELECT user_id FROM spaces WHERE id = $1`. Sử dụng hàm `getUserManagedSpaceIds(req.user.id)` kết hợp với việc kiểm tra quyền `ai` (`req.user.permissions.includes('ai')`) để cấp phép các hành động Create, Update, Delete AI cho cả Space Manager.
+3. **Frontend (`AiManagement.tsx`)**: Chỉnh sửa biến `manageableSpaces` (danh sách không gian trong giao diện chọn khi tạo/sửa AI). Đảm bảo rằng nếu người dùng không phải Owner nhưng đang đứng ở `contextSpace` và có quyền `ai`, hệ thống sẽ tự động đưa `contextSpace` vào danh sách cho phép quản lý.
+
+**Commit**: `[Manual Update]` — `fix: allow space members with ai permission to manage ai configs`
+
+### 🐛 Khắc phục lỗi cảnh báo thiếu API Key ảo trên Frontend (Space Members)
+
+**Vấn đề**: Sau khi xử lý cấp quyền thành công cho Space Member quản lý AI, giao diện vẫn hiện thông báo màu vàng "Vui lòng thêm API key cho GEMINI trong Cài đặt" chặn người dùng thao tác. Mặc dù backend đã cấu hình lấy key thông minh qua 3 cấp độ (Space -> Owner -> System) và tính năng Trải nghiệm (Chat) vẫn hoạt động bình thường, Frontend lại hardcode điều kiện kiểm tra chỉ phụ thuộc vào `user.apiKeys` (Key cá nhân của người đang đăng nhập).
+
+**Giải pháp & Chi tiết thay đổi**:
+1. **Frontend (`AiManagement.tsx`)**: 
+   - Xóa bỏ logic kiểm tra `isApiKeyMissing` chặn vô cớ các quyền chỉnh sửa AI (`isFormDisabled`).
+   - Xóa bỏ overlay màu vàng cảnh báo thiếu API Key bị hardcode bằng biểu thức `!user.apiKeys?.[selectedAi.modelType]`.
+   - Gỡ bỏ giới hạn vô lý chặn việc hiển thị danh sách Model (trong `useEffect` dòng 1043) nếu User cá nhân không có API Key, giúp Dropdown chọn Model hoạt động bình thường.
+   - Phân cấp việc báo lỗi thiếu API Key hoàn toàn cho Backend (khi gọi request chat stream/tạo bot) thay vì giả định sai trên Frontend (vì frontend không thể thấy được System Key hay Owner Key của tài khoản khác).
+
+**Commit**: `[Manual Update]` — `fix: remove flawed frontend api key warning overlay for space members`
+
+---
+
 ## 2026-05-13
 
 ### 📧 Di chuyển Cấu hình SMTP & Cập nhật Luồng Quên Mật Khẩu

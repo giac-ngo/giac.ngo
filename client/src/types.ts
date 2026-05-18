@@ -598,7 +598,7 @@ export interface CmsArticle {
     title: string;
     content?: string;
     imageUrls: string[];
-    status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
+    status: 'draft' | 'pending_approval' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'rejected' | 'deleted';
     scheduledAt?: string;
     targetPlatforms: string[];
     sourceDocumentId?: number;

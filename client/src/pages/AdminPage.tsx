@@ -56,7 +56,8 @@ const translations = {
 
     withdrawalManagement: 'Yêu cầu rút tiền',
     notificationManagement: 'Thông Báo',
-    cmsManagement: 'Quản lý Tin tức',
+    cmsWrite: 'CMS: Viết bài',
+    cmsApprove: 'CMS: Duyệt & Đăng bài',
     toAppPage: 'Về không gian thực hành',
     logout: 'Đăng xuất',
     language: 'English',
@@ -88,7 +89,8 @@ const translations = {
     manualBilling: 'Transaction History',
     withdrawalManagement: 'Withdrawal Requests',
     notificationManagement: 'Notifications',
-    cmsManagement: 'News CMS',
+    cmsWrite: 'CMS: Write Article',
+    cmsApprove: 'CMS: Approve & Publish',
     toAppPage: 'Back to Practice Space',
     logout: 'Logout',
     language: 'Tiếng Việt',
@@ -103,7 +105,7 @@ const translations = {
   }
 };
 
-type AdminTab = 'dashboard' | 'ai' | 'users' | 'roles' | 'settings' | 'domain' | 'mail-server' | 'media-library' | 'conversations' | 'pricing' | 'manual-billing' | 'payment-settings' | 'templates' | 'finetune' | 'user-billing' | 'files' | 'comments' | 'spaces' | 'dharma-talks' | 'meditation' | 'space-billing' | 'withdrawals' | 'notifications' | 'cms';
+type AdminTab = 'dashboard' | 'ai' | 'users' | 'roles' | 'settings' | 'domain' | 'mail-server' | 'media-library' | 'conversations' | 'pricing' | 'manual-billing' | 'payment-settings' | 'templates' | 'finetune' | 'user-billing' | 'files' | 'comments' | 'spaces' | 'dharma-talks' | 'meditation' | 'space-billing' | 'withdrawals' | 'notifications' | 'cms_write' | 'cms_approve';
 
 
 const getFirstAllowedTab = (user: User): AdminTab => {
@@ -113,10 +115,8 @@ const getFirstAllowedTab = (user: User): AdminTab => {
 
   const allowedTabs: AdminTab[] = [
     'dashboard', 'user-billing', 'space-billing', 'ai', 'users', 'conversations', 'pricing', 'manual-billing', 'payment-settings',
-    'templates', 'finetune', 'settings', 'media-library', 'roles', 'files', 'comments', 'spaces', 'dharma-talks', 'meditation', 'withdrawals', 'notifications', 'cms'
+    'templates', 'finetune', 'settings', 'media-library', 'roles', 'files', 'comments', 'spaces', 'dharma-talks', 'meditation', 'withdrawals', 'notifications', 'cms_write', 'cms_approve'
   ];
-
-
 
   return allowedTabs.find(tab => user.permissions?.includes(tab)) || 'dashboard';
 };
@@ -355,8 +355,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         return <WithdrawalManagement language={language} user={user} />;
       case 'notifications':
         return <NotificationManagement user={user} space={currentSpace} language={language} onSpaceUpdate={setCurrentSpace} />;
-      case 'cms':
-        return <CmsManagement user={user} space={currentSpace} language={language} />;
+      case 'cms_write':
+      case 'cms_approve':
+        return <CmsManagement user={user} space={currentSpace} language={language} activeTab={activeTab} />;
       case 'templates':
         return <TemplateManagement space={currentSpace} language={language} />;
       case 'finetune':
@@ -411,7 +412,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
           {hasPermission('notifications') && <NavItem tab="notifications" label={t.notificationManagement} icon={<BellIcon />} />}
           {hasPermission('files') && <NavItem tab="files" label={t.filesAndDocuments} icon={<DocumentTextIcon />} />}
           {hasPermission('media-library') && <NavItem tab="media-library" label={t.mediaLibrary} icon={<PhotoIcon />} />}
-          {hasPermission('cms') && <NavItem tab="cms" label={t.cmsManagement} icon={<DocumentTextIcon />} />}
+          {hasPermission('cms_write') && <NavItem tab="cms_write" label={t.cmsWrite} icon={<DocumentTextIcon />} />}
+          {hasPermission('cms_approve') && <NavItem tab="cms_approve" label={t.cmsApprove} icon={<DocumentTextIcon />} />}
           {hasPermission('spaces') && <NavItem tab="spaces" label={t.spaceManagement} icon={<MapPinIcon />} />}
           {hasPermission('templates') && <NavItem tab="templates" label={t.templateManagement} icon={<TemplateIcon />} />}
           {hasPermission('meditation') && <NavItem tab="meditation" label={t.meditationManagement} icon={<MeditationIcon />} />}
