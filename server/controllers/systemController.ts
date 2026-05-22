@@ -115,8 +115,12 @@ export const systemController = {
 
     async getDashboardStats(req: Request, res: Response) {
         try {
-            const superAdmin = isAdmin(req.user);
-            const managedSpaceIds = superAdmin ? null : await getUserManagedSpaceIds(req.user?.id!);
+            // Fix: A user is only a global admin if they explicitly have the isGlobalAdmin flag,
+            // or if they have the 'roles' permission but do NOT manage any spaces.
+            // This prevents Space Owners (who have the 'roles' permission for their space) from seeing global stats.
+            const userManagedSpaceIds = await getUserManagedSpaceIds(req.user?.id!);
+            const superAdmin = !!req.user?.isGlobalAdmin || (isAdmin(req.user) && userManagedSpaceIds.length === 0);
+            const managedSpaceIds = superAdmin ? null : userManagedSpaceIds;
             
             let spaceIds: (number | string)[] | null = null;
             const reqSpaceId = req.query.spaceId ? parseInt(req.query.spaceId as string, 10) : null;

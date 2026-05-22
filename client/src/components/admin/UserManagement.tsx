@@ -135,6 +135,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
 
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
+    const [allSpaceRoles, setAllSpaceRoles] = useState<Role[]>([]); // includes _readOnly system roles
     const [isLoading, setIsLoading] = useState(true);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -159,10 +160,10 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
             apiService.getAllRoles().then(setRoles).catch(err => showToast(err.message, 'error'));
             apiService.getSpaces().then(setSpaces).catch(console.error);
         } else if (space?.id) {
-            // Space Owner/Manager: load only space-scoped roles
+            // Space Owner/Manager: load space-scoped roles + system roles (for display)
             apiService.getSpaceRoles(space.id).then((data: Role[]) => {
-                // Filter out system roles (read-only), only show editable space roles
-                setRoles(data.filter((r: any) => !r._readOnly));
+                setAllSpaceRoles(data); // Keep all (including _readOnly system roles)
+                setRoles(data.filter((r: any) => !r._readOnly)); // Editable space roles only
             }).catch(err => showToast(err.message, 'error'));
         }
     }, [showToast, isGlobalAdminProp, space?.id]);
@@ -251,7 +252,11 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
 
     const handleRoleChange = (roleId: number) => {
         if (!editingUser) return;
-        setEditingUser(prev => prev ? { ...prev, roleIds: [roleId] } : null);
+        // Preserve system roleIds (from root admin), only toggle space roles
+        const systemRoleIds = (editingUser.roleIds || []).filter(id =>
+            allSpaceRoles.some((r: any) => r.id === id && r._readOnly)
+        );
+        setEditingUser(prev => prev ? { ...prev, roleIds: [...systemRoleIds, roleId] } : null);
     };
 
     const handleAvatarSelect = (url: string) => {
@@ -506,16 +511,37 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                     className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" />
                             </div>
                             {/* Merits */}
-                            <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
-                            {/* Roles: Global Admin sees all, Space Owner/Manager sees space-scoped roles */}
-                            {(roles.length > 0) && (
-                                <div>
-                                    <label className="block text-sm font-medium">{t.modal.roles}</label>
-                                    <div className="mt-2 grid grid-cols-3 gap-2 p-4 border rounded-md bg-background-light border-border-color">
-                                        {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="radio" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
-                                    </div>
-                                </div>
-                            )}
+                            <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? 0} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
+                            {/* System roles from root admin (read-only badge) */}
+                            {(() => {
+                                const userSystemRoles = allSpaceRoles.filter((r: any) => r._readOnly && editingUser.roleIds?.includes(r.id as number));
+                                const hasSystemRole = userSystemRoles.length > 0;
+                                return (
+                                    <>
+                                        {hasSystemRole && (
+                                            <div>
+                                                <label className="block text-sm font-medium">{t.modal.roles}</label>
+                                                <div className="mt-2 p-3 border rounded-md bg-yellow-50 border-yellow-200">
+                                                    {userSystemRoles.map((r: any) => (
+                                                        <span key={r.id} className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                                                            🔒 {r.name} <span className="text-xs text-yellow-600">(Root Admin)</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Space roles: only show if user has NO system role */}
+                                        {!hasSystemRole && roles.length > 0 && (
+                                            <div>
+                                                <label className="block text-sm font-medium">{t.modal.roles}</label>
+                                                <div className="mt-2 grid grid-cols-3 gap-2 p-4 border rounded-md bg-background-light border-border-color">
+                                                    {roles.map(role => <label key={role.id as number} className="flex items-center gap-2"><input type="radio" checked={editingUser.roleIds?.includes(role.id as number) || false} onChange={() => handleRoleChange(role.id as number)} className="h-4 w-4" /><span>{role.name}</span></label>)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                             {/* Không gian: chỉ Global Admin khi không có space context */}
                             {!isSpaceOwner && !space?.id && (
                                 <div>

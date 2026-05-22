@@ -4,6 +4,20 @@
 
 ## 2026-05-22
 
+### 🐛 Fix: Space Admin thấy Dashboard toàn hệ thống (Global Admin Bug)
+
+**Vấn đề**: Các Space Admin hoặc Owner (như `info@thile.ai`) khi vào Dashboard lại thấy toàn bộ số lượng User, Space, AI của cả hệ thống thay vì của riêng không gian họ. 
+**Nguyên nhân**: Hàm `isAdmin()` trong `authMiddleware` check theo `permissions.includes('roles')`. Các Space Owner cũng được cấp quyền `roles` để quản lý phân quyền trong không gian của họ. Việc "flatten" (gộp chung) tất cả các quyền lại trong biến `req.user.permissions` đã làm backend hiểu nhầm họ là SuperAdmin ở `systemController.ts`.
+**Giải pháp**: 
+- Sửa lại file `systemController.ts`: Quản trị viên toàn hệ thống phải có cờ `req.user.isGlobalAdmin === true` HOẶC có quyền `roles` nhưng KHÔNG quản lý bất kỳ space nào.
+- Cập nhật tài liệu `rbac_multi_tenant.md` để nhấn mạnh tuyệt đối không dùng `permissions.includes('roles')` độc lập để check Global Admin.
+
+### 🎨 UI: Ẩn/Hiện Nút Cộng Đồng
+
+**Thay đổi**:
+- Gỡ bỏ hoàn toàn nút "Cộng Đồng" (màu xanh lá) ở cột menu trái (`ConversationSidebar.tsx`).
+- Nút "Cộng Đồng" màu đỏ ở góc trên cùng bên phải màn hình (`PracticeSpaceHeader.tsx`) giờ đây là công cụ duy nhất. Nút này được liên kết trực tiếp với cờ `hasCommunity` trong cài đặt Space (SpaceManagement). Khi admin tắt "Cộng đồng", nút đỏ sẽ tự động bị ẩn đi.
+
 ### 🔐 Bảo mật: Chặn Login xuyên Space (Cross-Space Login Prevention)
 
 **Vấn đề**: User của space `thile` (`info@thile.ai`) có thể login được ở `/stillenvc/login` và truy cập admin panel của space `stillenvc`. Nguyên nhân do code login tại `authController.ts` có logic **auto-join**: khi user login ở một space mà chưa phải member → hệ thống tự động `spaceMemberModel.add()` thêm user vào space đó.

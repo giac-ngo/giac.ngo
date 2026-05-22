@@ -400,12 +400,6 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                 <span className="quick-action-label">{language === 'vi' ? 'Pháp thoại' : 'Dharma'}</span>
                             </Link>
                         )}
-                        {Boolean(currentSpace?.hasCommunity) && (
-                            <Link to={`/${spaceSlug}/community`} className={`quick-action-btn ${viewMode === 'community' ? 'active' : ''}`} title={t.communityMode}>
-                                <img src="/themes/giacngo/3.png" alt={t.communityMode} style={{ filter: 'hue-rotate(180deg)' }} />
-                                <span className="quick-action-label">{t.communityMode}</span>
-                            </Link>
-                        )}
                     </div>
                 </div>
                 {renderSidebarContent()}

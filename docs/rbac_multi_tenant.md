@@ -6,7 +6,9 @@ Hệ thống Giác Ngộ VN sử dụng cơ chế Phân Quyền Dựa Trên Vai 
 
 - **System Role (Quyền Hệ thống)**: Là các Quyền có sẵn của hệ thống (ví dụ: `User`, `Global Admin`). Các quyền này có trường `space_id IS NULL` trong cơ sở dữ liệu. Không ai có quyền sửa hoặc xóa các Quyền này ngoại trừ Global Admin.
 - **Space Role (Quyền Không Gian)**: Là các Quyền do chủ Không Gian (Space Owner) tự tạo ra để phân cấp quản lý trong nội bộ Không Gian của mình. Các quyền này có `space_id` trỏ về ID của Không Gian đó.
-- **Global Admin (Quản trị viên toàn hệ thống)**: Là người có quyền `roles` nhưng KHÔNG thuộc (hoặc không bị giới hạn bởi) bất kỳ một Space nào. Truy cập thông qua root domain `/admin`.
+- **Global Admin (Quản trị viên toàn hệ thống)**: Là người quản lý hệ thống cấp cao nhất, truy cập thông qua root domain `/admin`.
+  - ⚠️ **QUAN TRỌNG (Nguyên tắc nhận diện Backend)**: Global Admin **BẮT BUỘC** phải được nhận diện qua cờ `isGlobalAdmin = true` trong database, HOẶC nếu qua permission thì phải thỏa mãn đồng thời: `permissions.includes('roles') && userManagedSpaceIds.length === 0`.
+  - ❌ **TUYỆT ĐỐI KHÔNG** dùng `isAdmin(req.user)` hoặc `permissions.includes('roles')` độc lập để check Global Admin. Lý do: Các Chủ Không Gian (Space Owner) cũng được tự động gán quyền `roles` trong mảng `permissions` của họ do hệ thống gộp chung quyền (flatten). Nếu check lỏng lẻo, Space Admin sẽ vô tình bị cấp quyền Global Admin (xem toàn bộ Dashboard hệ thống).
 - **Space Admin / Space Manager**: Là người được cấp quyền quản trị (như `ai`, `users`, `roles`) nhưng bị giới hạn bên trong Không Gian của họ. Truy cập thông qua `/:slug/admin`.
 
 ## 2. Kiến trúc Cơ Sở Dữ Liệu
