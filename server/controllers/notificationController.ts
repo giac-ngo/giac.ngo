@@ -15,7 +15,7 @@ interface Recipient {
 
 // ─── Helper: lấy danh sách recipient theo targetGroup ────────────────────────
 async function getRecipients(targetGroup: string, user: User | null | undefined, req: Request): Promise<Recipient[]> {
-    const isSuperAdmin = user?.permissions?.includes('users') || user?.permissions?.includes('roles');
+    const isSuperAdmin = !!user?.isGlobalAdmin;
     let query;
     let params: any[] = [];
 
@@ -45,7 +45,7 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
                     SELECT u.id, u.name, u.email, $1::int as space_id
                     FROM users u 
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id = $1)
+                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id = $1 UNION SELECT user_id FROM spaces WHERE id = $1)
                     ORDER BY u.id ASC
                 `;
                 params.push(parseInt(spaceId as string, 10));
@@ -56,7 +56,7 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
                     ), 1) as space_id
                     FROM users u 
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1))
+                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1) UNION SELECT user_id FROM spaces WHERE user_id = $1)
                     ORDER BY u.id ASC
                 `;
                 params.push(user.id);
@@ -214,7 +214,7 @@ export const notificationController = {
     async getMembersList(req: Request, res: Response) {
         const { spaceId, search = '' } = req.query;
         const user = req.user;
-        const isSuperAdmin = user?.permissions?.includes('users') || user?.permissions?.includes('roles');
+        const isSuperAdmin = !!user?.isGlobalAdmin;
         try {
             let query;
             let params: any[] = [];
@@ -225,7 +225,7 @@ export const notificationController = {
                     SELECT u.id, u.name, u.email
                     FROM users u
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id = $1)
+                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id = $1 UNION SELECT user_id FROM spaces WHERE id = $1)
                     AND (u.name ILIKE $2 OR u.email ILIKE $2)
                     ORDER BY u.name ASC
                     LIMIT 200
@@ -236,7 +236,7 @@ export const notificationController = {
                     SELECT u.id, u.name, u.email
                     FROM users u
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1))
+                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1) UNION SELECT user_id FROM spaces WHERE user_id = $1)
                     AND (u.name ILIKE $2 OR u.email ILIKE $2)
                     ORDER BY u.name ASC
                     LIMIT 200

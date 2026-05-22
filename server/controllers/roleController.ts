@@ -68,7 +68,7 @@ export const roleController = {
 
             // Check if this user is truly a Global Admin
             const managedSpaceIds = user?.id ? await getUserManagedSpaceIds(user.id) : [];
-            const isGlobalAdmin = user?.permissions?.includes('roles') && managedSpaceIds.length === 0;
+            const isGlobalAdmin = !!user?.isGlobalAdmin && managedSpaceIds.length === 0;
 
             // Non-global-admin cannot edit system roles (space_id IS NULL)
             if (!isGlobalAdmin) {
@@ -101,7 +101,7 @@ export const roleController = {
 
             // Check if this user is truly a Global Admin
             const managedSpaceIds = user?.id ? await getUserManagedSpaceIds(user.id) : [];
-            const isGlobalAdmin = user?.permissions?.includes('roles') && managedSpaceIds.length === 0;
+            const isGlobalAdmin = !!user?.isGlobalAdmin && managedSpaceIds.length === 0;
 
             // Non-global-admin cannot delete system roles
             if (!isGlobalAdmin) {

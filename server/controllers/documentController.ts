@@ -32,7 +32,7 @@ const _createCategory = async (req: Request, res: Response, tableName: string, a
     try {
         const { name, nameEn, spaceId } = req.body;
         // Permission check
-        if (!req.user?.permissions?.includes('roles') && spaceId) {
+        if (!req.user?.isGlobalAdmin && spaceId) {
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
             if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user?.id) {
                 return res.status(403).json({ message: 'You can only create items for spaces you own.' });
@@ -64,7 +64,7 @@ const _updateCategory = async (req: Request, res: Response, tableName: string) =
         }
 
         // Permission check...
-        if (!req.user?.permissions?.includes('roles')) {
+        if (!req.user?.isGlobalAdmin) {
             const itemRes = await pool.query(`SELECT space_id FROM ${tableName} WHERE id = $1`, [req.params.id]);
             if (itemRes.rows.length > 0) {
                 const currentSpaceId = itemRes.rows[0].space_id;
@@ -191,7 +191,7 @@ export const documentController = {
     async createDocument(req: Request, res: Response) {
         try {
             const { spaceId } = req.body;
-            if (!req.user?.permissions?.includes('roles') && spaceId) {
+            if (!req.user?.isGlobalAdmin && spaceId) {
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
                 if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user?.id) {
                     return res.status(403).json({ message: 'You can only create documents for spaces you own.' });
@@ -210,7 +210,7 @@ export const documentController = {
         try {
             const id = parseInt(String(req.params.id), 10);
 
-            if (!req.user?.permissions?.includes('roles')) {
+            if (!req.user?.isGlobalAdmin) {
                 const docRes = await pool.query('SELECT s.user_id FROM documents d JOIN spaces s ON d.space_id = s.id WHERE d.id = $1', [id]);
                 if (docRes.rows.length > 0 && docRes.rows[0].user_id !== req.user?.id) {
                     return res.status(403).json({ message: 'You can only edit documents from spaces you own.' });
@@ -233,7 +233,7 @@ export const documentController = {
     async deleteDocument(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
-            if (!req.user?.permissions?.includes('roles')) {
+            if (!req.user?.isGlobalAdmin) {
                 const docRes = await pool.query('SELECT s.user_id FROM documents d JOIN spaces s ON d.space_id = s.id WHERE d.id = $1', [id]);
                 if (docRes.rows.length > 0 && docRes.rows[0].user_id !== req.user?.id) {
                     return res.status(403).json({ message: 'You can only delete documents from spaces you own.' });

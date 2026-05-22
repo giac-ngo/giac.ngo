@@ -65,7 +65,7 @@ export const aiConfigController = {
             if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
             // Non-admins (Content Managers) cannot create public AIs directly.
-            if (!req.user.permissions.includes('roles')) {
+            if (!req.user.isGlobalAdmin) {
                 data.isPublic = false;
 
                 // Also verify they manage the space they're assigning to.
@@ -94,7 +94,7 @@ export const aiConfigController = {
 
             if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-            const isSuperAdmin = req.user.permissions.includes('roles');
+            const isSuperAdmin = !!req.user.isGlobalAdmin;
             const isOwner = req.user.id === aiConfig.ownerId;
             let isSpaceManager = false;
 
@@ -142,7 +142,7 @@ export const aiConfigController = {
 
             if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-            const isSuperAdmin = req.user.permissions.includes('roles');
+            const isSuperAdmin = !!req.user.isGlobalAdmin;
             const isOwner = req.user.id === aiConfig.ownerId;
             let isSpaceManager = false;
 

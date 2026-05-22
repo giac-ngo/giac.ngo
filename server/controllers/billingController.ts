@@ -59,7 +59,7 @@ export const billingController = {
             const { spaceId } = req.query;
             const user = req.user;
             // Root Admin = có permission 'roles' (isAdmin) — không phải chỉ 'manual-billing'
-            const isRootAdmin = user?.permissions?.includes('roles');
+            const isRootAdmin = !!user?.isGlobalAdmin;
 
             if (isRootAdmin) {
                 // Root Admin: thấy tất cả, có thể filter theo space

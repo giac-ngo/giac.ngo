@@ -1,4 +1,4 @@
-﻿// server/controllers/dharmaTalksController.ts
+// server/controllers/dharmaTalksController.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { dharmaTalkModel } from '../models/dharmaTalk.model.js';
@@ -102,7 +102,7 @@ export const dharmaTalksController = {
             const { spaceId } = talkData;
             const user = req.user as User;
 
-            if (user && user.permissions && !user.permissions.includes('roles') && spaceId) {
+            if (user && !user.isGlobalAdmin && spaceId) {
                 const { getUserManagedSpaceIds: getManagedIds1 } = await import('../middleware/authMiddleware.js');
                 const managedIds1 = await getManagedIds1(user.id);
                 if (!managedIds1.includes(Number(spaceId))) {
@@ -125,7 +125,7 @@ export const dharmaTalksController = {
             const talkData = parseAndProcessTalkData(req);
             const user = req.user as User;
 
-            if (user && user.permissions && !user.permissions.includes('roles')) {
+            if (user && !user.isGlobalAdmin) {
                 const { getUserManagedSpaceIds: getManagedIds2 } = await import('../middleware/authMiddleware.js');
                 const managedIds2 = await getManagedIds2(user.id);
                 const talkSpaceResUpd = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);
@@ -151,7 +151,7 @@ export const dharmaTalksController = {
             if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID.' });
             const user = req.user as User;
 
-            if (user && user.permissions && !user.permissions.includes('roles')) {
+            if (user && !user.isGlobalAdmin) {
                 const { getUserManagedSpaceIds: getManagedIds3 } = await import('../middleware/authMiddleware.js');
                 const managedIds3 = await getManagedIds3(user.id);
                 const talkSpaceResDel = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);

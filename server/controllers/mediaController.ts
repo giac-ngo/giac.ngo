@@ -64,7 +64,7 @@ export const mediaController = {
 
         const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
         const requestingUser = req.user;
-        const isSuperAdmin = requestingUser?.permissions && requestingUser.permissions.includes('roles');
+        const isSuperAdmin = !!requestingUser?.isGlobalAdmin;
         const userId = requestingUser?.id;
 
         // Check if user is the owner of this specific space
@@ -207,7 +207,7 @@ export const mediaController = {
 
         const userId = req.user?.id;
         const requestingUser = req.user;
-        const isSuperAdmin = requestingUser?.permissions?.includes('roles');
+        const isSuperAdmin = !!requestingUser?.isGlobalAdmin;
 
         // Determine upload scope:
         // - userScoped=true in body → user personal folder (social, avatar)
@@ -270,7 +270,7 @@ export const mediaController = {
 
         const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
         const requestingUser = req.user;
-        const isSuperAdmin = requestingUser?.permissions?.includes('roles');
+        const isSuperAdmin = !!requestingUser?.isGlobalAdmin;
         const userId = requestingUser?.id;
 
         // Check space ownership from DB  

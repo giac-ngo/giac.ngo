@@ -53,7 +53,7 @@ export const authController = {
                 if (!enrichedUser) {
                     return res.status(403).json({ message: 'Không thể xác thực quyền hạn.' });
                 }
-                const isSuperAdmin = enrichedUser.permissions && enrichedUser.permissions.includes('roles');
+                const isSuperAdmin = !!enrichedUser.isGlobalAdmin;
                 if (!isSuperAdmin) {
                     return res.status(403).json({ message: 'Chỉ tài khoản Super Admin mới được đăng nhập tại đây.' });
                 }

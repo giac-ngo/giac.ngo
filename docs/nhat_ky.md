@@ -4,6 +4,13 @@
 
 ## 2026-05-22
 
+### 🐛 Khắc phục lỗ hổng Global Admin nghiêm trọng trên toàn bộ Backend
+**Vấn đề**: Việc sử dụng `permissions.includes('roles')` làm thước đo cho quyền Super/Global Admin được rải rác ở 11 Controllers khác nhau (bao gồm `authMiddleware.ts`, `notificationController.ts`, `cmsController.ts`, v.v.). Điều này là một lỗ hổng nghiêm trọng vì Space Owners tự động có quyền `roles`, khiến hệ thống lầm tưởng họ là Global Admin và cho phép họ bypass các check bảo mật (VD: `canAccessSpace` cho phép truy cập data của mọi space). Lỗi này cũng làm API `members-list` hiểu nhầm và chạy sai nhánh logic dẫn đến trả về mảng rỗng khi Space Owner mở modal chọn thành viên gửi email.
+**Giải pháp**:
+- Thay thế toàn bộ `permissions.includes('roles')` bằng cờ `!!user?.isGlobalAdmin` ở tất cả 11 file.
+- Sửa hàm `isAdmin()` trong `authMiddleware.ts` chỉ còn `!!user?.isGlobalAdmin`.
+- Sửa API `members-list` trong `notificationController.ts` kết hợp `UNION SELECT user_id FROM spaces WHERE id = $1` để trả về cả Space Owner trong danh sách thành viên được chọn.
+
 ### 🐛 Fix: Space Admin thấy Dashboard toàn hệ thống (Global Admin Bug)
 
 **Vấn đề**: Các Space Admin hoặc Owner (như `info@thile.ai`) khi vào Dashboard lại thấy toàn bộ số lượng User, Space, AI của cả hệ thống thay vì của riêng không gian họ. 

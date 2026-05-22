@@ -59,7 +59,7 @@ export const cmsController = {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
-            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
             const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
             const hasWrite = req.user?.permissions?.includes('cms_write');
@@ -99,7 +99,7 @@ export const cmsController = {
             const existingArticle = await cmsArticleModel.findById(id);
             if (!existingArticle) return res.status(404).json({ message: 'Article not found.' });
 
-            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
             const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
             const hasWrite = req.user?.permissions?.includes('cms_write');
@@ -211,7 +211,7 @@ export const cmsController = {
                 return res.status(403).json({ message: 'Access denied.' });
             }
             
-            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
             const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
             const hasApprove = req.user?.permissions?.includes('cms_approve');
@@ -330,7 +330,7 @@ export const cmsController = {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
-            const isGlobalAdmin = req.user?.permissions?.includes('roles');
+            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
             const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
             const hasApprove = req.user?.permissions?.includes('cms_approve');
