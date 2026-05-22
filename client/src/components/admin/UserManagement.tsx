@@ -388,7 +388,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.name}</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.email}</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.roles}</th>
-                        {!isSpaceOwner && <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.merits}</th>}
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.merits}</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase">{t.table.status}</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold uppercase">{t.table.actions}</th>
                     </tr></thead>
@@ -404,7 +404,7 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                     <td className="px-4 py-3">{u.email}</td>
 
                                     <td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td>
-                                    {!isSpaceOwner && <td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>}
+                                    <td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>
 
                                     {/* Status badge */}
                                     <td className="px-4 py-3">
@@ -505,10 +505,8 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                     autoComplete="new-password"
                                     className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" />
                             </div>
-                            {/* Merits: chỉ Global Admin */}
-                            {!isSpaceOwner && (
-                                <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
-                            )}
+                            {/* Merits */}
+                            <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? ''} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
                             {/* Roles: Global Admin sees all, Space Owner/Manager sees space-scoped roles */}
                             {(roles.length > 0) && (
                                 <div>

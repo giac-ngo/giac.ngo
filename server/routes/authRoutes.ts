@@ -29,9 +29,11 @@ router.post('/change-password', isAuthenticated, userController.changePassword);
 router.post('/regenerate-token', isAuthenticated, userController.regenerateApiToken);
 
 // --- Google OAuth ---
-router.get('/auth/google', (req: Request, res: Response) => {
+router.get('/google', (req: Request, res: Response) => {
+    const returnTo = req.query.returnTo as string || '';
     const authorizeUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
+        state: returnTo,
         scope: [
             'https://www.googleapis.com/auth/userinfo.profile',
             'https://www.googleapis.com/auth/userinfo.email',
@@ -40,6 +42,7 @@ router.get('/auth/google', (req: Request, res: Response) => {
     res.redirect(authorizeUrl);
 });
 
-router.get('/auth/google/callback', authController.googleCallback(oauth2Client));
+router.get('/google/callback', authController.googleCallback(oauth2Client));
 
 export default router;
+

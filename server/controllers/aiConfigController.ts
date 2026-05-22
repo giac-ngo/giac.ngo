@@ -155,14 +155,14 @@ export const aiConfigController = {
                 return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this AI.' });
             }
 
-            const owner = await userModel.findById(aiConfig.ownerId!);
-            if (owner && owner.apiKeys) {
-                if (owner.apiKeys.gpt) {
-                    weaviateService.deleteDataByAiConfigId('gpt', aiId, owner.apiKeys.gpt).catch(err => logger.error(`Failed to cleanup Weaviate GPT data for deleted AI ${aiId}:`, err));
-                }
-                if (owner.apiKeys.gemini) {
-                    weaviateService.deleteDataByAiConfigId('gemini', aiId, owner.apiKeys.gemini).catch(err => logger.error(`Failed to cleanup Weaviate Gemini data for deleted AI ${aiId}:`, err));
-                }
+            try {
+                const gptKey = await getApiKeyForAi(aiConfig, 'gpt').catch(() => null);
+                if (gptKey) weaviateService.deleteDataByAiConfigId('gpt', aiId, gptKey).catch(err => logger.error(`Failed to cleanup Weaviate GPT data for deleted AI ${aiId}:`, err));
+                
+                const geminiKey = await getApiKeyForAi(aiConfig, 'gemini').catch(() => null);
+                if (geminiKey) weaviateService.deleteDataByAiConfigId('gemini', aiId, geminiKey).catch(err => logger.error(`Failed to cleanup Weaviate Gemini data for deleted AI ${aiId}:`, err));
+            } catch (err) {
+                // Ignore key fetching errors during deletion
             }
 
             await aiConfigModel.delete(aiId);
@@ -265,13 +265,6 @@ export const aiConfigController = {
                     if (spaceKeys.geminiVoice) geminiVoice = spaceKeys.geminiVoice;
                     if (spaceKeys.geminiStyle) geminiStyle = spaceKeys.geminiStyle;
                     if (spaceKeys.geminiTemperature) geminiTemperature = parseFloat(String(spaceKeys.geminiTemperature));
-                }
-            } else if (aiConfig.ownerId) {
-                const owner = await userModel.findById(aiConfig.ownerId);
-                if (owner?.apiKeys) {
-                    if (owner.apiKeys.geminiVoice) geminiVoice = owner.apiKeys.geminiVoice;
-                    if (owner.apiKeys.geminiStyle) geminiStyle = owner.apiKeys.geminiStyle;
-                    if (owner.apiKeys.geminiTemperature) geminiTemperature = parseFloat(String(owner.apiKeys.geminiTemperature));
                 }
             }
 

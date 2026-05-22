@@ -53,6 +53,7 @@ const upload = multer({
 const router = Router();
 
 router.get('/', spacesController.getAllSpaces);
+router.get('/my-spaces', isAuthenticated, spacesController.getMySpaces); // Admin panel: get only my owned/member spaces
 router.get('/:id(\\d+)', spacesController.getSpaceById);
 // Specific sub-routes MUST come before the generic /:slug route
 router.get('/domain/:domain', spacesController.getSpaceByDomain);

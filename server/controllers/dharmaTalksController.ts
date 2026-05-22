@@ -1,4 +1,4 @@
-// server/controllers/dharmaTalksController.ts
+ï»¿// server/controllers/dharmaTalksController.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { dharmaTalkModel } from '../models/dharmaTalk.model.js';
@@ -13,7 +13,7 @@ const parseAndProcessTalkData = (req: Request) => {
     const rawSpaceId = data.spaceId;
     const spaceDir = rawSpaceId && rawSpaceId !== '' && rawSpaceId !== 'null'
         ? `space-${String(rawSpaceId).replace(/[^a-zA-Z0-9_-]/g, '_')}`
-        : 'space-1'; // No global folder — default to space-1
+        : 'space-1'; // No global folder ï¿½ default to space-1
 
     if (files) {
         if (files.avatarFile) {
@@ -103,9 +103,10 @@ export const dharmaTalksController = {
             const user = req.user as User;
 
             if (user && user.permissions && !user.permissions.includes('roles') && spaceId) {
-                const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-                if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== user.id) {
-                    return res.status(403).json({ message: 'You can only create talks for spaces you own.' });
+                const { getUserManagedSpaceIds: getManagedIds1 } = await import('../middleware/authMiddleware.js');
+                const managedIds1 = await getManagedIds1(user.id);
+                if (!managedIds1.includes(Number(spaceId))) {
+                    return res.status(403).json({ message: 'You can only create talks for spaces you own or are a member of.' });
                 }
             }
 
@@ -125,9 +126,11 @@ export const dharmaTalksController = {
             const user = req.user as User;
 
             if (user && user.permissions && !user.permissions.includes('roles')) {
-                const talkRes = await pool.query('SELECT s.user_id FROM dharma_talks dt JOIN spaces s ON dt.space_id = s.id WHERE dt.id = $1', [id]);
-                if (talkRes.rows.length > 0 && talkRes.rows[0].user_id !== user.id) {
-                    return res.status(403).json({ message: 'You can only edit talks from spaces you own.' });
+                const { getUserManagedSpaceIds: getManagedIds2 } = await import('../middleware/authMiddleware.js');
+                const managedIds2 = await getManagedIds2(user.id);
+                const talkSpaceResUpd = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);
+                if (talkSpaceResUpd.rows.length > 0 && !managedIds2.includes(Number(talkSpaceResUpd.rows[0].space_id))) {
+                    return res.status(403).json({ message: 'You can only edit talks from spaces you own or are a member of.' });
                 }
             }
 
@@ -149,9 +152,11 @@ export const dharmaTalksController = {
             const user = req.user as User;
 
             if (user && user.permissions && !user.permissions.includes('roles')) {
-                const talkRes = await pool.query('SELECT s.user_id FROM dharma_talks dt JOIN spaces s ON dt.space_id = s.id WHERE dt.id = $1', [id]);
-                if (talkRes.rows.length > 0 && talkRes.rows[0].user_id !== user.id) {
-                    return res.status(403).json({ message: 'You can only delete talks from spaces you own.' });
+                const { getUserManagedSpaceIds: getManagedIds3 } = await import('../middleware/authMiddleware.js');
+                const managedIds3 = await getManagedIds3(user.id);
+                const talkSpaceResDel = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);
+                if (talkSpaceResDel.rows.length > 0 && !managedIds3.includes(Number(talkSpaceResDel.rows[0].space_id))) {
+                    return res.status(403).json({ message: 'You can only delete talks from spaces you own or are a member of.' });
                 }
             }
 

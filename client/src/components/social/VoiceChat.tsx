@@ -3,7 +3,7 @@
 // Không qua text - native audio streaming
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AIConfig, User } from '../../types';
+import { AIConfig } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { useToast } from '../ToastProvider';
 import { apiService } from '../../services/apiService';
@@ -22,7 +22,6 @@ interface VoiceTurn {
 
 interface VoiceChatProps {
     currentAiConfig: AIConfig | null;
-    user: User | null;
     language: 'vi' | 'en';
     setLanguage: (lang: 'vi' | 'en') => void;
     conversationId: number | null;
@@ -95,7 +94,6 @@ function PulseRing({ active, color }: { active: boolean; color: string }) {
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export const VoiceChat: React.FC<VoiceChatProps> = ({
     currentAiConfig,
-    user,
     language,
     setLanguage,
     conversationId: _conversationId,
@@ -132,8 +130,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({
 
     useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
-    // Voice priority: AI config TTS voice → owner voice config → user personal config → default
-    const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
+    // Voice priority: AI config TTS voice → owner voice config → default
+    const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || 'Algieba';
 
     // ─── Flush playback queue (stop all scheduled audio immediately) ────────
     const flushPlaybackQueue = useCallback(() => {

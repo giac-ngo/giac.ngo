@@ -186,7 +186,7 @@ export const apiService = {
         body: JSON.stringify({ isTrained })
     }).then(handleResponse),
 
-    sendMessageStream: async (aiConfig: AIConfig, messages: Message[], user: any, conversationId?: number | string | null, callbacks?: any, _isTrial?: boolean, _language?: string, _aiMessageId?: string, _guestMessageCount?: number) => {
+    sendMessageStream: async (aiConfig: AIConfig, messages: Message[], user: any, conversationId?: number | string | null, callbacks?: any, _isTrial?: boolean, language?: string, clientAiMessageId?: string, guestTurnCount?: number) => {
         let token = localStorage.getItem('apiToken');
         if (!token) {
             try {
@@ -205,7 +205,10 @@ export const apiService = {
                     aiConfigId: aiConfig.id,
                     messages,
                     userId: user?.id,
-                    conversationId
+                    conversationId,
+                    language,
+                    clientAiMessageId,
+                    guestTurnCount
                 })
             });
 
@@ -449,7 +452,11 @@ export const apiService = {
         body: JSON.stringify(data)
     }).then(handleResponse),
 
-    getDashboardStats: (): Promise<DashboardStats> => authedFetch('/api/system/dashboard/stats').then(handleResponse),
+    getDashboardStats: (spaceId?: number | string): Promise<DashboardStats> => {
+        let url = '/api/system/dashboard/stats';
+        if (spaceId) url += `?spaceId=${spaceId}`;
+        return authedFetch(url).then(handleResponse);
+    },
 
     getPublicStats: () => fetch('/api/system/public/stats').then(handleResponse),
 
@@ -496,6 +503,8 @@ export const apiService = {
 
     // ── Spaces ──────────────────────────────────────────────────────────────────
     getSpaces: (): Promise<Space[]> => authedFetch('/api/spaces').then(handleResponse),
+    // Admin panel: get only spaces the current user owns or is a member of (requires auth)
+    getMySpaces: (): Promise<Space[]> => authedFetch('/api/spaces/my-spaces').then(handleResponse),
     getSpace: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceById: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceBySlug: (slug: string): Promise<Space> => fetch(`/api/spaces/slug/${slug}`).then(handleResponse),

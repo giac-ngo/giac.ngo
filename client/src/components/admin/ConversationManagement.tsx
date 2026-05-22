@@ -146,7 +146,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
                 const [convos, ais, spaces] = await Promise.all([
                     apiService.getAllConversations(),
                     apiService.getManageableAiConfigs(user),
-                    apiService.getSpaces()
+                    apiService.getMySpaces()
                 ]);
                 setConversations(convos);
                 setAiConfigs(ais);
@@ -195,7 +195,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
         if (user.permissions?.includes('roles')) {
             return allSpaces; // Admins can see all spaces
         }
-        return allSpaces.filter(space => space.userId === user.id);
+        return allSpaces; // Backend already scoped via getMySpaces
     }, [allSpaces, user]);
 
     const filteredConversations = useMemo(() => {

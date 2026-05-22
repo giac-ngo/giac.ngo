@@ -783,7 +783,7 @@ const CategoryManagerModal: React.FC<{
 };
 
 
-export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> = ({ language, user }) => {
+export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, isGlobalAdmin?: boolean, activeSpace?: any }> = ({ language, user, isGlobalAdmin, activeSpace }) => {
     const t = translations[language];
     const { showToast } = useToast();
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -824,7 +824,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
     const [isGeneratingAudioFor, setIsGeneratingAudioFor] = useState<'vi' | 'en' | null>(null);
 
     // Filter states
-    const [filters, setFilters] = useState<Filters>({ title: '', authorId: '', typeId: '', topicId: '', tagId: '', spaceId: '' });
+    const [filters, setFilters] = useState<Filters>({ title: '', authorId: '', typeId: '', topicId: '', tagId: '', spaceId: activeSpace ? activeSpace.id.toString() : '' });
     const debounceTimeout = useRef<number | null>(null);
     const [activeTab, setActiveTab] = useState<'vi' | 'en'>('vi');
 
@@ -840,11 +840,10 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
     const titleInputRef = useRef<HTMLInputElement>(null);
 
     const manageableSpaces = useMemo(() => {
-        if (user.permissions?.includes('roles')) {
-            return allSpaces; // Admins can manage all spaces
-        }
-        return allSpaces.filter(space => space.userId === user.id);
-    }, [allSpaces, user]);
+        // Backend (getSpaces) already filters: super admin sees all, others see only their owned/member spaces.
+        // If this is a global super admin context, show all. Otherwise, allSpaces is already scoped correctly.
+        return allSpaces;
+    }, [allSpaces]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -859,18 +858,16 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
             const [tags, config, allSpacesData] = await Promise.all([
                 apiService.getAllTags(),
                 apiService.getDocumentConfig(),
-                apiService.getSpaces()
+                apiService.getMySpaces()
             ]);
             setTags(tags || []);
             setDocumentConfig(config);
             setAllSpaces(allSpacesData || []);
 
-            // Auto-select space for non-admins
-            if (user && !user.permissions?.includes('roles')) {
-                const userSpaces = (allSpacesData || []).filter(s => s.userId === user.id);
-                if (userSpaces.length > 0) {
-                    setFilters(prev => ({ ...prev, spaceId: String(userSpaces[0].id) }));
-                }
+            // Auto-select first available space for non-global-admins.
+            // allSpacesData is already scoped by backend to spaces user owns or is a member of.
+            if (!isGlobalAdmin && (allSpacesData || []).length > 0) {
+                setFilters(prev => ({ ...prev, spaceId: String((allSpacesData || [])[0].id) }));
             }
         } catch (error) {
             showToast(t.fetchError, 'error');
@@ -1223,6 +1220,15 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User }> 
                         <PlusIcon className="w-5 h-5" />
                         <span>{t.newDocument}</span>
                     </button>
+                    {isGlobalAdmin && !activeSpace && (
+                        <div className="flex flex-col">
+                            <label className="text-xs text-text-light mb-1">{t.space}</label>
+                            <select name="spaceId" value={filters.spaceId} onChange={handleFilterChange} className="p-2 border border-border-color rounded-md text-sm bg-background-light text-text-main">
+                                <option value="">{t.filterAll}</option>
+                                {manageableSpaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    )}
                 </div>
             </div>
             {/* Filters Section */}

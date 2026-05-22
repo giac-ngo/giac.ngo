@@ -8,6 +8,7 @@ import { MediaPickerModal } from '../admin/MediaPickerModal';
 
 interface MeditationManagementProps {
     language: 'vi' | 'en';
+    activeSpace?: any;
 }
 
 const translations = {
@@ -266,7 +267,7 @@ const MeditationModal: React.FC<{
     );
 };
 
-export const MeditationManagement: React.FC<MeditationManagementProps> = ({ language }) => {
+export const MeditationManagement: React.FC<MeditationManagementProps> = ({ language, activeSpace }) => {
     const t = translations[language];
     const { showToast } = useToast();
     const [meditations, setMeditations] = useState<MeditationSession[]>([]);
@@ -294,7 +295,7 @@ export const MeditationManagement: React.FC<MeditationManagementProps> = ({ lang
         try {
             const [meditationData, spaceData] = await Promise.all([
                 apiService.getAllMeditations(),
-                apiService.getSpaces()
+                apiService.getMySpaces()
             ]);
             setMeditations(meditationData);
             setSpaces(spaceData || []);
@@ -366,8 +367,9 @@ export const MeditationManagement: React.FC<MeditationManagementProps> = ({ lang
     };
 
     const filteredMeditations = meditations.filter(m =>
-        m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (m.spaceName && m.spaceName.toLowerCase().includes(searchTerm.toLowerCase()))
+        (!activeSpace || m.spaceId === activeSpace.id) &&
+        (m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.spaceName && m.spaceName.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     return (

@@ -338,7 +338,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
         setIsLoading(true);
         try {
             const [spaceData, userData, typeData] = await Promise.all([
-                apiService.getSpaces(),
+                apiService.getMySpaces(),
                 isSuperAdmin ? apiService.getAllUsers(1, 999, '') : apiService.getSpaceOwners().catch(() => [user]),
                 apiService.getSpaceTypes()
             ]);
@@ -348,7 +348,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                     setSpaces([contextSpace]);
                 } else {
                     // Fallback: filter to owned spaces
-                    setSpaces((spaceData || []).filter((s: any) => s.userId === user.id));
+                    setSpaces(spaceData || []); // Backend already scoped via getMySpaces
                 }
             } else {
                 setSpaces(spaceData || []);
@@ -983,6 +983,10 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                                                             value={editingSpace.apiKeys?.gemini || ''} 
                                                             onChange={handleInputChange} 
                                                             placeholder="AIzaSy..." 
+                                                            autoComplete="new-password"
+                                                            autoCorrect="off"
+                                                            autoCapitalize="off"
+                                                            spellCheck={false}
                                                             className="w-full p-2.5 pr-10 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20 transition-all" 
                                                         />
                                                         <button
@@ -1014,6 +1018,10 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                                                             value={editingSpace.apiKeys?.gpt || ''} 
                                                             onChange={handleInputChange} 
                                                             placeholder="sk-..." 
+                                                            autoComplete="new-password"
+                                                            autoCorrect="off"
+                                                            autoCapitalize="off"
+                                                            spellCheck={false}
                                                             className="w-full p-2.5 pr-10 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20 transition-all" 
                                                         />
                                                         <button

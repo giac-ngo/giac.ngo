@@ -116,7 +116,34 @@ export const systemController = {
     async getDashboardStats(req: Request, res: Response) {
         try {
             const superAdmin = isAdmin(req.user);
-            const spaceIds = superAdmin ? null : await getUserManagedSpaceIds(req.user?.id!);
+            const managedSpaceIds = superAdmin ? null : await getUserManagedSpaceIds(req.user?.id!);
+            
+            let spaceIds: (number | string)[] | null = null;
+            const reqSpaceId = req.query.spaceId ? parseInt(req.query.spaceId as string, 10) : null;
+
+            if (superAdmin) {
+                if (reqSpaceId) {
+                    spaceIds = [reqSpaceId];
+                } else {
+                    spaceIds = null;
+                }
+            } else {
+                if (reqSpaceId) {
+                    if (managedSpaceIds && managedSpaceIds.includes(reqSpaceId)) {
+                        spaceIds = [reqSpaceId];
+                    } else {
+                        // Return empty if they request a space they don't manage
+                        return res.json({
+                            totalUsers: 0, totalAiConfigs: 0, totalConversations: 0,
+                            interactingUsers: 0, topAIs: [], recentConversations: [],
+                            totalDocuments: 0, totalSpaces: 0, totalDharmaTalks: 0,
+                            topDocuments: [], topSpaces: [], topDharmaTalks: [],
+                        });
+                    }
+                } else {
+                    spaceIds = managedSpaceIds;
+                }
+            }
 
             // Non-admin user with no spaces: return empty stats
             if (!superAdmin && Array.isArray(spaceIds) && spaceIds.length === 0) {
@@ -176,7 +203,7 @@ export const systemController = {
             const user = await userModel.findById(userIdNum);
 
             if (provider === 'gpt') {
-                const apiKey = user?.apiKeys?.gpt || process.env.GPT_API_KEY || process.env.VITE_GPT_API_KEY;
+                const apiKey = process.env.GPT_API_KEY || process.env.VITE_GPT_API_KEY;
                 if (!apiKey) return res.status(400).json({ message: `Vui lòng thêm API key cá nhân cho ${provider.toUpperCase()} trong Cài đặt.` });
                 res.json(await gptService.listModels(apiKey));
             } else if (provider === 'gemini') {
@@ -265,7 +292,7 @@ export const systemController = {
             
             if (!finalApiKey) {
                 // Fallback logic for pure text-to-speech calls without an AI config
-                finalApiKey = user?.apiKeys?.[finalProvider] || systemConfig?.systemKeys?.[finalProvider] || process.env[`${finalProvider.toUpperCase()}_API_KEY`] || process.env[`VITE_${finalProvider.toUpperCase()}_API_KEY`] || null;
+                finalApiKey = systemConfig?.systemKeys?.[finalProvider] || process.env[`${finalProvider.toUpperCase()}_API_KEY`] || process.env[`VITE_${finalProvider.toUpperCase()}_API_KEY`] || null;
             }
 
             if (!finalApiKey) {
@@ -329,7 +356,7 @@ export const systemController = {
         try {
             const user = await userModel.findById(userId);
             const systemConfig = await systemModel.getConfig();
-            const apiKey = user?.apiKeys?.[provider] || systemConfig?.systemKeys?.[provider] || process.env[`${provider.toUpperCase()}_API_KEY`] || process.env[`VITE_${provider.toUpperCase()}_API_KEY`];
+            const apiKey = systemConfig?.systemKeys?.[provider] || process.env[`${provider.toUpperCase()}_API_KEY`] || process.env[`VITE_${provider.toUpperCase()}_API_KEY`];
 
             if (!apiKey) {
                 return res.status(400).json({ message: `API Key for ${provider} not configured.` });

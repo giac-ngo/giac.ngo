@@ -211,7 +211,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
           </div>
           
           <div className="space-y-3">
-            <a href="/api/auth/google" onClick={handleGoogleLoginClick} className="social-login-btn">
+            <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}`} onClick={handleGoogleLoginClick} className="social-login-btn">
               <GoogleIcon className="w-5 h-5" />
               <span>Google</span>
             </a>

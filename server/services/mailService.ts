@@ -49,14 +49,16 @@ const translations = {
     vi: {
         resetSubject: 'Yêu cầu Đặt lại Mật khẩu Giác Ngộ AI',
         resetBody: (url: string) => `Bạn nhận được email này vì bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu cho tài khoản của bạn.\n\nVui lòng nhấp vào liên kết sau, hoặc dán vào trình duyệt của bạn để hoàn tất quá trình:\n\n${url}\n\nNếu bạn không yêu cầu điều này, vui lòng bỏ qua email này và mật khẩu của bạn sẽ không thay đổi.\n`,
-        contactSubject: (spaceName: string) => `[Giác Ngộ Contact] Yêu cầu từ: ${spaceName}`
+        contactSubject: (spaceName: string) => `[Giác Ngộ Contact] Yêu cầu từ: ${spaceName}`,
+        welcomeSubject: 'Chào mừng bạn đến với Giác Ngộ AI',
+        welcomeBody: (name: string) => `Xin chào ${name},\n\nCảm ơn bạn đã đăng ký tài khoản tại Giác Ngộ AI. Chúng tôi rất vui mừng khi bạn tham gia cộng đồng.\n\nNếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với bộ phận hỗ trợ của chúng tôi.\n\nTrân trọng,\nĐội ngũ Giác Ngộ AI`
     },
     en: {
         resetSubject: 'Giác Ngộ AI Password Reset Request',
         resetBody: (url: string) => `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\nPlease click on the following link, or paste this into your browser to complete the process:\n\n${url}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n`,
         contactSubject: (spaceName: string) => `[Giác Ngộ Contact] Inquiry from: ${spaceName}`,
-        welcomeSubject: 'Chào mừng bạn đến với Giác Ngộ AI',
-        welcomeBody: (name: string) => `Xin chào ${name},\n\nCảm ơn bạn đã đăng ký tài khoản tại Giác Ngộ AI. Chúng tôi rất vui mừng khi bạn tham gia cộng đồng.\n\nNếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với bộ phận hỗ trợ của chúng tôi.\n\nTrân trọng,\nĐội ngũ Giác Ngộ AI`
+        welcomeSubject: 'Welcome to Giác Ngộ AI',
+        welcomeBody: (name: string) => `Hello ${name},\n\nThank you for registering an account at Giác Ngộ AI. We are thrilled to have you join our community.\n\nIf you have any questions, please contact our support team.\n\nBest regards,\nGiác Ngộ AI Team`
     }
 };
 
@@ -103,9 +105,9 @@ export const mailService = {
     },
 
     async sendWelcomeEmail(to: string, name: string, language: string = 'vi', options: Record<string, any> = {}) {
-        const t = translations[language === 'vi' ? 'vi' : 'en'];
-        const subject = (translations.vi as Record<string, any>).welcomeSubject;
-        const text = (translations.vi as Record<string, any>).welcomeBody(name);
+        const t = translations[language === 'vi' ? 'vi' : 'en'] || translations.vi;
+        const subject = t.welcomeSubject;
+        const text = t.welcomeBody(name);
         try {
             const { transport, fromString } = await getTransportAndFrom(options);
             const mailOptions = {

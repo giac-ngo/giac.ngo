@@ -141,6 +141,13 @@ export const userController = {
             const payload = { ...req.body };
             if (payload.password === '') delete payload.password;
 
+            // Protect isGlobalAdmin: only global admin can set it, cannot remove own
+            if (!isGloballyAdmin) {
+                delete payload.isGlobalAdmin;
+            } else if (payload.isGlobalAdmin === false && id === user.id) {
+                return res.status(403).json({ message: 'Không thể tự bỏ quyền Global Admin của chính mình.' });
+            }
+
             // Prevent non-admins from escalating privileges or changing sensitive fields
             if (!canManage) {
                 delete payload.roleIds;
@@ -149,8 +156,7 @@ export const userController = {
                 delete payload.email;
                 delete payload.password;
             } else if (!isGloballyAdmin) {
-                // Space Managers cannot edit global fields like merits or email
-                delete payload.merits;
+                // Space Managers cannot edit global fields like email
                 delete payload.email;
             }
 

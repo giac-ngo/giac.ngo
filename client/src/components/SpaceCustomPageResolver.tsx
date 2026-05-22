@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 
 export const SpaceCustomPageResolver: React.FC = () => {
@@ -52,6 +52,32 @@ export const SpaceCustomPageResolver: React.FC = () => {
         checkCustomPage();
     }, [spaceSlug, pageSlug]);
 
+    // Detect if the custom page is just a redirect script (e.g. window.location.replace("/thile/chat"))
+    // If so, perform the redirect at the parent level instead of rendering inside an iframe
+    const redirectTarget = useMemo(() => {
+        if (!htmlContent) return null;
+        // Match common redirect patterns:
+        // window.location.replace("..."), window.location.href = "...", window.location = "..."
+        const patterns = [
+            /window\.location\.replace\(\s*["']([^"']+)["']\s*\)/,
+            /window\.location\.href\s*=\s*["']([^"']+)["']/,
+            /window\.location\s*=\s*["']([^"']+)["']/,
+        ];
+        // Only treat as redirect if the <body> contains essentially ONLY a script with a redirect
+        // Strip HTML tags except script content to check if there's meaningful content
+        const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        const bodyContent = bodyMatch ? bodyMatch[1].trim() : htmlContent;
+        // Remove all HTML tags to see if there's any visible text content
+        const textContent = bodyContent.replace(/<[^>]*>/g, '').trim();
+        if (textContent.length > 0) return null; // Has visible content, not a pure redirect
+
+        for (const pattern of patterns) {
+            const match = htmlContent.match(pattern);
+            if (match && match[1]) return match[1];
+        }
+        return null;
+    }, [htmlContent]);
+
     if (status === 'loading') {
         return (
             <div className="w-full h-screen flex items-center justify-center bg-[#F9F5F0]">
@@ -74,10 +100,32 @@ export const SpaceCustomPageResolver: React.FC = () => {
         );
     }
 
+    // If the custom page is just a redirect, perform it at the parent level
+    if (redirectTarget) {
+        return <Navigate to={redirectTarget} replace />;
+    }
+
+    // For real custom pages (not pure redirects), inject a script that ensures
+    // any window.location redirects target the top window instead of staying in the iframe
+    const safeHtml = htmlContent ? htmlContent.replace(
+        '<head>',
+        `<head><script>
+            // Override location methods to always target the top window
+            if (window !== window.top) {
+                var _origReplace = window.location.replace.bind(window.location);
+                Object.defineProperty(window, '__gnRedirect', { value: function(url) { window.top.location.href = url; } });
+                // Patch common redirect patterns
+                var _origAssign = window.location.assign.bind(window.location);
+                window.location.replace = function(url) { window.top.location.replace(url); };
+                window.location.assign = function(url) { window.top.location.assign(url); };
+            }
+        </script>`
+    ) : '';
+
     return (
         <iframe
             title={`Space Page - ${pageSlug || 'home'}`}
-            srcDoc={htmlContent || ''}
+            srcDoc={safeHtml}
             className="w-full h-screen border-none block m-0 p-0"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
         />

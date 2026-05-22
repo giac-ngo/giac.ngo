@@ -11,6 +11,7 @@ export interface User {
     bio?: string | null;
     status?: string;
     isActive?: boolean;
+    isGlobalAdmin?: boolean;
     createdAt?: string | Date;
     updatedAt?: string | Date;
     role?: {
@@ -26,14 +27,6 @@ export interface User {
     dailyLimitBonus?: number;
     requestsRemaining?: number;
     merits?: number;
-    apiKeys?: {
-        gpt?: string;
-        gemini?: string;
-        geminiVoice?: string;
-        geminiStyle?: string;
-        geminiTemperature?: string;
-        [key: string]: string | undefined;
-    };
     [key: string]: any;
 }
 

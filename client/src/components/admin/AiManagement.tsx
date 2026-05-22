@@ -792,15 +792,16 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     }, [trainingData]);
 
     const manageableSpaces = useMemo(() => {
-        if (isGlobalAdmin) {
-            return allSpaces; // Admins can manage all spaces
+        // allSpaces is already scoped by backend (getMySpaces for non-global-admin).
+        // For global admin, getSpaces() returns all. No need to filter by userId here.
+        if (!isGlobalAdmin && contextSpace && user.permissions?.includes('ai')) {
+            // Ensure contextSpace is included even if not returned by getMySpaces (edge case)
+            const hasContext = allSpaces.some(s => s.id === contextSpace.id);
+            if (!hasContext) {
+                return [...allSpaces, contextSpace];
+            }
         }
-        const managed = allSpaces.filter(space => space.userId === user.id);
-        if (contextSpace && user.permissions?.includes('ai') && !managed.some(s => s.id === contextSpace.id)) {
-            const fullContextSpace = allSpaces.find(s => s.id === contextSpace.id) || contextSpace;
-            managed.push(fullContextSpace);
-        }
-        return managed;
+        return allSpaces;
     }, [allSpaces, user, contextSpace, isGlobalAdmin]);
 
     const filteredAiList = useMemo(() => {
@@ -910,7 +911,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 const [configs, users, spaces] = await Promise.all([
                     apiService.getManageableAiConfigs(user),
                     apiService.getSpaceOwners(),
-                    apiService.getSpaces(),
+                    apiService.getMySpaces(),
                 ]);
 
                 setAiList(configs || []);
@@ -921,9 +922,9 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 if (!isGlobalAdmin && contextSpace?.id) {
                     setSpaceIdFilter(String(contextSpace.id));
                 } else if (!isGlobalAdmin && spaces && spaces.length > 0) {
-                    const userSpace = spaces.find(s => s.userId === user.id);
-                    if (userSpace) {
-                        setSpaceIdFilter(String(userSpace.id));
+                    // allSpaces already scoped — use first available space
+                    if (spaces.length > 0) {
+                        setSpaceIdFilter(String(spaces[0].id));
                     }
                 }
 
@@ -1181,11 +1182,6 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     const handleAddNewAi = () => {
         handleNavigationAttempt(() => {
-            if (!user.apiKeys?.gemini) {
-                showToast(t.addKeyForProvider.replace('{provider}', 'GEMINI'), 'error');
-                return;
-            }
-
             const newAi: AIConfig = {
                 id: `new-${Date.now()}`, name: t.newAi, nameEn: 'New AI', description: "", descriptionEn: "", avatarUrl: "", trainingContent: "", suggestedQuestions: [], suggestedQuestionsEn: [], tags: [], modelType: 'gemini', modelName: 'gemini-3-flash-preview', ownerId: user.id as number, isPublic: false, isTrialAllowed: false, requiresSubscription: false, maxOutputTokens: 8000, thinkingBudget: 2000, spaceId: (manageableSpaces[0]?.id as number) || null,
             };
@@ -1432,7 +1428,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 setDisplayedMessages(prev => updateMessage(prev));
                 setIsTyping(false);
             }
-        });
+        }, false, language);
     };
 
     const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1752,7 +1748,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         if (testAudioRef.current) { testAudioRef.current.pause(); testAudioRef.current.currentTime = 0; testAudioRef.current.onended = null; }
         setTestLoadingTtsId(msgId); setTestSpeakingId(null); testSpeakingQueueRef.current = msgId;
         try {
-            if (!user?.apiKeys) { showToast('Cần đăng nhập để dùng TTS', 'error'); setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
+            if (!user) { showToast('Cần đăng nhập để dùng TTS', 'error'); setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
             const provider = selectedAi?.modelType || 'gemini';
             const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
             const voiceConfig = provider === 'gpt' ? 'alloy' : (user.apiKeys?.geminiVoice || 'Algieba');
@@ -1797,7 +1793,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
             a.href = url; a.download = `voice-${msgId}.wav`; a.click();
         };
         if (cached) { downloadUrl((cached as any).chunks?.[0] || cached.url); return; }
-        if (!user?.apiKeys) { showToast('Cần đăng nhập để tải voice', 'error'); return; }
+        if (!user) { showToast('Cần đăng nhập để tải voice', 'error'); return; }
         try {
             const provider = selectedAi?.modelType || 'gemini';
             const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
@@ -2554,83 +2550,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                         const pairKey = (msg.sender === 'ai' && questionMessage?.sender === 'user') ? `${questionMessage.text.trim()}|||${msg.text.trim()}` : null;
                                         const isAlreadyTrained = pairKey ? trainedPairs.has(pairKey) : false;
 
-                                        // Split AI messages using the same algorithm as PracticeSpacePage
-                                        const segments = (() => {
-                                            if (msg.sender !== 'ai') return [msg.text];
-                                            const rawSegs = msg.text.split(/^-{3,}\s*$|\n{2,}/m).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-                                            if (rawSegs.length <= 1) return rawSegs;
-
-                                            // A short single-line segment (likely a kệ/verse line)
-                                            const isKeLine = (seg: string): boolean =>
-                                                !seg.includes('\n') && seg.length >= 4 && seg.length <= 140;
-
-                                            // Strategy 1: Numbered sections (e.g. "1. TAM VÕ", "2. THẤY MÌNH")
-                                            const isSectionHeading = (seg: string): boolean =>
-                                                /^\d+\.\s+\S/.test(seg) && !seg.includes('\n') && seg.length < 100;
-
-                                            if (rawSegs.some(isSectionHeading)) {
-                                                const sections: string[][] = [];
-                                                let current: string[] = [];
-                                                for (const seg of rawSegs) {
-                                                    if (isSectionHeading(seg) && current.length > 0) {
-                                                        sections.push(current);
-                                                        current = [seg];
-                                                    } else {
-                                                        current.push(seg);
-                                                    }
-                                                }
-                                                if (current.length > 0) sections.push(current);
-
-                                                const sectionTexts = sections.map((segs: string[]) => {
-                                                    const parts: string[] = [];
-                                                    let i = 0;
-                                                    while (i < segs.length) {
-                                                        if (isKeLine(segs[i])) {
-                                                            const block: string[] = [segs[i]];
-                                                            while (i + 1 < segs.length && isKeLine(segs[i + 1])) { i++; block.push(segs[i]); }
-                                                            parts.push(block.join('\n'));
-                                                        } else {
-                                                            parts.push(segs[i]);
-                                                        }
-                                                        i++;
-                                                    }
-                                                    return parts.join('\n\n');
-                                                });
-
-                                                if (sectionTexts.length <= 3) return sectionTexts;
-                                                const gSize = Math.ceil(sectionTexts.length / 3);
-                                                const result: string[] = [];
-                                                for (let gi = 0; gi < sectionTexts.length; gi += gSize) {
-                                                    result.push(sectionTexts.slice(gi, gi + gSize).join('\n\n'));
-                                                }
-                                                return result;
-                                            }
-
-                                            // Strategy 2: No numbered sections — merge consecutive kệ lines
-                                            const merged: string[] = [];
-                                            let i = 0;
-                                            while (i < rawSegs.length) {
-                                                if (isKeLine(rawSegs[i])) {
-                                                    const block: string[] = [rawSegs[i]];
-                                                    while (i + 1 < rawSegs.length && isKeLine(rawSegs[i + 1])) { i++; block.push(rawSegs[i]); }
-                                                    merged.push(block.join('\n'));
-                                                } else {
-                                                    merged.push(rawSegs[i]);
-                                                }
-                                                i++;
-                                            }
-
-                                            if (merged.length <= 1) return merged;
-                                            const totalChars = merged.join('').length;
-                                            if (totalChars < 600) return [merged.join('\n\n')];
-                                            if (merged.length <= 3) return merged;
-                                            const groupSize = Math.ceil(merged.length / 3);
-                                            const grouped: string[] = [];
-                                            for (let gi = 0; gi < merged.length; gi += groupSize) {
-                                                grouped.push(merged.slice(gi, gi + groupSize).join('\n\n'));
-                                            }
-                                            return grouped;
-                                        })();
+                                        const segments = [msg.text];
 
                                         return (
                                             <div key={`${msg.id || index}-msg`} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>

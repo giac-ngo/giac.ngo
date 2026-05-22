@@ -1,6 +1,93 @@
 # Nhật ký thay đổi - Giác Ngộ VN
 
+## Quá Trình Thay Đổi
+
+## 2026-05-22
+
+### 🔐 Bảo mật: Chặn Login xuyên Space (Cross-Space Login Prevention)
+
+**Vấn đề**: User của space `thile` (`info@thile.ai`) có thể login được ở `/stillenvc/login` và truy cập admin panel của space `stillenvc`. Nguyên nhân do code login tại `authController.ts` có logic **auto-join**: khi user login ở một space mà chưa phải member → hệ thống tự động `spaceMemberModel.add()` thêm user vào space đó.
+
+**Giải pháp**:
+- Xóa bỏ hoàn toàn logic auto-add member khi login.
+- Thay bằng kiểm tra nghiêm ngặt: nếu user không phải Owner hoặc Member → trả 403 "Chưa đăng ký tại không gian này".
+- Quy tắc: **Login chỉ check membership**, **Register mới được add member**.
+
+**Cleanup**: Xóa 2 entries `space_members` bị add sai:
+- `info@thile.ai` khỏi space `stillenvc`
+- `stillenvc@gmail.com` khỏi space `thile`
+
+**File**: `server/controllers/authController.ts`
+
+### 🐛 Fix: Custom Page iframe load toàn bộ React app bên trong
+
+**Vấn đề**: URL trình duyệt luôn kẹt ở `/thile`, không bao giờ có `/admin`. Admin panel hiển thị data sai space. Nguyên nhân: custom page của `thile` chứa `window.location.replace("/thile/chat")` → `SpaceCustomPageResolver` render trong iframe → iframe tự load toàn bộ React app bên trong → mọi navigation diễn ra trong iframe → URL cha không thay đổi.
+
+**Giải pháp**:
+1. Detect redirect-only pages → dùng React `<Navigate>` thay vì iframe.
+2. Inject script override `window.location.replace()` để luôn target `window.top` cho các custom page có nội dung thực.
+3. Hướng dẫn sửa custom page: dùng `window.top.location.replace()`.
+
+**File**: `client/src/components/SpaceCustomPageResolver.tsx`
+
+### 🔧 Fix: Express Rate Limit `ERR_ERL_PERMISSIVE_TRUST_PROXY`
+
+**Vấn đề**: `express-rate-limit` cảnh báo `trust proxy = true` không an toàn.
+**Giải pháp**: Đổi `app.set('trust proxy', true)` → `app.set('trust proxy', 1)` (tin 1 tầng proxy).
+
+**File**: `server/index.ts`
+
+### 🐛 Fix: TypeScript errors trong FilesAndDocuments
+
+**Vấn đề**: 2 lỗi TS — `handleFilterChange` được gọi với 2 args thay vì 1 event, và `t.all` không tồn tại trong translations.
+**Giải pháp**: Thêm `name="spaceId"` vào select để dùng cùng pattern event handler, đổi `t.all` → `t.filterAll`.
+
+**File**: `client/src/components/admin/FilesAndDocuments.tsx`
+
+---
+
+### Cấu trúc lại luồng Đăng nhập Google OAuth cho Multi-Tenant (State Relay)
+- **Vấn đề**: Khi người dùng đăng nhập bằng Google trên một Custom Domain (vd: `agent.thile.ai`), sau khi Google xác thực xong luôn bị đẩy về tên miền gốc (`giac.ngo`) do Google chỉ cho phép cấu hình một Callback URL duy nhất. Trình duyệt bị mất dấu trang xuất phát do `sessionStorage` không liên thông giữa các tên miền (Cross-domain).
+- **Giải pháp (OAuth State Relay)**: 
+  - Tại `LoginPage.tsx` và `RegisterPage.tsx`, đính kèm tên miền gốc qua query `?returnTo=${window.location.origin}` vào link gọi Google Login.
+  - Tại `authRoutes.ts`, hứng tham số `returnTo` và chèn vào tham số `state` chuẩn của Google OAuth.
+  - Tại `authController.ts` (Callback), bóc tách tên miền từ tham số `state` do Google trả về, và thiết lập lệnh `res.redirect` điều hướng user (cùng với token) thẳng về lại tên miền Custom Domain ban đầu, giải quyết triệt để lỗi "đăng nhập xong bị văng về trang chủ gốc".
+
+### Khắc phục quyền đăng ký mới và bảo mật Route Quản trị (Admin)
+- **Đăng ký User Mới (`authController.ts`)**: Sửa lỗi gán quyền mặc định cho user mới khi đăng ký (Email và Google). Thay vì dùng `SELECT id FROM roles WHERE name = 'User'`, hiện tại user mới sẽ có `roleIds: []` (chưa có quyền nào) để đúng chuẩn thiết kế bảo mật ban đầu.
+- **Ẩn nút Quản trị (`ConversationSidebar.tsx`)**: Đã bổ sung logic kiểm tra nghiêm ngặt: Nút Quản trị chỉ hiển thị khi user có ít nhất một Role (Kiểm tra mảng Role Động: `user.roleIds.length > 0`) HOẶC user chính là chủ sở hữu Không gian (`currentSpace.userId === user.id`).
+- **Chặn truy cập trái phép (`AdminPage.tsx`)**: Khắc phục lỗ hổng bảo mật nghiêm trọng trên giao diện. Trước đây, mọi user (kể cả role null) đều có thể truy cập `/:slug/admin` và nhìn thấy Dashboard vì vòng lặp `useEffect` gặp lỗi logic. Hiện tại, hệ thống kiểm tra logic Dynamic Role: nếu mảng `user.roleIds` trống và người đó không phải là Owner, ứng dụng sẽ ép buộc `navigate(-1)` (quay lại trang trước đó) ngay lập tức.
+ - Giác Ngộ VN
+
 ## 2026-05-18
+
+### 🧹 Loại bỏ hoàn toàn Personal API Keys (`user.apiKeys`)
+
+**Vấn đề**: Hệ thống trước đây có cơ chế Fallback (Space -> Owner -> System) khiến cho mã nguồn phức tạp và phụ thuộc nhiều vào Key cá nhân (`user.apiKeys`) của người tạo AI (Owner). Điều này gây rắc rối khi phân quyền hoặc khi muốn bắt buộc mọi AI sử dụng Key cấp Không gian (Space).
+
+**Giải pháp & Chi tiết thay đổi**:
+1. **Database**: Xóa hoàn toàn cột `api_keys` khỏi bảng `users`.
+2. **Backend**:
+   - Xóa `apiKeys` khỏi interface `User`.
+   - Dọn dẹp logic mã hóa/giải mã và cho phép update `apiKeys` trong `user.model.ts`.
+   - Xóa bỏ cơ chế Fallback lấy `owner.apiKeys` trong `getApiKeyForAi.ts`. Hệ thống chỉ còn fallback: `Space Key` -> `System Key` -> `Env Variables`.
+   - Xóa bỏ mọi tham chiếu `user?.apiKeys` (ví dụ fallback Google TTS/Translate/Models) trong `systemController.ts` và `aiConfigController.ts`.
+3. **Frontend**:
+   - Xóa `apiKeys` khỏi interface `User` trong `types.ts`.
+   - Gỡ bỏ hoàn toàn việc fallback `(user?.apiKeys as any)` khi cấu hình giọng nói và text-to-speech trong `PracticeSpacePage.tsx` và `VoiceChat.tsx`.
+
+### 🐛 Khắc phục lỗi Đăng ký và Google OAuth Callback (Multi-Tenant)
+
+**Vấn đề**:
+1. **Lỗi 404 Google OAuth**: Do khai báo route sai lệch (`/auth/google`) trong khi `authRoutes` đã được mount vào `/api/auth` ở `index.ts`, dẫn đến endpoint thực tế biến thành `/api/auth/auth/google`.
+2. **Lỗi Đăng ký / Google Callback dội lỗi CSDL (Foreign Key Constraint)**: Mã nguồn cũ gán cứng quyền `roleIds: [3]` cho mọi tài khoản mới tạo. Trong kiến trúc Multi-Tenant mới, `id = 3` có thể không tồn tại hoặc thuộc về một Space cụ thể nào đó, gây vi phạm ràng buộc khóa ngoại khi INSERT vào bảng `user_roles`.
+
+**Giải pháp & Chi tiết thay đổi**:
+1. **Sửa Route (`authRoutes.ts`)**: Sửa `/auth/google` thành `/google` và `/auth/google/callback` thành `/google/callback`.
+2. **Sửa Logic cấp quyền mặc định (`authController.ts`)**: 
+   - Thay vì hardcode `[3]` gây lỗi Foreign Key, hệ thống gán mảng rỗng `roleIds: []`.
+   - Tính năng này được áp dụng cho cả luồng Đăng ký Email thường và Đăng ký qua Google. Mọi user mới đều không có quyền quản trị cho đến khi được duyệt.
+   
 
 ### 🔐 Phân quyền: Cấp quyền Quản lý AI cho Thành viên (Space Members)
 

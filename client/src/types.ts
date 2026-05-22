@@ -72,17 +72,11 @@ export interface User {
   avatarUrl: string;
   bio?: string;
   isActive: boolean;
+  isGlobalAdmin?: boolean;
   merits: number | null;
   ownedAis?: { aiConfigId: number; requestsRemaining: number; }[];
   grantedAiConfigIds?: number[];
   apiToken?: string;
-  apiKeys?: {
-    gemini?: string;
-    geminiVoice?: string;
-    gpt?: string;
-    grok?: string;
-    vertex?: string;
-  };
   requestsRemaining: number;
   roleIds?: number[];
   permissions?: string[];

@@ -1,5 +1,9 @@
 # Tài Liệu Kiến Trúc Multi-Tenant & Danh Sách API (Dự án Giác Ngộ VN)
 
+> [!CAUTION]
+> **🚨 QUY ĐỊNH BẮT BUỘC (MANDATORY DEV RULE) 🚨**
+> **100% YÊU CẦU: KHI THAY ĐỔI HOẶC THÊM MỚI BẤT KỲ CÂU LỆNH SQL QUERY NÀO Ở BACKEND, BẠN PHẢI HỎI Ý KIẾN VÀ ĐƯỢC SỰ ĐỒNG Ý CỦA TÔI TRƯỚC KHI CẬP NHẬT CODE.**
+
 Tài liệu này ghi nhớ toàn bộ kiến trúc đa khách hàng (Multi-Tenant), luồng nghiệp vụ cốt lõi, và danh sách các API/Tính năng đã được xây dựng trong hệ thống Giác Ngộ VN (GiacNgoVN).
 
 ## I. Kiến Trúc Multi-Tenant (Đa Không Gian - Space)
@@ -10,6 +14,7 @@ Hệ thống được thiết kế theo mô hình **Multi-Tenant**, trong đó m
 - **Tên miền tùy chỉnh (Custom Domain)**: Mỗi Space có thể cấu hình một `customDomain`. Hệ thống Express sử dụng Middleware tại `server/index.ts` để chặn các request đến. Nếu `Host` header không phải là domain gốc, hệ thống sẽ tự động tra cứu Space theo domain đó và serve trang tĩnh tương ứng.
 - **Tùy biến Giao diện**: Giao diện (Theme, Light/Dark mode), cấu hình tính năng bật/tắt hiển thị (`hasMeditation`, `hasLibrary`, `hasDharmaTalks`, `hasCommunity`) đều được config riêng trên từng Space.
 - **Phân quyền và Thành viên (Cross-space)**: Một tài khoản người dùng có thể tham gia nhiều Space khác nhau. Các User được quản lý theo `space_members`, với các quyền khác nhau (Admin, Member). Đăng ký mới có khả năng merge tài khoản xuyên Space.
+- **Single Sign-On (SSO) qua Google**: Hỗ trợ đăng nhập Google xuyên biên giới các Custom Domain. Khi đăng nhập từ một Custom Domain, Frontend sẽ đính kèm domain gốc vào tham số `state`. Backend cấu hình tại `giac.ngo` sẽ bóc tách `state` này để trả user ngược về đúng Custom Domain (OAuth State Relay), ngăn chặn việc bị văng về trang chủ mặc định.
 
 ### 2. Dữ liệu độc lập theo Space
 Hầu hết các tài nguyên trong hệ thống đều được gắn thẻ `space_id` để đảm bảo tính cô lập dữ liệu (Data Isolation):
@@ -30,7 +35,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
 
 ### 1. Phân hệ User & Authentication (`/api/auth`, `/api/users`)
 * **Auth**:
-  - `POST /api/auth/login`: Đăng nhập (hỗ trợ context spaceSlug).
+  - `POST /api/auth/login`: Đăng nhập (hỗ trợ context spaceSlug). **Quy tắc**: Khi `context === 'space'`, chỉ cho phép login nếu user là **Owner hoặc Member** của space đó. Nếu không → trả 403. **KHÔNG** tự động add user vào space khi login (auto-join bị cấm). User muốn vào space mới phải **đăng ký** (register) trước.
   - `POST /api/auth/register`: Đăng ký tài khoản (Tích hợp Cross-space registration).
   - `GET /api/auth/me`: Lấy profile của người dùng hiện tại (bằng JWT).
   - `POST /api/auth/forgot-password`: Quên mật khẩu.
@@ -69,6 +74,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `DELETE /api/spaces/:id/members/:userId`: Kick thành viên.
 
 ### 3. Phân hệ Phân Quyền (`/api/roles`)
+  - **Tài liệu Chi tiết**: Mời xem [Hướng dẫn Phân Quyền Đa Không Gian (Multi-Tenant RBAC)](./rbac_multi_tenant.md)
   - `GET /api/roles`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý danh sách vai trò (Roles).
   - `GET /api/roles/space/:spaceId`: Lấy danh sách role nội bộ áp dụng trong một Space cụ thể.
 
@@ -233,7 +239,7 @@ Hệ thống Frontend được xây dựng bằng **React + TypeScript + Vite**,
   - **DharmaTalks (Pháp thoại)**: Nơi hiển thị Video/Audio pháp thoại.
   - **MeditationTimer (Đồng hồ thiền)**: Tính thời gian và ghi lại lịch sử thực hành.
   - **Community (Bảng tin MXH)**: Nơi post bài, đăng ảnh, tương tác thả tim và bình luận nội bộ.
-  - Tích hợp **Voice Chat (Gemini Live)**: Chức năng Live Stream bằng giọng nói `window.SpeechRecognition`.
+  - Tích hợp **Voice Chat (Gemini Live)**: Chức năng Live Stream bằng giọng nói. **Lưu ý UI/UX**: Icon Voice Chat (hình tròn nâu) chỉ hiển thị cho người dùng **đã đăng nhập**. Do trạng thái đăng nhập (session/localStorage) được lưu độc lập trên mỗi Custom Domain, một user có thể nhìn thấy icon này ở domain A (đã đăng nhập) nhưng lại không thấy ở domain B (đang là Guest) dù cả hai chung một hệ thống lõi.
 - **`AdminPage.tsx`**: Bảng điều khiển quản trị (Dashboard) cực lớn, quản lý AI Config, CMS, Users, Billing dựa trên `isGlobalAdmin` (từ Root Domain) hoặc Space context (từ `/:slug/admin`).
   - **Quy tắc truyền prop**: Tất cả component con (`SpaceManagement`, `RoleManagement`, `AiManagement`, `UserManagement`) nhận `isGlobalAdmin` và `currentSpace` từ `AdminPage`.
   - **SpaceManagement**: Non-admin chỉ thấy space mình thuộc về, sửa được nhưng không xóa. Tab "Cấu hình mở rộng" chỉ hiện cho Owner/SuperAdmin.
@@ -243,5 +249,15 @@ Hệ thống Frontend được xây dựng bằng **React + TypeScript + Vite**,
 - **Theming (Giao diện động)**: Hệ thống sử dụng thuộc tính CSS `data-theme` được tiêm thẳng vào thẻ `<html>` thông qua `document.documentElement.setAttribute('data-theme', themeToApply)`. Việc này cho phép cấu hình màu sắc, Dark/Light mode khác nhau cho từng Space.
 - **Đa ngôn ngữ (i18n)**: Sử dụng object dictionary (Tiếng Việt/Tiếng Anh) dạng `translations[language]` được lưu trong biến state và `localStorage`.
 - **Favicon & Meta Tags**: Khi người dùng vào 1 Custom Domain, `App.tsx` gọi API lấy thông tin Space để tự động thay đổi Tiêu đề (Document Title) và Favicon của tab trình duyệt.
+
+---
+
+## V. Quy Tắc Phát Triển & An Toàn Dữ Liệu (Development & Security Rules)
+
+Để bảo vệ tính toàn vẹn của hệ thống Multi-Tenant, quy tắc sau là **BẮT BUỘC** đối với mọi nhà phát triển và Trợ lý AI (Antigravity/Agents):
+
+1. **KHÔNG tự ý sửa đổi Database Schema (Cấu trúc CSDL)**: Tuyệt đối không tự ý chạy các lệnh `ALTER TABLE`, `DROP COLUMN`, hoặc các Migration SQL thay đổi cấu trúc dữ liệu cốt lõi nếu không có sự đồng ý rõ ràng.
+2. **Quy trình Phê Duyệt**: Mọi thay đổi liên quan đến SQL hoặc ORM Logic phải được trình bày rõ ràng (bằng mã SQL/Script dự kiến) và **phải đợi phê duyệt (Approve)** từ chủ dự án trước khi thực thi lệnh lên Database hoặc sửa đổi codebase.
+3. **Bảo toàn Dữ liệu**: Ưu tiên cao nhất là bảo toàn dữ liệu hiện có. Bất kỳ rủi ro mất mát dữ liệu nào cũng phải được cảnh báo bằng cờ đỏ (Red flag).
 
 *Tài liệu này là Bộ nhớ Chi tiết Hệ thống. Cấu trúc Multi-Tenant này đảm bảo mỗi Không gian (Space) như một ứng dụng SaaS thu nhỏ chạy trên nền tảng chung của Giác Ngộ VN.*

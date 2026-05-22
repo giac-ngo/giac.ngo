@@ -187,7 +187,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
                     </div>
 
                     <div className="space-y-3">
-                        <a href="/api/auth/google" onClick={handleGoogleRegisterClick} className="social-login-btn">
+                        <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}`} onClick={handleGoogleRegisterClick} className="social-login-btn">
                             <GoogleIcon className="w-5 h-5" />
                             <span>Google</span>
                         </a>

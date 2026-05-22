@@ -1,7 +1,7 @@
-﻿// server/routes/dharmaTalksRoutes.js
+// server/routes/dharmaTalksRoutes.js
 import { Router } from 'express';
 import { dharmaTalksController } from '../controllers/dharmaTalksController.js';
-import { checkPermission, isAuthenticated } from '../middleware/authMiddleware.js';
+import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -49,8 +49,8 @@ const fieldsUpload = upload.fields([
 
 const router = Router();
 
-// Public route to get all talks
-router.get('/', dharmaTalksController.getAllDharmaTalks);
+// Public route to get all talks (optionalAuth: khi login → lọc theo space của user; guest → thấy tất cả)
+router.get('/', optionalAuth, dharmaTalksController.getAllDharmaTalks);
 
 // Admin routes for management
 const protectDharmaRoutes = checkPermission('dharma-talks');

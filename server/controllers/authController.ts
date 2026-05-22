@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { userModel } from '../models/user.model.js';
 import { mailService } from '../services/mailService.js';
-import { verifyPassword } from '../db.js';
+import { verifyPassword, pool } from '../db.js';
 import { spaceModel } from '../models/space.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import crypto from 'crypto';
@@ -58,7 +58,7 @@ export const authController = {
                     return res.status(403).json({ message: 'Chỉ tài khoản Super Admin mới được đăng nhập tại đây.' });
                 }
             } else if (context === 'space' && spaceSlug) {
-                // Space domain login: auto-add to space if not yet a member
+                // Space domain login: chỉ cho phép Owner hoặc Member đã đăng ký
                 const space = await spaceModel.findBySlug(spaceSlug);
                 if (!space) {
                     return res.status(404).json({ message: 'Không tìm thấy không gian này.' });
@@ -66,7 +66,7 @@ export const authController = {
                 const isOwner = space.userId === user.id;
                 const isMember = await spaceMemberModel.isMember(space.id, user.id);
                 if (!isOwner && !isMember) {
-                    await spaceMemberModel.add(space.id, user.id);
+                    return res.status(403).json({ message: 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' });
                 }
             }
             // --- End two-tier validation ---
@@ -120,7 +120,7 @@ export const authController = {
                 name, email, password,
                 isActive: true, merits: 0, requestsRemaining: 0,
                 avatarUrl: `https://i.pravatar.cc/150?u=${email}`,
-                roleIds: [3], // Default 'User' role
+                roleIds: [], // User mới không gán quyền mặc định (để null/rỗng)
                 template: 'giacngo'
             };
             const newUser = await userModel.create(newUserPayload);
@@ -212,7 +212,7 @@ export const authController = {
     },
 
     googleCallback: (oauth2Client: any) => async (req: Request, res: Response) => {
-        const { code } = req.query;
+        const { code, state } = req.query;
         try {
             const { tokens } = await oauth2Client.getToken(code);
             oauth2Client.setCredentials(tokens);
@@ -235,7 +235,7 @@ export const authController = {
                 user = await userModel.create({
                     name, email, password: randomPassword,
                     avatarUrl: picture, isActive: true, merits: 0, requestsRemaining: 0,
-                    roleIds: [3], template: 'giacngo'
+                    roleIds: [], template: 'giacngo'
                 });
                 if (!user) {
                     throw new Error('Không thể tạo người dùng mới qua Google.');
@@ -267,7 +267,12 @@ export const authController = {
             const sanitizedUser = mapAndSanitizeUser(user);
             const userJson = JSON.stringify(sanitizedUser);
             const base64User = Buffer.from(userJson).toString('base64');
-            res.redirect(`/#/auth/callback?user=${base64User}`);
+            
+            let redirectBase = '';
+            if (state && typeof state === 'string' && state.startsWith('http')) {
+                redirectBase = state;
+            }
+            res.redirect(`${redirectBase}/#/auth/callback?user=${base64User}`);
         } catch (error: unknown) {
             logger.error('Google auth callback error:', error);
             res.redirect('/#/login?error=auth_failed');

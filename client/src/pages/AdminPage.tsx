@@ -154,7 +154,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [currentSpace, setCurrentSpace] = useState<Space | null>(null);
-  const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('spaceColorMode_v4') as 'light' | 'dark') || 'dark');
+  const [mySpaces, setMySpaces] = useState<Space[]>([]);
+  const [mySpacesLoaded, setMySpacesLoaded] = useState(false);
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('spaceColorMode_v5') as 'light' | 'dark') || 'light');
 
   const toggleColorMode = () => setColorMode(prev => {
     const next = prev === 'light' ? 'dark' : 'light';
@@ -288,38 +290,74 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       .catch((err: Error) => console.error('Failed to load space:', err));
   }, [spaceSlug]);
 
+  // Load spaces this user can manage — used for access check & passed to sub-components
   useEffect(() => {
-    if (!spaceSlug && !isGlobalAdmin) return;
-    const newTab = section || getFirstAllowedTab(user);
-    const isPermitted = user.permissions?.includes(newTab);
+    if (isGlobalAdmin) {
+      setMySpacesLoaded(true); // Global admin không cần load, bypass
+      return;
+    }
+    apiService.getMySpaces()
+      .then((spaces: Space[]) => {
+        setMySpaces(spaces);
+        setMySpacesLoaded(true);
+      })
+      .catch((err: Error) => {
+        console.error('Failed to load my spaces:', err);
+        setMySpacesLoaded(true); // Vẫn đánh dấu loaded để guard không bị treo
+      });
+  }, [isGlobalAdmin]);
 
+  useEffect(() => {
+    if (!mySpacesLoaded) return;
+
+    if (isGlobalAdmin) {
+      // Global admin có thể vào /:spaceSlug/admin để quản lý riêng space đó, hoặc /admin để quản lý chung.
+      // Không redirect về /admin nữa để giữ context của space.
+    } else {
+      // Space admin: phải có spaceSlug và slug phải thuộc spaces của mình
+      if (!spaceSlug) return;
+      const hasAccess = mySpaces.some((s: Space) => s.slug === spaceSlug);
+      if (!hasAccess) {
+        // Không thuộc space này → redirect về trang public của space
+        navigate(`/${spaceSlug}/chat`, { replace: true });
+        return;
+      }
+    }
+
+    // Tab selection — chạy cho cả global admin (/admin) lẫn space admin (/:slug/admin)
+    const isSpaceOwner = currentSpace?.userId === user.id;
+    const newTab = section || getFirstAllowedTab(user);
+    const isPermitted = user.permissions?.includes(newTab) || isSpaceOwner || !!isGlobalAdmin;
+    const effectiveSlug = spaceSlug || 'giac-ngo';
     if (isPermitted) {
       setActiveTab(newTab);
+      // Luôn đảm bảo URL có đầy đủ /:spaceSlug/admin/:section để F5 không bị mất vị trí
+      if (!section) {
+        navigate(`/${effectiveSlug}/admin/${newTab}`, { replace: true });
+      }
     } else {
       const firstAllowed = getFirstAllowedTab(user);
+      if (firstAllowed === newTab) return;
       setActiveTab(firstAllowed);
-      const getBaseUrl = () => (!spaceSlug || spaceSlug === 'giac-ngo') ? '' : `/${spaceSlug}`;
-      navigate(`${getBaseUrl()}/admin/${firstAllowed}`, { replace: true });
+      navigate(`/${effectiveSlug}/admin/${firstAllowed}`, { replace: true });
     }
-  }, [section, user, navigate, spaceSlug]);
+  }, [section, user, navigate, spaceSlug, currentSpace, isGlobalAdmin, mySpaces, mySpacesLoaded]);
 
 
   const renderContent = () => {
     if (!systemConfig) return null;
 
-    // Global Admin: check permissions strictly
-    // Space Admin (spaceSlug có, không phải isGlobalAdmin): cho phép truy cập — backend sẽ guard
-    const isSpaceAdminContext = !!spaceSlug && !isGlobalAdmin;
-    const currentTabAllowed = isSpaceAdminContext || user.permissions?.includes(activeTab);
+    const isSpaceOwner = currentSpace?.userId === user.id;
+    const currentTabAllowed = user.permissions?.includes(activeTab) || isSpaceOwner || !!isGlobalAdmin;
     if (!currentTabAllowed) {
       return <div className="p-8">Bạn không có quyền truy cập vào mục này.</div>;
     }
 
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard language={language} />;
+        return <Dashboard language={language} spaceId={currentSpace?.id} />;
       case 'files':
-        return <FilesAndDocuments language={language} user={user} />;
+        return <FilesAndDocuments language={language} user={user} isGlobalAdmin={!!isGlobalAdmin} activeSpace={currentSpace || undefined} />;
       case 'media-library':
         if (spaceSlug && !currentSpace) {
           return <div className="flex h-full items-center justify-center"><span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
@@ -328,9 +366,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'spaces':
         return <SpaceManagement language={language} user={user} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'meditation':
-        return <MeditationManagement language={language} />;
+        return <MeditationManagement language={language} activeSpace={currentSpace || undefined} />;
       case 'dharma-talks':
-        return <DharmaTalksManagement language={language} />;
+        return <DharmaTalksManagement language={language} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'user-billing':
         return <UserBillingManagement user={user} language={language} onUserUpdate={onUserUpdate} spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : undefined} />;
       case 'space-billing':
@@ -371,7 +409,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
 
   const NavItem: React.FC<{ tab: AdminTab; label: string; icon: React.ReactElement<{ className?: string }> }> = ({ tab, label, icon }) => (
     <button
-      onClick={() => navigate(!spaceSlug ? `/admin/${tab}` : `/${spaceSlug}/admin/${tab}`)}
+      onClick={() => navigate(`/${spaceSlug || 'giac-ngo'}/admin/${tab}`)}
       className={`w-full flex items-center p-3 rounded-lg text-sm font-medium transition-colors ${activeTab === tab
         ? 'bg-primary-light text-primary'
         : 'text-text-light hover:bg-background-light'
@@ -389,12 +427,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     ? 'https://www.bodhilab.io/assets/bodhi-technology-lab-logo-DRtZYi2v.webp'
     : (currentSpace?.imageUrl || '');
 
+
   return (
     <div className="admin-page-container flex h-screen overflow-hidden bg-background-light" data-color-mode={colorMode}>
       <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
           {!isSidebarCollapsed && logoUrl && (
-            <Link to={!spaceSlug ? '/admin/dashboard' : `/${effectiveSpaceSlug}/admin/dashboard`} className="flex items-center">
+            <Link to={`/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
               <img src={logoUrl} alt="Logo" className={isGlobalAdmin ? "h-10" : "h-12"} />
             </Link>
           )}

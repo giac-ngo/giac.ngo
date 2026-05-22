@@ -450,5 +450,38 @@ export const spacesController = {
             console.error('Error removing space member:', error);
             res.status(500).json({ message: 'Lỗi khi xoá thành viên.' });
         }
-    }
+    },
+
+    /**
+     * GET /api/spaces/my-spaces
+     * Returns only spaces the current user manages.
+     * If user.isGlobalAdmin → returns ALL spaces.
+     */
+    async getMySpaces(req: Request, res: Response) {
+        try {
+            const user = req.user as any;
+            if (!user?.id) {
+                return res.status(401).json({ message: 'Unauthorized.' });
+            }
+
+            // Global admin sees all spaces
+            if (user.isGlobalAdmin) {
+                const allSpaces = await spaceModel.findAll();
+                return res.json(allSpaces);
+            }
+
+            // Scoped: only spaces the user owns or is a member of
+            const managedIds = await getUserManagedSpaceIds(user.id);
+            if (managedIds.length === 0) {
+                return res.json([]);
+            }
+            const allSpaces = await spaceModel.findAll();
+            const mySpaces = allSpaces.filter((s: any) => managedIds.includes(s.id as number));
+            res.json(mySpaces);
+        } catch (error: unknown) {
+            console.error('Error fetching my spaces:', error);
+            res.status(500).json({ message: 'Lỗi khi tải danh sách không gian.' });
+        }
+    },
 };
+

@@ -72,7 +72,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: number |
 );
 
 
-export const Dashboard: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => {
+export const Dashboard: React.FC<{ language: 'vi' | 'en', spaceId?: number | string }> = ({ language, spaceId }) => {
     const t = translations[language];
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -82,7 +82,7 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => 
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const data = await apiService.getDashboardStats();
+                const data = await apiService.getDashboardStats(spaceId);
                 setStats(data as any);
             } catch (err) {
                 setError(t.error);
@@ -91,7 +91,7 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => 
             }
         };
         fetchStats();
-    }, [language, t.error]);
+    }, [language, t.error, spaceId]);
 
     if (isLoading) {
         return <div className="p-8 text-center">{t.loading}</div>;

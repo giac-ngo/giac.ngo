@@ -130,14 +130,13 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
     // DEBUG: log currentSpace flags (remove after fixing)
     React.useEffect(() => {
         if (currentSpace) {
-            console.log('[Sidebar] currentSpace flags:', {
+            console.log('[Sidebar] currentSpace loaded:', {
                 slug: currentSpace.slug,
-                hasMeditation: currentSpace.hasMeditation,
-                hasLibrary: currentSpace.hasLibrary,
-                hasDharmaTalks: currentSpace.hasDharmaTalks,
             });
         }
     }, [currentSpace]);
+
+    const isSpaceOwner = currentSpace?.userId === user?.id;
 
     const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => {
         const saved = localStorage.getItem('spaceColorMode_v3') as 'light' | 'dark';
@@ -204,7 +203,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
     const [renamingId, setRenamingId] = useState<number | null>(null);
     const [renameValue, setRenameValue] = useState('');
     const userMenuRef = useRef<HTMLDivElement>(null);
-    const hasAdminPermission = !!user;
+    const hasAdminPermission = !!user && (!!user.isGlobalAdmin || (user.roleIds && user.roleIds.length > 0) || (currentSpace && currentSpace.userId === user.id));
     const currentTheme = user?.template || systemConfig?.template || 'giacngo';
     const logoUrl = (currentSpace?.imageUrl && currentSpace.imageUrl.trim() !== '') 
         ? currentSpace.imageUrl 
@@ -401,11 +400,12 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                 <span className="quick-action-label">{language === 'vi' ? 'Pháp thoại' : 'Dharma'}</span>
                             </Link>
                         )}
-                        {/* Tab Community (Social Feed) — tạm ẩn */}
-                        {/* <Link to={`/${spaceSlug}/community`} className={`quick-action-btn ${viewMode === 'community' ? 'active' : ''}`} title={t.communityMode}>
-                            <img src="/themes/giacngo/3.png" alt={t.communityMode} style={{ filter: 'hue-rotate(180deg)' }} />
-                            <span className="quick-action-label">{t.communityMode}</span>
-                        </Link> */}
+                        {Boolean(currentSpace?.hasCommunity) && (
+                            <Link to={`/${spaceSlug}/community`} className={`quick-action-btn ${viewMode === 'community' ? 'active' : ''}`} title={t.communityMode}>
+                                <img src="/themes/giacngo/3.png" alt={t.communityMode} style={{ filter: 'hue-rotate(180deg)' }} />
+                                <span className="quick-action-label">{t.communityMode}</span>
+                            </Link>
+                        )}
                     </div>
                 </div>
                 {renderSidebarContent()}

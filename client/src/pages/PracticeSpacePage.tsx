@@ -927,7 +927,7 @@ export const PracticeSpacePage: React.FC<{
 
                     if (typeof error === 'string' && error.includes('GUEST_REGISTER_NUDGE')) handleGoToSpaceLogin();
                 }
-            });
+            }, false, language, aiMessageId);
         } catch (error: any) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             setIsTyping(false);
@@ -1141,9 +1141,9 @@ export const PracticeSpacePage: React.FC<{
         testAudioRef.current = audio;
 
         const cleanText = stripMarkdown(text);
-        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
-        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || (user?.apiKeys as any)?.geminiStyle || '';
-        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? (parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1);
+        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || 'Algieba';
+        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || '';
+        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? 1;
         const ttsProvider = (currentAiConfig?.ttsProvider || 'gemini') as ModelType;
         const ttsModel = currentAiConfig?.ttsModel || 'gemini-3.1-flash-tts-preview';
         const cacheKey = `${ttsProvider}:${ttsModel}:${geminiVoice}:${String(msgId)}`;
@@ -1292,9 +1292,9 @@ export const PracticeSpacePage: React.FC<{
 
     const handleDownload = async (text: string, msgId: string | number) => {
         const cleanText = stripMarkdown(text);
-        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || (user?.apiKeys as any)?.geminiVoice || 'Algieba';
-        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || (user?.apiKeys as any)?.geminiStyle || '';
-        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? (parseFloat((user?.apiKeys as any)?.geminiTemperature ?? '1') || 1);
+        const geminiVoice = currentAiConfig?.ttsVoice || ownerVoiceConfig?.geminiVoice || 'Algieba';
+        const geminiStyle = currentAiConfig?.ttsStyle || ownerVoiceConfig?.geminiStyle || '';
+        const geminiTemperature = currentAiConfig?.ttsTemperature ?? ownerVoiceConfig?.geminiTemperature ?? 1;
         const ttsProvider = (currentAiConfig?.ttsProvider || 'gemini') as ModelType;
         const ttsModel = currentAiConfig?.ttsModel || 'gemini-3.1-flash-tts-preview';
 
@@ -2124,7 +2124,6 @@ export const PracticeSpacePage: React.FC<{
             {isVoiceChatOpen && currentAiConfig && (
                 <VoiceChat
                     currentAiConfig={currentAiConfig}
-                    user={user}
                     language={language}
                     setLanguage={setLanguage}
                     conversationId={conversationId}

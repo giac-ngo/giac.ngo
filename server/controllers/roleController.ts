@@ -42,7 +42,7 @@ export const roleController = {
             const user = req.user as any;
             // Check if this user is truly a Global Admin
             const managedSpaceIds = user?.id ? await getUserManagedSpaceIds(user.id) : [];
-            const isGlobalAdmin = user?.permissions?.includes('roles') && managedSpaceIds.length === 0;
+            const isGlobalAdmin = !!user?.isGlobalAdmin;
             
             if (!isGlobalAdmin && req.body.permissions) {
                 const userPermissions = user?.permissions || [];

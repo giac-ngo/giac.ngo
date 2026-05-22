@@ -25,7 +25,7 @@ export const TemplateManagement: React.FC<TemplateManagementProps> = ({ space, l
     useEffect(() => {
         if (!isSuperAdmin) return;
         setIsLoadingSpaces(true);
-        apiService.getSpaces()
+        apiService.getMySpaces()
             .then(spaces => setAllSpaces(spaces))
             .catch(() => {})
             .finally(() => setIsLoadingSpaces(false));

@@ -22,13 +22,7 @@ export async function getApiKeyForAi(aiConfig: AIConfig, providerOverride?: stri
         }
     }
 
-    // 2. Fallback: Owner's personal keys
-    if (aiConfig.ownerId) {
-        const owner = await userModel.findById(aiConfig.ownerId);
-        if (owner?.apiKeys?.[provider]) {
-            return owner.apiKeys[provider];
-        }
-    }
+    // Removed Owner fallback
 
     // 3. Fallback: System keys
     const systemConfig = await systemModel.getConfig();

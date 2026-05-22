@@ -40,7 +40,7 @@ import { spacePageController } from './controllers/spacePageController.js';
 import { pool, mapRowToCamelCase } from './db.js';
 
 const app = express();
-app.set('trust proxy', true); // Allow rate limiter to correctly identify IPs behind multiple proxies (e.g. Nginx, Cloudflare)
+app.set('trust proxy', 1); // Trust 1 proxy hop (Nginx/Cloudflare) — avoids express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {

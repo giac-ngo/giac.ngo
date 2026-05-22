@@ -133,7 +133,7 @@ export const getUserManagedSpaceIds = async (userId: number | undefined): Promis
 };
 
 export const isAdmin = (user: User | null | undefined) => {
-    return user && user.permissions && user.permissions.includes('roles');
+    return !!user?.isGlobalAdmin || (user && user.permissions && user.permissions.includes('roles'));
 };
 
 export const canAccessSpace = async (user: User | null | undefined, spaceId: number | string) => {

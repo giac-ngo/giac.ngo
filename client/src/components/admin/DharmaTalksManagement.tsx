@@ -284,7 +284,7 @@ const DharmaTalkModal: React.FC<{
 
 
 
-export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => {
+export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAdmin?: boolean; space?: import('../../types').Space | null }> = ({ language, isGlobalAdmin, space }) => {
     const t = translations[language];
     const { showToast } = useToast();
     const [talks, setTalks] = useState<DharmaTalk[]>([]);
@@ -306,7 +306,7 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en' }> = ({ lan
         try {
             const [talkData, spaceData] = await Promise.all([
                 apiService.getAllDharmaTalks(),
-                apiService.getSpaces()
+                apiService.getMySpaces()
             ]);
             setTalks(talkData || []);
             setSpaces(spaceData || []);
@@ -320,6 +320,13 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en' }> = ({ lan
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Auto-select the current space context for non-global-admins
+    useEffect(() => {
+        if (!isGlobalAdmin && space?.id) {
+            setSpaceFilter(String(space.id));
+        }
+    }, [space, isGlobalAdmin]);
 
     useEffect(() => {
         audioRef.current = new Audio();
@@ -357,7 +364,7 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en' }> = ({ lan
     };
 
     const handleNewTalk = () => {
-        setEditingTalk({ id: 'new', date: new Date().toISOString().split('T')[0], spaceId: spaces.length > 0 ? (spaces[0].id as number) : undefined });
+        setEditingTalk({ id: 'new', date: new Date().toISOString().split('T')[0], spaceId: space?.id ? (space.id as number) : (spaces.length > 0 ? (spaces[0].id as number) : undefined) });
         setIsModalOpen(true);
     };
 

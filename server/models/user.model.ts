@@ -9,17 +9,7 @@ import { User } from '../types/index.js';
 export const enrichUserWithPermissions = async (user: Partial<User> & Record<string, unknown>): Promise<User | null> => {
     if (!user) return null;
 
-    if (user.apiKeys) {
-        const decryptedKeys: Record<string, string> = {};
-        for (const key in user.apiKeys) {
-            if (user.apiKeys[key]) { // Only decrypt non-empty keys
-                decryptedKeys[key] = cryptoService.decrypt(user.apiKeys[key]);
-            } else {
-                decryptedKeys[key] = '';
-            }
-        }
-        user.apiKeys = decryptedKeys;
-    }
+    // apiKeys logic removed
 
     const [rolesRes, ownedAisRes, grantedAisRes, subRes] = await Promise.all([
         pool.query(`
@@ -133,7 +123,7 @@ export const userModel = {
     },
 
     async create(userData: Partial<User> & Record<string, unknown>): Promise<User | null> {
-        let { email, password, name, avatarUrl, roleIds, template, apiKeys } = userData as Record<string, unknown> & { email?: string, password?: string, name?: string, avatarUrl?: string, roleIds?: number[], template?: string, apiKeys?: Record<string, string> };
+        let { email, password, name, avatarUrl, roleIds, template } = userData as Record<string, unknown> & { email?: string, password?: string, name?: string, avatarUrl?: string, roleIds?: number[], template?: string };
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
@@ -153,19 +143,11 @@ export const userModel = {
             const hashedPassword = `scrypt:${N}:${r}:${p}$${salt}$${derivedKey.toString('hex')}`;
             const apiToken = crypto.randomBytes(24).toString('hex');
 
-            let encryptedKeys: Record<string, string> | null = null;
-            if (apiKeys) {
-                encryptedKeys = {};
-                for (const key in apiKeys) {
-                    if (apiKeys[key]) {
-                        encryptedKeys[key] = cryptoService.encrypt(apiKeys[key]);
-                    }
-                }
-            }
+            // apiKeys encryption removed
 
             const res = await client.query(
-                'INSERT INTO users (email, password, name, avatar_url, merits, is_active, template, api_token, api_keys) VALUES ($1, $2, $3, $4, 0, true, $5, $6, $7) RETURNING *',
-                [lowerEmail, hashedPassword, name, avatarUrl || `https://i.pravatar.cc/150?u=${lowerEmail}`, template, apiToken, encryptedKeys]
+                'INSERT INTO users (email, password, name, avatar_url, merits, is_active, template, api_token) VALUES ($1, $2, $3, $4, 0, true, $5, $6) RETURNING *',
+                [lowerEmail, hashedPassword, name, avatarUrl || `https://i.pravatar.cc/150?u=${lowerEmail}`, template, apiToken]
             );
             const newUser = mapRowToCamelCase(res.rows[0]);
 
@@ -219,25 +201,14 @@ export const userModel = {
                 fieldsToUpdate.password = `scrypt:${N}:${r}:${p}$${salt}$${derivedKey.toString('hex')}`;
             }
 
-            if (fieldsToUpdate.apiKeys) {
-                const encryptedKeys: Record<string, string> = {};
-                const incomingApiKeys = fieldsToUpdate.apiKeys as Record<string, string>;
-                for (const key in incomingApiKeys) {
-                    if (incomingApiKeys[key]) {
-                        encryptedKeys[key] = cryptoService.encrypt(incomingApiKeys[key]);
-                    } else {
-                        encryptedKeys[key] = '';
-                    }
-                }
-                fieldsToUpdate.apiKeys = encryptedKeys;
-            }
+            // apiKeys encryption removed
 
             // Whitelist: chỉ cho phép các field thực sự tồn tại trong bảng users
             const ALLOWED_FIELDS = new Set([
                 'email', 'name', 'avatarUrl', 'bio', 'isActive', 'merits',
-                'apiKeys', 'subscriptionPlanId', 'template', 'requestsRemaining',
+                'subscriptionPlanId', 'template', 'requestsRemaining',
                 'resetToken', 'resetTokenExpires', 'stripeCustomerId', 'stripeAccountId',
-                'apiToken', 'weaviateId', 'isAdmin', 'password'
+                'apiToken', 'weaviateId', 'isAdmin', 'isGlobalAdmin', 'password'
             ]);
             const filtered: Record<string, unknown> = {};
             for (const key of Object.keys(fieldsToUpdate)) {

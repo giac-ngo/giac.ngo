@@ -329,7 +329,7 @@ const App: React.FC = () => {
             <Route path="/meditationtimer" element={isRootDomain() ? <PracticeSpacePage user={user} systemConfig={systemConfig} onLogout={handleLogout} onGoToLogin={handleGoToLogin} language={language} setLanguage={setLanguage} onUserUpdate={handleUserUpdate} inferredSpaceSlug="giac-ngo" inferredView="meditationtimer" /> : <SlugRedirect path="meditationtimer" />} />
             <Route path="/admin/:section?" element={
               isRootDomain()
-                ? <ProtectedRoute user={user}>{user && <AdminPage user={user} onLogout={handleLogout} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onSystemConfigUpdate={handleSystemConfigUpdate} onUserUpdate={handleUserUpdate} isGlobalAdmin={true} />}</ProtectedRoute>
+                ? <ProtectedRoute user={user}>{user && <AdminPage user={user} onLogout={handleLogout} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onSystemConfigUpdate={handleSystemConfigUpdate} onUserUpdate={handleUserUpdate} isGlobalAdmin={!!user?.isGlobalAdmin} />}</ProtectedRoute>
                 : <ProtectedRoute user={user}><SlugRedirect path="admin" /></ProtectedRoute>
             } />
 
