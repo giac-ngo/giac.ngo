@@ -211,12 +211,35 @@ export const systemController = {
                 if (!apiKey) return res.status(400).json({ message: `Vui lòng thêm API key cá nhân cho ${provider.toUpperCase()} trong Cài đặt.` });
                 res.json(await gptService.listModels(apiKey));
             } else if (provider === 'gemini') {
-                res.json(['gemini-3-flash-preview', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-3.1-flash-tts-preview']);
-            }
-            else if (provider === 'vertex') {
+                res.json(['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview']);
+            } else if (provider === 'groq') {
+                // Groq Cloud - OpenAI-compatible, ultra-fast LPU inference
+                // Free tier: ~14,400 requests/day. Docs: https://console.groq.com/docs/models
+                res.json([
+                    'llama-3.3-70b-versatile',
+                    'llama-3.1-8b-instant',
+                    'llama3-70b-8192',
+                    'mixtral-8x7b-32768',
+                    'gemma2-9b-it',
+                    'qwen-qwq-32b',
+                ]);
+            } else if (provider === 'vertex') {
                 res.json(['projects/343195597322/locations/us-central1/endpoints/6040161629629317120']);
             } else if (provider === 'grok') {
                 res.json(['grok-1-mock']);
+            } else if (provider === 'ollama') {
+                // Query local Ollama instance for installed models
+                const ollamaBase = process.env.OLLAMA_API_BASE?.replace('/v1', '') || 'http://localhost:11434';
+                try {
+                    const ollamaRes = await fetch(`${ollamaBase}/api/tags`);
+                    if (!ollamaRes.ok) throw new Error(`Ollama API returned ${ollamaRes.status}`);
+                    const data: any = await ollamaRes.json();
+                    const models = (data.models || []).map((m: any) => m.name || m.model);
+                    res.json(models.length > 0 ? models : ['qwen2.5:3b']);
+                } catch (e: any) {
+                    logger.warn('[Ollama] Could not fetch models from local Ollama:', e.message);
+                    res.json(['qwen2.5:3b']); // fallback
+                }
             } else {
                 res.status(400).json({ message: `Provider '${provider}' is not supported.` });
             }

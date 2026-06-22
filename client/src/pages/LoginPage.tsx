@@ -123,7 +123,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
       const userData = await apiService.login(email, password, 'space', customSpace?.slug);
       onLogin(userData);
       
-      if (customSpace) {
+      if (userData.isGlobalAdmin) {
+          navigate('/admin', { replace: true });
+      } else if (customSpace) {
           // Redirect back to where user came from, fallback to chat
           const redirectTo = (from && from !== `/${customSpace.slug}/login`) ? from : `/${customSpace.slug}/chat`;
           navigate(redirectTo, { replace: true });

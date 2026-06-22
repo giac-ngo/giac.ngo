@@ -1043,6 +1043,41 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                                                     </button>
                                                 </div>
                                             </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">⚡ Groq Cloud <span className="text-xs text-green-600 font-normal">(Miễn phí, siêu nhanh)</span></label>
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <input
+                                                            type={visibleKeys['groq'] ? "text" : "password"}
+                                                            name="apiKeys.groq"
+                                                            value={editingSpace.apiKeys?.groq || ''}
+                                                            onChange={handleInputChange}
+                                                            placeholder="gsk_..."
+                                                            autoComplete="new-password"
+                                                            autoCorrect="off"
+                                                            autoCapitalize="off"
+                                                            spellCheck={false}
+                                                            className="w-full p-2.5 pr-10 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20 transition-all"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleKeyVisibility('groq')}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-text-light hover:text-primary transition-colors focus:outline-none"
+                                                            title={visibleKeys['groq'] ? "Ẩn" : "Hiện"}
+                                                        >
+                                                            {visibleKeys['groq'] ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(editingSpace.apiKeys?.groq || '')}
+                                                        className="p-2.5 border rounded-md bg-background-light hover:bg-background-hover text-text-light hover:text-primary transition-all flex-shrink-0"
+                                                        title="Sao chép"
+                                                    >
+                                                        <CopyIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 

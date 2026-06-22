@@ -19,11 +19,20 @@ const handleResponse = async (res: Response) => {
     return res.json();
 };
 
-const authedFetch = (url: string, options: RequestInit = {}) => {
-    let token = localStorage.getItem('token');
-    if (!token) {
-        token = localStorage.getItem('apiToken'); // Fallback for old sessions
-    }
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+    refreshSubscribers.push(cb);
+};
+
+const onRefreshed = (token: string) => {
+    refreshSubscribers.forEach((cb) => cb(token));
+    refreshSubscribers = [];
+};
+
+const authedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+    let token = localStorage.getItem('token') || localStorage.getItem('apiToken');
     if (!token) {
         try {
             const userStr = localStorage.getItem('user');
@@ -33,17 +42,86 @@ const authedFetch = (url: string, options: RequestInit = {}) => {
             }
         } catch (e) {}
     }
-    const headers = new Headers(options.headers || {});
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+
+    const makeRequest = (t: string | null) => {
+        const headers = new Headers(options.headers || {});
+        if (t) {
+            headers.set('Authorization', `Bearer ${t}`);
+        }
+        if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+            headers.set('Content-Type', 'application/json');
+        }
+        return fetch(url, { ...options, headers });
+    };
+
+    let res = await makeRequest(token);
+
+    if (res.status === 401) {
+        // Token might have expired. Try to refresh it.
+        let refreshToken = '';
+        try {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                refreshToken = user.refreshToken;
+            }
+        } catch (e) {}
+
+        if (refreshToken) {
+            if (!isRefreshing) {
+                isRefreshing = true;
+                try {
+                    const refreshRes = await fetch('/api/auth/refresh', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refreshToken })
+                    });
+                    if (refreshRes.ok) {
+                        const refreshData = await refreshRes.json();
+                        const newAccessToken = refreshData.accessToken;
+                        if (newAccessToken) {
+                            // Update localStorage
+                            localStorage.setItem('apiToken', newAccessToken);
+                            try {
+                                const userStr = localStorage.getItem('user');
+                                if (userStr) {
+                                    const user = JSON.parse(userStr);
+                                    user.apiToken = newAccessToken;
+                                    localStorage.setItem('user', JSON.stringify(user));
+                                }
+                            } catch (e) {}
+                            
+                            isRefreshing = false;
+                            onRefreshed(newAccessToken);
+                        } else {
+                            throw new Error('No access token in refresh response');
+                        }
+                    } else {
+                        throw new Error('Refresh request failed');
+                    }
+                } catch (err) {
+                    isRefreshing = false;
+                    // Clear tokens if refresh fails to prevent infinite loop of 401s
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('apiToken');
+                    localStorage.removeItem('token');
+                    return res;
+                }
+            }
+
+            // Queue requests during refresh
+            return new Promise<Response>((resolve) => {
+                subscribeTokenRefresh((newToken) => {
+                    resolve(makeRequest(newToken));
+                });
+            });
+        }
     }
-    if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-    }
-    return fetch(url, { ...options, headers });
+
+    return res;
 };
 
-export type ModelProvider = 'gemini' | 'gpt' | 'grok' | 'vertex';
+export type ModelProvider = 'gemini' | 'gpt' | 'grok' | 'groq' | 'vertex' | 'ollama';
 export type ModelType = ModelProvider;
 
 export interface DashboardStats {
@@ -214,7 +292,7 @@ export const apiService = {
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({ message: response.statusText }));
-                if (callbacks?.onError) callbacks.onError(err.message || 'API request failed');
+                if (callbacks?.onError) callbacks.onError(err.error || err.message || 'API request failed');
                 return;
             }
 
@@ -460,7 +538,10 @@ export const apiService = {
 
     getPublicStats: () => fetch('/api/system/public/stats').then(handleResponse),
 
-    request: (url: string, options?: RequestInit) => authedFetch(url, options).then(handleResponse),
+    request: (url: string, options?: RequestInit) => {
+        const fullUrl = url.startsWith('/api') || url.startsWith('http') ? url : `/api${url}`;
+        return authedFetch(fullUrl, options).then(handleResponse);
+    },
 
     getAllTags: (): Promise<Tag[]> => authedFetch('/api/documents/tags').then(handleResponse),
 
@@ -643,7 +724,7 @@ export const apiService = {
         if (params.toString()) url += '?' + params.toString();
         return authedFetch(url).then(handleResponse);
     },
-    getDocumentDetail: (id: number | string): Promise<any> => authedFetch(`/api/documents/${id}`).then(handleResponse),
+    getDocumentDetail: (id: number | string): Promise<any> => authedFetch(`/api/library/documents/${id}`).then(handleResponse),
     getLibraryRecommended: (): Promise<any[]> => authedFetch('/api/documents/recommended').then(handleResponse),
     uploadDocument: (formData: FormData) => authedFetch('/api/documents', { method: 'POST', body: formData }).then(handleResponse),
     deleteDocument: (id: number | string) => authedFetch(`/api/documents/${id}`, { method: 'DELETE' }).then(handleResponse),
@@ -841,8 +922,10 @@ export const apiService = {
     // ─────────────────────────────────────────────────────────────────────────────
     // FB Albums
     // ─────────────────────────────────────────────────────────────────────────────
-    getCmsFbAlbums: (spaceId: number | string): Promise<any[]> =>
-        authedFetch(`/api/cms/${spaceId}/fb-albums`).then(handleResponse),
+    getCmsFbAlbums: (spaceId: number | string, pageId?: string): Promise<any[]> => {
+        const query = pageId ? `?pageId=${pageId}` : '';
+        return authedFetch(`/api/cms/${spaceId}/fb-albums${query}`).then(handleResponse);
+    },
     createCmsFbAlbum: (spaceId: number | string, name: string, albumId: string): Promise<any> =>
         authedFetch(`/api/cms/${spaceId}/fb-albums`, { method: 'POST', body: JSON.stringify({ name, album_id: albumId }) }).then(handleResponse),
 };

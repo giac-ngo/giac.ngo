@@ -13,7 +13,7 @@ const parseAndProcessTalkData = (req: Request) => {
     const rawSpaceId = data.spaceId;
     const spaceDir = rawSpaceId && rawSpaceId !== '' && rawSpaceId !== 'null'
         ? `space-${String(rawSpaceId).replace(/[^a-zA-Z0-9_-]/g, '_')}`
-        : 'space-1'; // No global folder � default to space-1
+        : 'space-1'; // No global folder — default to space-1
 
     if (files) {
         if (files.avatarFile) {
@@ -45,7 +45,7 @@ const parseAndProcessTalkData = (req: Request) => {
     }
 
     // Handle numeric fields that might be strings, converting empty values to null
-    ['spaceId', 'duration', 'notifications', 'views', 'likes'].forEach(field => {
+    ['spaceId', 'duration', 'notifications', 'views', 'likes', 'episodeNumber'].forEach(field => {
         if (data[field] === '' || data[field] === null || data[field] === undefined) {
             data[field] = null;
         } else {
@@ -60,6 +60,11 @@ const parseAndProcessTalkData = (req: Request) => {
     } else {
         const num = parseFloat(data.rating);
         data.rating = isNaN(num) ? null : num;
+    }
+
+    // Handle category field — ensure valid value
+    if (data.category && !['dharma_talk', 'music', 'podcast'].includes(data.category)) {
+        data.category = 'dharma_talk';
     }
 
     // Handle empty date string
@@ -195,5 +200,3 @@ export const dharmaTalksController = {
         }
     }
 };
-
-

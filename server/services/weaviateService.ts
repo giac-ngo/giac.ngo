@@ -359,61 +359,70 @@ const weaviateService = {
         console.log(`Found ${dataSources.length} data sources to sync for AI ${aiConfigId}.`);
 
         const targetModelType = aiConfig.modelType;
-        if (!targetModelType) throw new Error('modelType is missing');
 
-        // Retrieve API key using the prioritized fallback utility
-        const ownerKey = await getApiKeyForAi(aiConfig, targetModelType).catch(() => null);
+        // For embedding/training, use embeddingProvider if configured.
+        // This allows e.g. Groq (chat) + Gemini (embedding) split config.
+        const embeddingProvider = (aiConfig.embeddingProvider as string) || targetModelType;
+
+        if (!embeddingProvider) throw new Error('embeddingProvider is missing');
+
+        // Validate that the chosen embedding provider supports Weaviate indexing
+        const SUPPORTED_EMBEDDING_PROVIDERS = ['gemini', 'gpt', 'vertex'];
+        if (!SUPPORTED_EMBEDDING_PROVIDERS.includes(embeddingProvider)) {
+            throw new Error(`Provider "${embeddingProvider}" không hỗ trợ embedding. Hãy cấu hình "Nhà cung cấp Embedding" là Gemini hoặc GPT trong tab Huấn luyện.`);
+        }
+
+        // Retrieve API key for the embedding provider
+        const ownerKey = await getApiKeyForAi(aiConfig, embeddingProvider).catch(() => null);
 
         if (!ownerKey) {
-            throw new Error(`Cannot sync: API Key for ${targetModelType.toUpperCase()} is missing in Space, Owner, and System configs.`);
+            throw new Error(`Cannot sync: API Key for ${embeddingProvider.toUpperCase()} (embedding) is missing in Space, Owner, and System configs.`);
         }
 
         // Specific checks for Vertex
-        if (targetModelType === 'vertex' && !process.env.GOOGLE_PROJECT_ID) {
+        if (embeddingProvider === 'vertex' && !process.env.GOOGLE_PROJECT_ID) {
             throw new Error(`Cannot sync Vertex: GOOGLE_PROJECT_ID server environment variable is not set.`);
         }
 
         try {
-            console.log(`Ensuring schema exists for ${targetModelType} (AI ID: ${aiConfigId})...`);
-            await this.ensureSchemaForModelType(targetModelType, ownerKey);
+            console.log(`Ensuring schema exists for ${embeddingProvider} (AI ID: ${aiConfigId})...`);
+            await this.ensureSchemaForModelType(embeddingProvider, ownerKey);
 
             // Auto-detect stale schema: check if class uses old text2vec-palm (embedding-001)
-            // If so, reset and recreate with text2vec-google (text-embedding-004)
-            if (targetModelType === 'gemini') {
-                const client = await this._getScopedClient(targetModelType, ownerKey);
+            if (embeddingProvider === 'gemini') {
+                const client = await this._getScopedClient(embeddingProvider, ownerKey);
                 const schema = await client.schema.getter().do();
-                const className = getClassNameForModel(targetModelType);
+                const className = getClassNameForModel(embeddingProvider);
                 const existingClass = schema.classes?.find((c: Record<string, unknown>) => c.class === className);
                 if (existingClass && existingClass.vectorizer === 'text2vec-palm') {
                     console.warn(`Detected stale text2vec-palm schema for ${className}. Auto-resetting...`);
-                    await this.resetSchemaForModelType(targetModelType, ownerKey);
+                    await this.resetSchemaForModelType(embeddingProvider, ownerKey);
                     console.log(`Schema auto-reset complete. Will re-index all data.`);
-                    // Clear indexedProviders for all sources so they get re-indexed
                     for (const source of dataSources) {
-                        if (source.indexedProviders?.includes(targetModelType)) {
-                            await pool.query(`UPDATE training_data_sources SET indexed_providers = array_remove(indexed_providers, $1) WHERE id = $2`, [targetModelType, source.id]).catch(() => { });
+                        if (source.indexedProviders?.includes(embeddingProvider)) {
+                            await pool.query(`UPDATE training_data_sources SET indexed_providers = array_remove(indexed_providers, $1) WHERE id = $2`, [embeddingProvider, source.id]).catch(() => { });
                         }
                     }
-                    // Refresh data sources after clearing
                     const refreshed = await trainingDataModel.findByAiId(aiConfigId);
-                    await this.indexData(targetModelType, refreshed, ownerKey, aiConfigId);
+                    await this.indexData(embeddingProvider, refreshed, ownerKey, aiConfigId);
                     return;
                 }
             }
 
             // Log current schema vectorizer for debugging
-            if (targetModelType === 'gemini') {
-                const debugClient = await this._getScopedClient(targetModelType, ownerKey);
+            if (embeddingProvider === 'gemini') {
+                const debugClient = await this._getScopedClient(embeddingProvider, ownerKey);
                 const debugSchema = await debugClient.schema.getter().do();
-                const debugClass = debugSchema.classes?.find((c: Record<string, unknown>) => c.class === getClassNameForModel(targetModelType));
-                console.log(`[DEBUG] Schema for ${getClassNameForModel(targetModelType)}: vectorizer=${debugClass?.vectorizer}, moduleConfig=${JSON.stringify(debugClass?.moduleConfig)}`);
+                const debugClass = debugSchema.classes?.find((c: Record<string, unknown>) => c.class === getClassNameForModel(embeddingProvider));
+                console.log(`[DEBUG] Schema for ${getClassNameForModel(embeddingProvider)}: vectorizer=${debugClass?.vectorizer}, moduleConfig=${JSON.stringify(debugClass?.moduleConfig)}`);
             }
-            console.log(`Starting Weaviate sync for ${targetModelType} (AI ID: ${aiConfigId})...`);
-            await this.indexData(targetModelType, dataSources, ownerKey, aiConfigId);
+            console.log(`Starting Weaviate sync for ${embeddingProvider} (AI ID: ${aiConfigId})...`);
+            await this.indexData(embeddingProvider, dataSources, ownerKey, aiConfigId);
         } catch (error: any) {
-            console.error(`Error during Weaviate sync for ${targetModelType} (AI ID: ${aiConfigId}):`, error.message);
+            console.error(`Error during Weaviate sync for ${embeddingProvider} (AI ID: ${aiConfigId}):`, error.message);
             throw new Error(`Error during Weaviate sync: ${error.message}`);
         }
+
     },
 
     async indexData(modelType: string, dataSources: any[], apiKey: string, aiConfigId: string | number) {

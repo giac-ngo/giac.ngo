@@ -63,6 +63,13 @@ const translations = {
         listenOnYoutube: 'Nghe trên YouTube',
         pauseAudio: 'Tạm dừng',
         playAudio: 'Phát',
+        category: 'Phân loại',
+        categoryDharmaTalk: 'Pháp Thoại',
+        categoryMusic: 'Nhạc',
+        categoryPodcast: 'Podcast & Shows',
+        thumbnail: 'Ảnh bìa bài',
+        changeThumbnail: 'Chọn ảnh bìa',
+        episodeNumber: 'Số tập',
     },
     en: {
         title: 'Dharma Talks Management',
@@ -119,6 +126,13 @@ const translations = {
         listenOnYoutube: 'Listen on YouTube',
         pauseAudio: 'Pause',
         playAudio: 'Play',
+        category: 'Category',
+        categoryDharmaTalk: 'Dharma Talk',
+        categoryMusic: 'Music',
+        categoryPodcast: 'Podcast & Shows',
+        thumbnail: 'Thumbnail',
+        changeThumbnail: 'Choose thumbnail',
+        episodeNumber: 'Episode No.',
     }
 }
 
@@ -138,6 +152,7 @@ const DharmaTalkModal: React.FC<{
     const [audioFileVi, setAudioFileVi] = useState<File | null>(null);
     const [audioFileEn, setAudioFileEn] = useState<File | null>(null);
     const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+    const [isThumbnailPickerOpen, setIsThumbnailPickerOpen] = useState(false);
     const [isAudioViPickerOpen, setIsAudioViPickerOpen] = useState(false);
     const [isAudioEnPickerOpen, setIsAudioEnPickerOpen] = useState(false);
 
@@ -182,6 +197,11 @@ const DharmaTalkModal: React.FC<{
     const handleAvatarSelect = (url: string) => {
         setFormData(prev => ({ ...prev, speakerAvatarUrl: url }));
         setIsMediaPickerOpen(false);
+    };
+
+    const handleThumbnailSelect = (url: string) => {
+        setFormData(prev => ({ ...prev, thumbnailUrl: url }));
+        setIsThumbnailPickerOpen(false);
     };
 
     if (!isOpen) return null;
@@ -230,9 +250,23 @@ const DharmaTalkModal: React.FC<{
                             </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div><label className="block text-sm font-medium">{t.category}</label><select name="category" value={formData.category || 'dharma_talk'} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md"><option value="dharma_talk">{t.categoryDharmaTalk}</option><option value="music">{t.categoryMusic}</option><option value="podcast">{t.categoryPodcast}</option></select></div>
                             <div><label className="block text-sm font-medium">{t.duration}</label><input type="number" name="duration" value={formData.duration ?? ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" /></div>
                             <div><label className="block text-sm font-medium">{t.date}</label><input type="date" name="date" value={formData.date ? new Date(formData.date).toISOString().split('T')[0] : ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" /></div>
-                            <div className="md:col-span-2"><label className="block text-sm font-medium">{t.space}</label><select name="spaceId" value={formData.spaceId ?? (spaces.length > 0 ? spaces[0].id : '')} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md">{spaces.map(space => <option key={space.id as number} value={space.id as number}>{space.name}</option>)}</select></div>
+                            <div><label className="block text-sm font-medium">{t.space}</label><select name="spaceId" value={formData.spaceId ?? (spaces.length > 0 ? spaces[0].id : '')} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md">{spaces.map(space => <option key={space.id as number} value={space.id as number}>{space.name}</option>)}</select></div>
+                        </div>
+                        {formData.category === 'podcast' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-sm font-medium">{t.episodeNumber}</label><input type="number" name="episodeNumber" value={formData.episodeNumber ?? ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" /></div>
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-sm font-medium">{t.thumbnail}</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                {formData.thumbnailUrl ? <img src={formData.thumbnailUrl} alt="thumbnail" className="w-16 h-12 rounded-md object-cover" /> : <span className="text-sm text-gray-400">—</span>}
+                                <button type="button" onClick={() => setIsThumbnailPickerOpen(true)} className="text-sm text-primary hover:underline">{t.changeThumbnail}</button>
+                                {formData.thumbnailUrl && <button type="button" onClick={() => setFormData(prev => ({ ...prev, thumbnailUrl: undefined }))} className="text-sm text-red-500 hover:underline">✕</button>}
+                            </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label className="block text-sm font-medium">{t.tags}</label><input type="text" value={Array.isArray(formData.tags) ? formData.tags.join(', ') : ''} onChange={e => setFormData(prev => ({ ...prev, tags: e.target.value.split(',').map(t => t.trim()) }))} className="mt-1 w-full p-2 border rounded-md" /></div>
@@ -250,6 +284,15 @@ const DharmaTalkModal: React.FC<{
                 isOpen={isMediaPickerOpen}
                 onClose={() => setIsMediaPickerOpen(false)}
                 onSelect={handleAvatarSelect}
+                space={spaces.find(s => s.id === formData.spaceId) ?? null}
+                language={language}
+                defaultFileType="image"
+            />
+            {/* Thumbnail picker */}
+            <MediaPickerModal
+                isOpen={isThumbnailPickerOpen}
+                onClose={() => setIsThumbnailPickerOpen(false)}
+                onSelect={handleThumbnailSelect}
                 space={spaces.find(s => s.id === formData.spaceId) ?? null}
                 language={language}
                 defaultFileType="image"
@@ -296,6 +339,7 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAd
     const [searchTerm, setSearchTerm] = useState('');
     const [speakerFilter, setSpeakerFilter] = useState('');
     const [spaceFilter, setSpaceFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
     const [playingTalkId, setPlayingTalkId] = useState<number | null>(null);
@@ -430,9 +474,10 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAd
             const titleMatch = (talk.title?.toLowerCase().includes(searchLower) || talk.titleEn?.toLowerCase().includes(searchLower));
             const speakerMatch = !speakerFilter || talk.speaker === speakerFilter;
             const spaceMatch = !spaceFilter || String(talk.spaceId) === spaceFilter;
-            return titleMatch && speakerMatch && spaceMatch;
+            const categoryMatch = !categoryFilter || (talk.category || 'dharma_talk') === categoryFilter;
+            return titleMatch && speakerMatch && spaceMatch && categoryMatch;
         });
-    }, [talks, searchTerm, speakerFilter, spaceFilter]);
+    }, [talks, searchTerm, speakerFilter, spaceFilter, categoryFilter]);
 
     const paginatedTalks = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -453,10 +498,11 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAd
                     </button>
                 </div>
             </div>
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-background-light border-border-color flex-shrink-0">
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg bg-background-light border-border-color flex-shrink-0">
                 <div><label className="text-sm font-medium text-text-light">{t.titleHeader}</label><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={t.searchPlaceholder} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1" /></div>
                 <div><label className="text-sm font-medium text-text-light">{t.speaker}</label><select value={speakerFilter} onChange={(e) => setSpeakerFilter(e.target.value)} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1"><option value="">{t.filterAll}</option>{uniqueSpeakers.map(name => <option key={name} value={name}>{name}</option>)}</select></div>
                 <div><label className="text-sm font-medium text-text-light">{t.space}</label><select value={spaceFilter} onChange={(e) => setSpaceFilter(e.target.value)} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1"><option value="">{t.filterAll}</option>{spaces.map(s => <option key={s.id as number} value={s.id as number}>{s.name}</option>)}</select></div>
+                <div><label className="text-sm font-medium text-text-light">{t.category}</label><select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1"><option value="">{t.filterAll}</option><option value="dharma_talk">{t.categoryDharmaTalk}</option><option value="music">{t.categoryMusic}</option><option value="podcast">{t.categoryPodcast}</option></select></div>
             </div>
 
             <div className="flex-1 overflow-auto border border-border-color rounded-lg shadow-sm bg-background-panel">
@@ -467,13 +513,14 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAd
                             <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.speakerAvatar}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.titleHeader}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.speaker}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.category}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.space}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-text-light uppercase tracking-wider">{t.createdAt}</th>
                             <th className="px-4 py-3 text-right text-xs font-semibold text-text-light uppercase tracking-wider">{t.actions}</th>
                         </tr>
                     </thead>
                     <tbody className="bg-background-panel divide-y divide-border-color">
-                        {isLoading ? (<tr><td colSpan={7} className="text-center p-4">{t.loading}</td></tr>) : paginatedTalks.length === 0 ? (<tr><td colSpan={7} className="text-center p-4">{t.noTalksFound}</td></tr>) : (
+                        {isLoading ? (<tr><td colSpan={8} className="text-center p-4">{t.loading}</td></tr>) : paginatedTalks.length === 0 ? (<tr><td colSpan={8} className="text-center p-4">{t.noTalksFound}</td></tr>) : (
                             paginatedTalks.map((talk, index) => {
                                 const isPlaying = playingTalkId === talk.id;
                                 const isYouTube = talk.url && (talk.url.includes('youtube.com') || talk.url.includes('youtu.be'));
@@ -492,6 +539,7 @@ export const DharmaTalksManagement: React.FC<{ language: 'vi' | 'en'; isGlobalAd
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-sm">{talk.speaker}</td>
+                                        <td className="px-4 py-3 text-sm"><span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${(talk.category || 'dharma_talk') === 'dharma_talk' ? 'bg-amber-100 text-amber-800' : (talk.category === 'music') ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}`}>{(talk.category || 'dharma_talk') === 'dharma_talk' ? t.categoryDharmaTalk : talk.category === 'music' ? t.categoryMusic : t.categoryPodcast}</span></td>
                                         <td className="px-4 py-3 text-sm">{getSpaceName(talk.spaceId)}</td>
                                         <td className="px-4 py-3 text-sm text-text-light">{new Date(talk.date || talk.createdAt!).toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US')}</td>
                                         <td className="px-4 py-3 text-right text-sm space-x-2 whitespace-nowrap">

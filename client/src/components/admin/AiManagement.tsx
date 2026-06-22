@@ -190,6 +190,10 @@ const translations = {
         manualInput: 'Nhập Tay',
         speak: 'Nghe',
         download: 'Tải xuống audio',
+        embeddingProvider: 'Nhà cung cấp Embedding',
+        embeddingModel: 'Model Embedding',
+        embeddingProviderNone: '(Dùng chung với provider chat)',
+        embeddingInfoBanner: 'Provider và Model này dùng riêng để vectorize dữ liệu huấn luyện và tìm kiếm RAG. Nếu AI dùng Groq/Grok (không có embedding), phải chọn Gemini hoặc GPT ở đây.',
     },
     en: {
         aiList: 'AI List',
@@ -361,11 +365,31 @@ const translations = {
         manualInput: 'Manual Input',
         speak: 'Listen',
         download: 'Download Audio',
+        embeddingProvider: 'Embedding Provider',
+        embeddingModel: 'Embedding Model',
+        embeddingProviderNone: '(Same as chat provider)',
+        embeddingInfoBanner: 'This provider & model are used exclusively for vectorizing training data and RAG search. If the AI uses Groq/Grok (no embedding API), you must select Gemini or GPT here.',
     }
 };
 
 const INITIAL_MESSAGES_COUNT = 10;
 const MESSAGE_BATCH_SIZE = 10;
+
+// Models that support embedding (used in training tab)
+const EMBEDDING_MODEL_MAP: Record<string, { value: string; label: string }[]> = {
+    gemini: [
+        { value: '', label: '(Auto-detect)' },
+        { value: 'gemini-embedding-001', label: 'gemini-embedding-001' },
+        { value: 'text-embedding-005', label: 'text-embedding-005' },
+        { value: 'text-embedding-004', label: 'text-embedding-004' },
+    ],
+    gpt: [
+        { value: '', label: '(Auto-detect)' },
+        { value: 'text-embedding-3-small', label: 'text-embedding-3-small' },
+        { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
+        { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002' },
+    ],
+};
 
 const isQaFile = (fileName?: string): boolean => {
     if (!fileName) return false;
@@ -700,9 +724,15 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isChatHistoryLoading, setIsChatHistoryLoading] = useState(false);
-    const [newMessage, setNewMessage] = useState('');
+    // Chat input: uncontrolled (no setState on every keystroke → no re-render while typing).
+    // hasContent is only set when transitioning empty↔non-empty → React bails out if unchanged.
+    const [hasContent, setHasContent] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [estimatedChars, setEstimatedChars] = useState<Record<string, number> | null>(null);
+    // Streaming isolation: track which bubble is streaming + its live content.
+    // ONLY the streaming bubble re-renders during stream. All others stay frozen.
+    const streamingAiMessageIdRef = useRef<string | null>(null);
+    const [streamingContent, setStreamingContent] = useState<{text: string; thought: string}>({text: '', thought: ''});
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -715,7 +745,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const [stagedFiles, setStagedFiles] = useState<File[]>([]);
     const [testConversationId, setTestConversationId] = useState<number | null>(null);
     const [isChatExpanded, setIsChatExpanded] = useState(false);
-    const [apiKeyWarningDismissed, setApiKeyWarningDismissed] = useState(false);
+    const [, setApiKeyWarningDismissed] = useState(false);
     const [mainPanelView, setMainPanelView] = useState<'config' | 'chat'>('config'); // Toggle between config and chat panel
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [fileAttachment, setFileAttachment] = useState<{ name: string; url: string } | null>(null);
@@ -826,9 +856,12 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     useEffect(() => {
         if (!isLoadingMore) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            // During streaming: instant scroll (smooth fights rapid content growth)
+            // After streaming ends or on new message: smooth scroll
+            const isStreaming = streamingContent.text.length > 0;
+            messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'instant' : 'smooth' });
         }
-    }, [displayedMessages, isTyping, isLoadingMore]);
+    }, [displayedMessages, isTyping, isLoadingMore, streamingContent]);
 
     useLayoutEffect(() => {
         if (isLoadingMore) {
@@ -1039,24 +1072,14 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
         const provider = selectedAi.modelType;
         setModelsError(null);
-        setIsModelsLoading(false);
 
-
-        // Static model lists per provider with helpful recommendations
-        const MODEL_MAP: Record<string, { value: string, label: string }[]> = {
-            gemini: [
-                { value: 'gemini-3-flash-preview', label: 'gemini-3-flash-preview' },
-                { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash (Khuyến nghị - Nhanh, Free Quota cao)' },
-                { value: 'gemini-2.0-flash-lite', label: 'gemini-2.0-flash-lite (Nhanh nhất)' },
-                { value: 'gemini-2.5-pro-preview-03-25', label: 'gemini-2.5-pro-preview-03-25 (Mạnh nhất - Free Quota thấp)' },
-                { value: 'gemini-2.5-pro-exp-03-25', label: 'gemini-2.5-pro-exp-03-25' },
-                { value: 'gemini-2.0-pro-exp', label: 'gemini-2.0-pro-exp' },
-            ],
+        // Static model lists for non-Gemini providers
+        const STATIC_MODEL_MAP: Record<string, { value: string, label: string }[]> = {
             vertex: [
-                { value: 'gemini-2.0-flash-001', label: 'gemini-2.0-flash-001 (Khuyến nghị)' },
-                { value: 'gemini-2.0-flash-lite-001', label: 'gemini-2.0-flash-lite-001 (Nhanh nhất)' },
-                { value: 'gemini-1.5-pro-002', label: 'gemini-1.5-pro-002 (Mạnh nhất)' },
-                { value: 'gemini-1.5-flash-002', label: 'gemini-1.5-flash-002' },
+                { value: 'gemini-2.5-flash-preview-05-20', label: 'gemini-2.5-flash-preview-05-20 (Khuyến nghị)' },
+                { value: 'gemini-2.5-pro-preview-05-06', label: 'gemini-2.5-pro-preview-05-06 (Mạnh nhất)' },
+                { value: 'gemini-1.5-pro-002', label: 'gemini-1.5-pro-002 (Ổn định - Mạnh)' },
+                { value: 'gemini-1.5-flash-002', label: 'gemini-1.5-flash-002 (Ổn định)' },
             ],
             gpt: [
                 { value: 'gpt-4o', label: 'gpt-4o (Khuyến nghị - Rẻ, Nhanh)' },
@@ -1071,10 +1094,41 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 { value: 'grok-2-1212', label: 'grok-2-1212' },
                 { value: 'grok-beta', label: 'grok-beta' },
             ],
+            groq: [
+                { value: 'llama-3.3-70b-versatile', label: 'llama-3.3-70b-versatile (Khuyến nghị)' },
+                { value: 'llama-3.1-8b-instant', label: 'llama-3.1-8b-instant (Nhanh nhất)' },
+                { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'llama-4-scout-17b (Llama 4 - Mới nhất)' },
+                { value: 'compound-beta', label: 'compound-beta (Groq Agentic)' },
+                { value: 'compound-beta-mini', label: 'compound-beta-mini (Groq Agentic Mini)' },
+            ],
         };
 
-        setAvailableModels(MODEL_MAP[provider] || []);
-    }, [selectedAi?.id, selectedAi?.modelType, user.apiKeys, t.addKeyForProvider]);
+        if (provider === 'gemini' || provider === 'ollama') {
+            // Gọi backend → backend gọi API (Google AI hoặc Ollama local) để lấy danh sách model live
+            setIsModelsLoading(true);
+            apiService.getAvailableModels(provider, user.id as number)
+                .then((models: string[]) => {
+                    setAvailableModels(models.map((m: string) => ({ value: m, label: m })));
+                })
+                .catch(() => {
+                    if (provider === 'gemini') {
+                        setAvailableModels([
+                            { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (Khuyến nghị - Nhanh nhất)' },
+                            { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro (Mạnh nhất)' },
+                            { value: 'gemini-3-flash-preview', label: 'gemini-3-flash-preview (Bản thử nghiệm)' }
+                        ]);
+                    } else {
+                        setAvailableModels([
+                            { value: 'qwen2.5:3b', label: 'qwen2.5:3b (Fallback)' }
+                        ]);
+                    }
+                })
+                .finally(() => setIsModelsLoading(false));
+        } else {
+            setAvailableModels(STATIC_MODEL_MAP[provider] || []);
+        }
+    }, [selectedAi?.id, selectedAi?.modelType, t.addKeyForProvider]);
+
 
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1100,7 +1154,11 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                     interimTranscript += event.results[i][0].transcript;
                 }
             }
-            setNewMessage(finalTranscript + interimTranscript);
+            // Update textarea imperatively (uncontrolled), no setNewMessage re-render
+            if (textareaRef.current) {
+                textareaRef.current.value = finalTranscript + interimTranscript;
+            }
+            setHasContent((finalTranscript + interimTranscript).trim().length > 0);
         };
 
         recognition.onend = () => {
@@ -1132,12 +1190,13 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         const documentChars = trainingData.filter(d => d.type === 'document').reduce((acc, d) => acc + (d.summary?.length || 0), 0);
         const recentHistory = allMessages.slice(-8);
         const historyChars = recentHistory.reduce((acc, msg) => acc + (msg.text?.length || 0), 0);
-        const currentMessageChars = newMessage.length;
+        // Token counter: current message chars read from DOM directly (uncontrolled textarea)
+        const currentMessageChars = textareaRef.current?.value.length ?? 0;
         const totalChars = systemChars + qaChars + fileChars + documentChars + historyChars + currentMessageChars;
 
         setEstimatedChars({ system: systemChars, qa: qaChars, file: fileChars, document: documentChars, history: historyChars, currentMessage: currentMessageChars, total: totalChars });
 
-    }, [newMessage, selectedAi, trainingData, allMessages]);
+    }, [selectedAi, trainingData, allMessages]); // Note: current message chars read from DOM, no state dep needed
 
 
     const handleScroll = () => {
@@ -1373,9 +1432,10 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
-        if ((!newMessage.trim() && !imagePreview && !fileAttachment) || !selectedAi) return;
+        const msgValue = textareaRef.current?.value ?? '';
+        if ((!msgValue.trim() && !imagePreview && !fileAttachment) || !selectedAi) return;
 
-        const userMessage: Message = { id: `msg-${Date.now()}`, text: newMessage, sender: 'user', timestamp: Date.now(), imageUrl: imagePreview || undefined, fileAttachment: fileAttachment || undefined };
+        const userMessage: Message = { id: `msg-${Date.now()}`, text: msgValue, sender: 'user', timestamp: Date.now(), imageUrl: imagePreview || undefined, fileAttachment: fileAttachment || undefined };
         const updatedAllMessages = [...allMessages, userMessage];
 
         const aiMessageId = `ai-${Date.now()}`;
@@ -1384,45 +1444,61 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         setAllMessages(prev => [...prev, userMessage, newAiMessage]);
         setDisplayedMessages(prev => [...prev, userMessage, newAiMessage]);
 
-        setNewMessage('');
+        // Reset input imperatively (uncontrolled)
+        if (textareaRef.current) textareaRef.current.value = '';
+        setHasContent(false);
         setImagePreview(null);
         setFileAttachment(null);
         setIsTyping(true);
 
+        // Mark which AI message is currently streaming
+        streamingAiMessageIdRef.current = aiMessageId;
+        setStreamingContent({ text: '', thought: '' });
+
         let streamBuffer = '';
+        let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
 
         await apiService.sendMessageStream(selectedAi, updatedAllMessages, user, testConversationId, {
             onChunk: (chunk: string) => {
                 streamBuffer += chunk;
-                const thoughtMatch = streamBuffer.match(/<thought>([\s\S]*?)<\/thought>/);
-                const currentThought = thoughtMatch ? thoughtMatch[1].trim() : '';
-                const textWithoutThought = streamBuffer.replace(/<thought>[\s\S]*?<\/thought>/, '').trimStart();
 
-                const updateMessage = (messages: Message[]) => messages.map(msg =>
-                    msg.id === aiMessageId
-                        ? { ...msg, text: textWithoutThought, thought: currentThought }
-                        : msg
-                );
-                setAllMessages(prev => updateMessage(prev));
-                setDisplayedMessages(prev => updateMessage(prev));
+                // RAF throttle: max 60fps. But now we ONLY update streamingContent —
+                // a tiny isolated state that re-renders just the one streaming bubble.
+                // All other message bubbles (and their ReactMarkdown) stay frozen.
+                if (rafId !== null) return;
+                rafId = requestAnimationFrame(() => {
+                    rafId = null;
+                    const thoughtMatch = streamBuffer.match(/<thought>([\s\S]*?)<\/thought>/);
+                    const currentThought = thoughtMatch ? thoughtMatch[1].trim() : '';
+                    const textWithoutThought = streamBuffer.replace(/<thought>[\s\S]*?<\/thought>/, '').trimStart();
+                    setStreamingContent({ text: textWithoutThought, thought: currentThought });
+                });
             },
             onEnd: (newConversationId: number | string, _updatedUser: any, finalMessage: any) => {
+                // Stream finished: commit final text into messages array (ONE update)
+                // then clear streaming state so bubble switches to static mode.
+                const finalText = finalMessage?.text ?? streamBuffer.replace(/<thought>[\s\S]*?<\/thought>/, '').trimStart();
+                const finalThought = finalMessage?.thought ?? (streamBuffer.match(/<thought>([\s\S]*?)<\/thought>/) || [])[1]?.trim();
+
+                streamingAiMessageIdRef.current = null;
+                setStreamingContent({ text: '', thought: '' });
                 setIsTyping(false);
+
                 if (newConversationId && testConversationId === null) {
                     setTestConversationId(Number(newConversationId));
                 }
 
-                if (finalMessage) {
-                    const updateFinalMessage = (messages: Message[]) => messages.map(msg =>
-                        msg.id === aiMessageId
-                            ? { ...msg, text: finalMessage.text, thought: finalMessage.thought || undefined }
-                            : msg
-                    );
-                    setAllMessages(prev => updateFinalMessage(prev));
-                    setDisplayedMessages(prev => updateFinalMessage(prev));
-                }
+                const commitFinal = (messages: Message[]) => messages.map(msg =>
+                    msg.id === aiMessageId
+                        ? { ...msg, text: finalText, thought: finalThought || undefined }
+                        : msg
+                );
+                setAllMessages(prev => commitFinal(prev));
+                setDisplayedMessages(prev => commitFinal(prev));
             },
             onError: (errorMsg: string) => {
+                streamingAiMessageIdRef.current = null;
+                setStreamingContent({ text: '', thought: '' });
                 const updateMessage = (messages: Message[]) => messages.map(msg => msg.id === aiMessageId ? { ...msg, text: `Lỗi: ${errorMsg}` } : msg);
                 setAllMessages(prev => updateMessage(prev));
                 setDisplayedMessages(prev => updateMessage(prev));
@@ -1733,7 +1809,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         if (isRecording) {
             recognition.stop();
         } else {
-            textBeforeRecording.current = newMessage;
+            textBeforeRecording.current = textareaRef.current?.value ?? '';
             recognition.start();
         }
         setIsRecording(!isRecording);
@@ -1751,8 +1827,8 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
             if (!user) { showToast('Cần đăng nhập để dùng TTS', 'error'); setTestSpeakingId(null); setTestLoadingTtsId(null); testSpeakingQueueRef.current = null; return; }
             const provider = selectedAi?.modelType || 'gemini';
             const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
-            const voiceConfig = provider === 'gpt' ? 'alloy' : (user.apiKeys?.geminiVoice || 'Algieba');
-            const geminiStyle = (user.apiKeys as any)?.geminiStyle || '';
+            const voiceConfig = provider === 'gpt' ? 'alloy' : (selectedAi?.ttsVoice || 'Algieba');
+            const geminiStyle = selectedAi?.ttsStyle || '';
             const fetchChunkUrl = async (chunkText: string): Promise<string | null> => {
                 try {
                     const resp = await apiService.generateTtsAudio(
@@ -1797,8 +1873,8 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
         try {
             const provider = selectedAi?.modelType || 'gemini';
             const ttsModel = provider === 'gemini' ? 'gemini-3.1-flash-tts-preview' : 'tts-1';
-            const voiceConfig = provider === 'gpt' ? 'alloy' : (user.apiKeys?.geminiVoice || 'Algieba');
-            const geminiStyle = (user.apiKeys as any)?.geminiStyle || '';
+            const voiceConfig = provider === 'gpt' ? 'alloy' : (selectedAi?.ttsVoice || 'Algieba');
+            const geminiStyle = selectedAi?.ttsStyle || '';
             const resp = await apiService.generateTtsAudio(
                 text, provider, ttsModel, voiceConfig, language, user.id as number, 
                 provider === 'gemini' ? geminiStyle : undefined, 
@@ -1815,7 +1891,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const getOwnerName = (ownerId?: number) => allUsers.find(u => u.id === ownerId)?.name || 'Không rõ';
 
     const getStatusIcon = (item: TrainingDataSource) => {
-        const currentProvider = selectedAi?.modelType;
+        const currentProvider = (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
         const isIndexedForProvider = currentProvider && item.indexedProviders?.includes(currentProvider);
 
         if (isIndexedForProvider) {
@@ -2014,8 +2090,10 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                                             <select name="modelType" value={selectedAi.modelType} onChange={handleInputChange} disabled={isFormDisabled} className={inputClasses}>
                                                 <option value="gemini">Gemini</option>
                                                 <option value="gpt">GPT</option>
+                                                <option value="groq">Groq Cloud</option>
                                                 <option value="vertex">Vertex AI</option>
-                                                <option value="grok">Grok</option>
+                                                <option value="grok">Grok (xAI)</option>
+                                                <option value="ollama">Ollama (Local LLM)</option>
                                             </select>
                                         </div>
                                         <div>
@@ -2215,6 +2293,37 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
                             {activeTab === 'training' && (
                                 <div className="space-y-3">
+
+                                    {/* ── Embedding Provider/Model selector ── */}
+                                    <div className="grid grid-cols-2 gap-3 mb-1">
+                                        <div>
+                                            <label className="block text-xs font-medium text-text-main mb-1">{t.embeddingProvider}</label>
+                                            <select
+                                                value={selectedAi.embeddingProvider || ''}
+                                                onChange={e => handleInputChange({ target: { name: 'embeddingProvider', value: e.target.value || null } } as any)}
+                                                disabled={isFormDisabled}
+                                                className={inputClasses}
+                                            >
+                                                <option value="">{t.embeddingProviderNone}</option>
+                                                <option value="gemini">Gemini</option>
+                                                <option value="gpt">GPT (OpenAI)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-text-main mb-1">{t.embeddingModel}</label>
+                                            <select
+                                                value={selectedAi.embeddingModel || ''}
+                                                onChange={e => handleInputChange({ target: { name: 'embeddingModel', value: e.target.value || null } } as any)}
+                                                disabled={isFormDisabled || !selectedAi.embeddingProvider}
+                                                className={inputClasses}
+                                            >
+                                                {(EMBEDDING_MODEL_MAP[selectedAi.embeddingProvider || ''] || [{ value: '', label: '(Auto-detect)' }]).map(m => (
+                                                    <option key={m.value} value={m.value}>{m.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <div className="flex justify-end items-center space-x-2">
                                         <button type="button" onClick={() => setIsDocModalOpen(true)} disabled={isFormDisabled || typeof selectedAi.id !== 'number'} className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-text-main bg-background-panel border border-border-color rounded-md shadow-sm hover:bg-background-light disabled:opacity-50"><BookOpenIcon className="w-4 h-4" /><span>{t.selectFromLibrary}</span></button>
                                         <span className="text-xs text-text-light">{t.filterByStatus}:</span>
@@ -2421,8 +2530,8 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                 <div className="lg:w-1/2 space-y-2">
                                     <KoiiTaskStatusDisplay status={koiiTaskStatus} language={language} />
                                     {(() => {
-                                        const modelType = selectedAi?.modelType;
-                                        const unindexed = trainingData.filter(d => !modelType || !d.indexedProviders?.includes(modelType));
+                                        const provider = (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
+                                        const unindexed = trainingData.filter(d => !provider || !d.indexedProviders?.includes(provider));
                                         if (unindexed.length === 0) return null;
                                         const qaCount = unindexed.filter(d => d.type === 'qa').length;
                                         const fileCount = unindexed.filter(d => d.type === 'file').length;
@@ -2505,7 +2614,9 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                             <div className="flex items-center gap-2">
                                 {/* Unsynced count + Quick Sync button */}
                                 {selectedAi && typeof selectedAi.id === 'number' && canEdit && (() => {
-                                    const provider = selectedAi.modelType;
+                                    // Use embeddingProvider (if set) to match how weaviateService indexes data.
+                                    // Before this fix: modelType='groq' but indexed under 'gemini' → always showed unsynced.
+                                    const provider = (selectedAi.embeddingProvider as string) || selectedAi.modelType;
                                     const unsyncedCount = trainingData.filter(d =>
                                         (d.type === 'qa' || d.type === 'file') &&
                                         !d.indexedProviders?.includes(provider)
@@ -2550,7 +2661,13 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                         const pairKey = (msg.sender === 'ai' && questionMessage?.sender === 'user') ? `${questionMessage.text.trim()}|||${msg.text.trim()}` : null;
                                         const isAlreadyTrained = pairKey ? trainedPairs.has(pairKey) : false;
 
-                                        const segments = [msg.text];
+                                        // Streaming isolation: use live streamingContent for the active bubble,
+                                        // frozen msg.text for all completed bubbles (no ReactMarkdown re-render).
+                                        const isStreaming = msg.id === streamingAiMessageIdRef.current;
+                                        const displayText = isStreaming ? streamingContent.text : msg.text;
+                                        const displayThought = isStreaming ? streamingContent.thought : (msg.thought || '');
+
+                                        const segments = [displayText];
 
                                         return (
                                             <div key={`${msg.id || index}-msg`} className={`chat-message-row ${msg.sender === 'user' ? 'user' : 'ai'}`}>
@@ -2567,10 +2684,10 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                                         .replace(/\x00PARA\x00/g, '\n\n')
                                                                 }</ReactMarkdown></div>
                                                             )}
-                                                            {msg.sender === 'ai' && msg.thought && segIndex === segments.length - 1 && (
+                                                            {msg.sender === 'ai' && displayThought && segIndex === segments.length - 1 && (
                                                                 <details className="mt-2 text-xs">
                                                                     <summary className="cursor-pointer font-semibold">{t.aiThought}</summary>
-                                                                    <pre className="mt-1 p-2 bg-gray-100 rounded text-gray-600 whitespace-pre-wrap font-sans">{msg.thought}</pre>
+                                                                    <pre className="mt-1 p-2 bg-gray-100 rounded text-gray-600 whitespace-pre-wrap font-sans">{displayThought}</pre>
                                                                 </details>
                                                             )}
                                                         </div>
@@ -2643,9 +2760,23 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                 {fileAttachment && (<div className="image-preview-container"><div className="file-preview-thumb"><PaperclipIcon className="w-8 h-8 text-text-light" /><span className="text-xs text-text-light truncate">{fileAttachment.name}</span></div><button type="button" onClick={() => setFileAttachment(null)} className="image-preview-remove-btn">&times;</button></div>)}
                                 <div className="chat-input-wrapper">
                                     <button onClick={() => testChatFileInputRef.current?.click()} type="button" disabled={isFormDisabled} className="chat-input-icon-btn"><PaperclipIcon className="w-5 h-5" /></button>
-                                    <textarea ref={textareaRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleTextareaKeyDown} placeholder={placeholderText} disabled={isFormDisabled || isTyping} className="chat-input-field" rows={1} />
+                                    <textarea
+                                        ref={textareaRef}
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                            // Uncontrolled: only setState when empty↔non-empty boundary.
+                                            // Same-value setHasContent calls bail out with ZERO re-render.
+                                            const next = e.target.value.trim().length > 0;
+                                            setHasContent(prev => prev === next ? prev : next);
+                                        }}
+                                        onKeyDown={handleTextareaKeyDown}
+                                        placeholder={placeholderText}
+                                        disabled={isFormDisabled || isTyping}
+                                        className="chat-input-field"
+                                        rows={1}
+                                    />
                                     <button onClick={handleToggleRecording} type="button" disabled={isFormDisabled} className={`chat-input-icon-btn ${isRecording ? 'text-accent-red' : ''}`}><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></button>
-                                    <button type="submit" disabled={isTyping || (!newMessage.trim() && !imagePreview && !fileAttachment) || isFormDisabled} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11Z"></path></svg></button>
+                                    <button type="submit" disabled={isTyping || (!hasContent && !imagePreview && !fileAttachment) || isFormDisabled} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11Z"></path></svg></button>
                                 </div>
                             </form>
                             <input ref={testChatFileInputRef} type="file" className="hidden" accept="image/*,.doc,.docx,.pdf,.txt" onChange={handleTestChatFileSelect} />

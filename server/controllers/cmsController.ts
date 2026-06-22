@@ -247,7 +247,28 @@ export const cmsController = {
                 if (successfulPlatforms.includes(platform)) continue;
                 const conn = activeConnections.find((c: any) => c.platform === platform);
                 if (!conn) continue;
-                platformsPayload.push({ platform: conn.platform, accessToken: conn.accessToken, pageName: conn.pageName || '' });
+
+                // Extract page-specific album ID from JSON map if applicable
+                let pageAlbumId = null;
+                if (article.fbAlbumId) {
+                    if (article.fbAlbumId.startsWith('{')) {
+                        try {
+                            const albumMap = JSON.parse(article.fbAlbumId);
+                            pageAlbumId = albumMap[platform] || null;
+                            if (pageAlbumId === 'direct') pageAlbumId = null;
+                        } catch (e) {}
+                    } else if (platform.startsWith('facebook')) {
+                        // Backward compatibility fallback for single simple album ID
+                        pageAlbumId = article.fbAlbumId;
+                    }
+                }
+
+                platformsPayload.push({ 
+                    platform: conn.platform, 
+                    accessToken: conn.accessToken, 
+                    pageName: conn.pageName || '',
+                    fbAlbumId: pageAlbumId
+                });
             }
 
             if (platformsPayload.length === 0) {
@@ -572,7 +593,7 @@ export const cmsController = {
     async updateFacebookConnection(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            const { pageName, accessToken, pageId } = req.body;
+            const { pageName, accessToken, pageId, platform } = req.body;
             
             if (!req.user || !pageName || !accessToken) {
                 return res.status(400).json({ message: 'Missing required fields.' });
@@ -581,9 +602,10 @@ export const cmsController = {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
+            const finalPlatform = platform || (pageId ? `facebook_${pageId}` : 'facebook');
             const updatedConn = await cmsSocialConnectionModel.upsert({
                 spaceId,
-                platform: 'facebook',
+                platform: finalPlatform,
                 accessToken,
                 pageName,
                 connectedBy: req.user.id
@@ -637,7 +659,7 @@ export const cmsController = {
             if (host.includes('localhost:') || host.includes('127.0.0.1:')) {
                 baseUrl = `${proto}://${host.replace(/:\d+$/, ':3000')}`;
             }
-            const path = slug ? `/${slug}/admin/cms` : `/admin/cms`;
+            const path = slug ? `/${slug}/admin/cms_approve` : `/admin/cms_approve`;
             res.redirect(`${baseUrl}${path}?oauth=success&platform=${platform}`);
         } catch (error: unknown) {
             logger.error('CMS OAuth callback error:', error);
@@ -675,6 +697,26 @@ export const cmsController = {
             
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
+            }
+
+            const { pageId } = req.query;
+            if (pageId) {
+                const connections = await cmsSocialConnectionModel.findBySpaceId(spaceId);
+                const pageConn = connections.find((c: any) => c.platform === `facebook_${pageId}` && c.isActive);
+                if (!pageConn) return res.status(404).json({ message: 'Không tìm thấy kết nối Facebook Page.' });
+
+                const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}/albums?fields=id,name,cover_photo&limit=100&access_token=${pageConn.accessToken}`);
+                const data = await response.json();
+                if (!response.ok) {
+                    return res.status(400).json({ message: data.error?.message || 'Không thể tải danh sách album từ Facebook.' });
+                }
+                const mappedAlbums = (data.data || []).map((alb: any) => ({
+                    id: alb.id,
+                    spaceId: spaceId,
+                    name: alb.name,
+                    album_id: alb.id
+                }));
+                return res.json(mappedAlbums);
             }
 
             const albums = await fbAlbumModel.getBySpaceId(spaceId);

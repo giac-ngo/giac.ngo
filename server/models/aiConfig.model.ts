@@ -11,6 +11,7 @@ const AI_CONFIG_DETAILS_QUERY = `
            ac.max_output_tokens, ac.thinking_budget, ac.purchase_cost, ac.old_purchase_cost,
            ac.is_on_sale, ac.requests_granted_on_purchase, ac.views, ac.likes, ac.rating,
            ac.tts_provider, ac.tts_model, ac.tts_voice, ac.tts_style, ac.tts_temperature,
+           ac.embedding_provider, ac.embedding_model,
            ac.created_at, ac.updated_at,
            s.user_id as owner_id,
            ac.base_daily_limit
@@ -88,10 +89,10 @@ export const aiConfigModel = {
     },
 
     async create(configData: Record<string, unknown>): Promise<AIConfig> {
-        const { spaceId, name, nameEn, description, descriptionEn, avatarUrl, modelType, modelName, trainingContent, suggestedQuestions, suggestedQuestionsEn, tags, isPublic, isTrialAllowed, requiresSubscription, isContactForAccess, maxOutputTokens, thinkingBudget, views, likes, rating, purchaseCost, oldPurchaseCost, isOnSale, requestsGrantedOnPurchase, ttsProvider, ttsModel, ttsVoice, ttsStyle, ttsTemperature } = configData;
-        const query = `INSERT INTO ai_configs (space_id, name, name_en, description, description_en, avatar_url, model_type, model_name, training_content, suggested_questions, suggested_questions_en, tags, is_public, is_trial_allowed, requires_subscription, is_contact_for_access, max_output_tokens, thinking_budget, views, likes, rating, purchase_cost, old_purchase_cost, is_on_sale, requests_granted_on_purchase, tts_provider, tts_model, tts_voice, tts_style, tts_temperature) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30) RETURNING *`;
-        const values = [spaceId, name, nameEn, description, descriptionEn, avatarUrl, modelType, modelName, trainingContent, suggestedQuestions, suggestedQuestionsEn, tags, isPublic, isTrialAllowed, requiresSubscription, isContactForAccess, maxOutputTokens, thinkingBudget, views, likes, rating, purchaseCost, oldPurchaseCost, isOnSale, requestsGrantedOnPurchase, ttsProvider, ttsModel, ttsVoice, ttsStyle, ttsTemperature];
+        const { spaceId, name, nameEn, description, descriptionEn, avatarUrl, modelType, modelName, embeddingProvider, embeddingModel, trainingContent, suggestedQuestions, suggestedQuestionsEn, tags, isPublic, isTrialAllowed, requiresSubscription, isContactForAccess, maxOutputTokens, thinkingBudget, views, likes, rating, purchaseCost, oldPurchaseCost, isOnSale, requestsGrantedOnPurchase, ttsProvider, ttsModel, ttsVoice, ttsStyle, ttsTemperature } = configData;
+        const query = `INSERT INTO ai_configs (space_id, name, name_en, description, description_en, avatar_url, model_type, model_name, embedding_provider, embedding_model, training_content, suggested_questions, suggested_questions_en, tags, is_public, is_trial_allowed, requires_subscription, is_contact_for_access, max_output_tokens, thinking_budget, views, likes, rating, purchase_cost, old_purchase_cost, is_on_sale, requests_granted_on_purchase, tts_provider, tts_model, tts_voice, tts_style, tts_temperature) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32) RETURNING *`;
+        const values = [spaceId, name, nameEn, description, descriptionEn, avatarUrl, modelType, modelName, embeddingProvider ?? null, embeddingModel ?? null, trainingContent, suggestedQuestions, suggestedQuestionsEn, tags, isPublic, isTrialAllowed, requiresSubscription, isContactForAccess, maxOutputTokens, thinkingBudget, views, likes, rating, purchaseCost, oldPurchaseCost, isOnSale, requestsGrantedOnPurchase, ttsProvider, ttsModel, ttsVoice, ttsStyle, ttsTemperature];
 
         const res = await pool.query(query, values);
         return mapRowToCamelCase(res.rows[0]);
@@ -109,6 +110,8 @@ export const aiConfigModel = {
             avatarUrl: 'avatar_url',
             modelType: 'model_type',
             modelName: 'model_name',
+            embeddingProvider: 'embedding_provider',
+            embeddingModel: 'embedding_model',
             trainingContent: 'training_content',
             suggestedQuestions: 'suggested_questions',
             suggestedQuestionsEn: 'suggested_questions_en',
@@ -125,7 +128,7 @@ export const aiConfigModel = {
             requestsGrantedOnPurchase: 'requests_granted_on_purchase',
             baseDailyLimit: 'base_daily_limit',
             views: 'views',
-            likes: 'likes', // Explicitly map 'likes'
+            likes: 'likes',
             rating: 'rating',
             ttsProvider: 'tts_provider',
             ttsModel: 'tts_model',

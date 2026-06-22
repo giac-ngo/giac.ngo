@@ -58,13 +58,15 @@ fs.mkdir(uploadsDir, { recursive: true });
 const chatLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per window
-    message: { message: 'Too many requests, please try again later.' }
+    message: { message: 'Too many requests, please try again later.' },
+    validate: false // Disable internal trust proxy validation (trust proxy is correctly set to 1 above)
 });
 
 const ttsLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 50,
-    message: { message: 'TTS quota exceeded for this hour.' }
+    message: { message: 'TTS quota exceeded for this hour.' },
+    validate: false // Disable internal trust proxy validation
 });
 
 app.use('/api/conversations/chat', chatLimiter);

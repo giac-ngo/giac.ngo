@@ -22,8 +22,10 @@ const FbIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" he
 const IgIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm3.98-10.98a1.44 1.44 0 100-2.881 1.44 1.44 0 000 2.881z"/></svg>;
 const ThIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M14.502 10.364c-.815-.316-1.785-.458-3.08-.458-1.558 0-2.906.27-3.957.65-1.1.4-1.92.893-2.32 1.343l.034-.055c.783-1.218 2.378-2.072 4.417-2.316.59-.071 1.23-.087 1.954-.047 1.84.102 3.68.795 4.887 1.637l.08.058c.954.72 1.572 1.644 1.776 2.585.122.56.136 1.144.037 1.764a5.534 5.534 0 01-2.052 3.42 5.163 5.163 0 01-3.155 1.055c-.562 0-1.1-.093-1.602-.278-1.792-.663-2.73-2.585-2.28-4.63.157-.714.514-1.378.966-1.93.072-.088.16-.188.267-.3a16.892 16.892 0 012.39-2.007c.882-.62 2.357-1.42 3.753-1.85a18.237 18.237 0 012.283-.548c.15-.028.32-.054.512-.08v-.004c.156-.02.32-.04.5-.057-.59-.286-1.36-.453-2.348-.523zm-2.032 7.744a3.172 3.172 0 001.916-.62c.76-.583 1.258-1.464 1.385-2.428.1-.758-.094-1.474-.526-2.046a3.86 3.86 0 00-1.298-1.04l-.066-.03c-.2-.08-.413-.146-.636-.2a13.333 13.333 0 00-3.32.96 15.651 15.651 0 00-1.97 1.008c-.705.418-1.31.848-1.767 1.25-.337.297-.61.614-.794.94.1.283.334.614.735.918.49.37 1.13.613 1.874.7 1.056.124 2.105-.187 2.47-.406z M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>;
 
-const PLATFORM_ICONS: Record<string, React.ReactNode> = { facebook: <FbIcon />, instagram: <IgIcon />, threads: <ThIcon /> };
-const PLATFORMS = ['facebook', 'instagram', 'threads'] as const;
+const LiIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>;
+
+const PLATFORM_ICONS: Record<string, React.ReactNode> = { facebook: <FbIcon />, instagram: <IgIcon />, threads: <ThIcon />, linkedin: <LiIcon /> };
+const PLATFORMS = ['facebook', 'instagram', 'threads', 'linkedin'] as const;
 
 interface Props { user: any; space: Space | null; language: 'vi' | 'en'; activeTab?: string; }
 
@@ -70,9 +72,19 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
 
   // FB Albums states
   const [fbAlbums, setFbAlbums] = useState<FbAlbum[]>([]);
+  const [albumsCache, setAlbumsCache] = useState<Record<string, FbAlbum[]>>({});
+  const [loadingAlbums, setLoadingAlbums] = useState<Record<string, boolean>>({});
   const [showFbAlbumModal, setShowFbAlbumModal] = useState(false);
   const [newFbAlbumName, setNewFbAlbumName] = useState('');
   const [newFbAlbumId, setNewFbAlbumId] = useState('');
+
+  // Manual Connection states
+  const [showAddConnection, setShowAddConnection] = useState(false);
+  const [newConnPlatform, setNewConnPlatform] = useState<'facebook' | 'instagram' | 'threads' | 'linkedin'>('facebook');
+  const [newConnName, setNewConnName] = useState('');
+  const [newConnToken, setNewConnToken] = useState('');
+  const [newConnPageId, setNewConnPageId] = useState('');
+  const [editingConn, setEditingConn] = useState<CmsSocialConnection | null>(null);
 
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -137,9 +149,33 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
     } catch (e: any) { console.error('Error loading FB albums', e); }
   }, [spaceId]);
 
+  const fetchAlbumsForPage = useCallback(async (pagePlatform: string) => {
+    if (!spaceId) return;
+    const pageId = pagePlatform.replace('facebook_', '');
+    setLoadingAlbums(prev => ({ ...prev, [pagePlatform]: true }));
+    try {
+      const res = await apiService.getCmsFbAlbums(spaceId, pageId);
+      setAlbumsCache(prev => ({ ...prev, [pagePlatform]: res || [] }));
+    } catch (e: any) {
+      console.error('Error fetching albums for page', e);
+    } finally {
+      setLoadingAlbums(prev => ({ ...prev, [pagePlatform]: false }));
+    }
+  }, [spaceId]);
+
   useEffect(() => { loadArticles(); }, [loadArticles]);
   useEffect(() => { loadConnections(); }, [loadConnections]);
   useEffect(() => { loadFbAlbums(); }, [loadFbAlbums]);
+
+  useEffect(() => {
+    if (!spaceId || !editArticle) return;
+    const checkedPages = editArticle.targetPlatforms.filter(p => p.startsWith('facebook_'));
+    checkedPages.forEach(p => {
+      if (!albumsCache[p] && !loadingAlbums[p]) {
+        fetchAlbumsForPage(p);
+      }
+    });
+  }, [editArticle?.targetPlatforms, spaceId, albumsCache, loadingAlbums, fetchAlbumsForPage]);
 
   useEffect(() => {
     if (activeTab === 'cms_write') {
@@ -150,17 +186,6 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
       setTab('articles');
     }
   }, [activeTab]);
-
-  // Check OAuth callback params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('oauth') === 'success') {
-      showToast(t(`Kết nối ${params.get('platform')} thành công!`, `${params.get('platform')} connected!`));
-      setTab('connections');
-      loadConnections();
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
 
   const handleConnect = async (platform: string) => {
     if (!spaceId) return;
@@ -196,6 +221,20 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
     setLoadingFbPages(false);
   };
 
+  // Check OAuth callback params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('oauth') === 'success') {
+      showToast(t(`Kết nối ${params.get('platform')} thành công!`, `${params.get('platform')} connected!`));
+      setTab('connections');
+      loadConnections();
+      if (params.get('platform') === 'facebook' && spaceId) {
+        fetchFbPages();
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [spaceId, loadConnections]);
+
   const handleSelectFbPage = async (pageName: string, accessToken: string, pageId: string) => {
     if (!spaceId) return;
     try {
@@ -206,6 +245,35 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
     } catch (e: any) {
       showToast(e.message || t('Cập nhật thất bại', 'Update failed'));
     }
+  };
+
+  const handleAddConnectionSubmit = async () => {
+    if (!spaceId || !newConnName.trim() || !newConnToken.trim()) {
+      showToast(t('Vui lòng nhập đầy đủ thông tin', 'Please enter all required fields'));
+      return;
+    }
+    setSaving(true);
+    try {
+      let finalPlatform = newConnPlatform;
+
+      await apiService.updateFacebookConnection(spaceId, {
+        platform: finalPlatform,
+        pageName: newConnName.trim(),
+        accessToken: newConnToken.trim(),
+        pageId: newConnPageId.trim() || undefined
+      } as any);
+
+      showToast(editingConn ? t('Cập nhật kết nối thành công', 'Connection updated successfully') : t('Đã thêm kết nối thành công', 'Connection added successfully'));
+      setShowAddConnection(false);
+      setNewConnName('');
+      setNewConnToken('');
+      setNewConnPageId('');
+      setEditingConn(null);
+      loadConnections();
+    } catch (e: any) {
+      showToast(e.message || t('Lỗi khi lưu kết nối', 'Failed to save connection'));
+    }
+    setSaving(false);
   };
 
   const openNewArticle = () => {
@@ -588,42 +656,110 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
         <div>
           <h2 className="text-lg font-semibold mb-4">{t('Kết nối Mạng Xã Hội', 'Social Media Connections')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {PLATFORMS.map(p => {
-              const conn = connections.find(c => c.platform === p && c.isActive);
+            
+            {/* Dấu cộng để thêm kết nối mới */}
+            <div 
+              onClick={() => {
+                setEditingConn(null);
+                setNewConnPlatform('facebook');
+                setNewConnName('');
+                setNewConnToken('');
+                setNewConnPageId('');
+                setShowAddConnection(true);
+              }}
+              className="border-2 border-dashed border-border-color hover:border-primary/50 hover:bg-background-light/50 transition-all rounded-xl p-5 shadow-sm flex flex-col items-center justify-center cursor-pointer min-h-[220px] group gap-3 bg-background-panel"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <span className="font-semibold text-text-main block">{t('Thêm Kết Nối Mới', 'Add New Connection')}</span>
+                <span className="text-xs text-text-light mt-1 block">{t('Facebook Page, Instagram, Threads, LinkedIn', 'Facebook Page, Instagram, Threads, LinkedIn')}</span>
+              </div>
+            </div>
+
+            {/* Danh sách các kết nối đang hoạt động */}
+            {connections.filter(c => c.isActive).map(conn => {
+              const isFbOAuth = conn.platform === 'facebook';
+              const isFbPage = conn.platform.startsWith('facebook_');
+              
+              const getIcon = (platform: string) => {
+                if (platform.startsWith('facebook')) return PLATFORM_ICONS.facebook;
+                if (platform.startsWith('instagram')) return PLATFORM_ICONS.instagram;
+                if (platform.startsWith('threads')) return PLATFORM_ICONS.threads;
+                if (platform.startsWith('linkedin')) return PLATFORM_ICONS.linkedin;
+                return PLATFORM_ICONS.facebook;
+              };
+
+              const platformLabel = isFbOAuth 
+                ? t('Facebook OAuth (Gốc)', 'Facebook OAuth (Root)') 
+                : (isFbPage ? t('Facebook Page', 'Facebook Page') : conn.platform.charAt(0).toUpperCase() + conn.platform.slice(1));
+
               return (
-                <div key={p} className="bg-background-panel border rounded-xl p-5 shadow-sm" style={{ borderColor: conn ? STATUS_COLORS.success : "var(--color-border-color)" }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-4xl text-primary">{PLATFORM_ICONS[p]}</span>
-                    <div>
-                      <h3 className="font-semibold capitalize">{p}</h3>
-                      {conn ? <span style={{ backgroundColor: STATUS_COLORS.success+"22", color: STATUS_COLORS.success }} className={badgeClass}>✅ {t('Đã kết nối', 'Connected')}</span> : <span style={{ backgroundColor: "#6b728022", color: "#6b7280" }} className={badgeClass}>{t('Chưa kết nối', 'Not connected')}</span>}
+                <div 
+                  key={conn.id} 
+                  className="bg-background-panel border border-border-color rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                  style={{ borderColor: STATUS_COLORS.success }}
+                >
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-4xl text-primary">{getIcon(conn.platform)}</span>
+                      <div>
+                        <h3 className="font-semibold capitalize text-text-main truncate max-w-[180px]" title={conn.pageName}>
+                          {conn.pageName || platformLabel}
+                        </h3>
+                        <span style={{ backgroundColor: STATUS_COLORS.success+"22", color: STATUS_COLORS.success }} className={badgeClass}>
+                          ✅ {platformLabel}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {conn && <p className="text-sm text-text-light mb-2">{conn.pageName || ''} · Token: {conn.accessToken}</p>}
-                  {conn ? (
+                    
+                    <div className="space-y-1 mb-4 text-xs text-text-light">
+                      {isFbPage && <p className="truncate"><strong>Page ID:</strong> {conn.platform.replace('facebook_', '')}</p>}
+                      <p className="truncate" title={conn.accessToken}><strong>Token:</strong> {conn.accessToken}</p>
+                    </div>
+
                     <div className="flex gap-2">
-                      <button onClick={() => handleDisconnect(conn.id)} className={btnDangerClass}>{t('Ngắt kết nối', 'Disconnect')}</button>
-                      {p === 'facebook' && (
-                        <button onClick={fetchFbPages} disabled={loadingFbPages} className={btnOutlineClass}>
+                      <button onClick={() => handleDisconnect(conn.id)} className={btnDangerClass + " !px-3 !py-1.5 !text-xs"}>
+                        {t('Ngắt kết nối', 'Disconnect')}
+                      </button>
+                      
+                      {!isFbOAuth && (
+                        <button 
+                          onClick={() => {
+                            setEditingConn(conn);
+                            setNewConnPlatform(conn.platform.startsWith('facebook_') ? 'facebook' : conn.platform as any);
+                            setNewConnName(conn.pageName || '');
+                            setNewConnToken('');
+                            setNewConnPageId(conn.platform.startsWith('facebook_') ? conn.platform.replace('facebook_', '') : '');
+                            setShowAddConnection(true);
+                          }} 
+                          className={btnOutlineClass + " !px-3 !py-1.5 !text-xs"}
+                        >
+                          {t('Cấu hình', 'Configure')}
+                        </button>
+                      )}
+
+                      {isFbOAuth && (
+                        <button onClick={fetchFbPages} disabled={loadingFbPages} className={btnOutlineClass + " !px-3 !py-1.5 !text-xs"}>
                           {loadingFbPages ? '...' : t('Chọn Page', 'Select Page')}
                         </button>
                       )}
                     </div>
-                  ) : (
-                    <button onClick={() => handleConnect(p)} className={btnPrimaryClass}>{t(`Kết nối ${p}`, `Connect ${p}`)}</button>
-                  )}
-                  {conn && (
-                    <div className="mt-4 pt-3 border-t border-border-color">
-                      <p className="text-[11px] font-medium text-text-light mb-1">API Webhook n8n (GET):</p>
-                      <div className="flex gap-1">
-                        <input readOnly value={`${window.location.origin}/api/cms/${space?.slug || ''}/webhook/pending-articles?apiKey=${apiKey}`} className="flex-1 text-[11px] bg-background-light border border-border-color rounded px-2 py-1 outline-none text-text-main" onFocus={e => e.target.select()} />
-                        <button onClick={() => { 
-                          navigator.clipboard.writeText(`${window.location.origin}/api/cms/${space?.slug || ''}/webhook/pending-articles?apiKey=${apiKey}`); 
-                          showToast('Đã copy API n8n!'); 
-                        }} className="text-xs text-primary hover:underline whitespace-nowrap">Copy</button>
-                      </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border-color">
+                    <p className="text-[10px] font-medium text-text-light mb-1">API Webhook n8n (GET):</p>
+                    <div className="flex gap-1">
+                      <input readOnly value={`${window.location.origin}/api/cms/${space?.slug || ''}/webhook/pending-articles?apiKey=${apiKey}`} className="flex-1 text-[10px] bg-background-light border border-border-color rounded px-2 py-0.5 outline-none text-text-main" onFocus={e => e.target.select()} />
+                      <button onClick={() => { 
+                        navigator.clipboard.writeText(`${window.location.origin}/api/cms/${space?.slug || ''}/webhook/pending-articles?apiKey=${apiKey}`); 
+                        showToast('Đã copy API n8n!'); 
+                      }} className="text-[10px] text-primary hover:underline whitespace-nowrap">Copy</button>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -884,41 +1020,164 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">{t('Nền tảng đăng', 'Target Platforms')}</label>
-                <div className="flex gap-3">
+                <label className="block text-sm font-medium mb-2">{t('Nền tảng đăng', 'Target Platforms')}</label>
+                <div className="flex gap-4 flex-wrap">
                   {PLATFORMS.map(p => {
-                    const conn = connections.find(c => c.platform === p && c.isActive);
+                    const rootConn = p === 'facebook' 
+                      ? connections.find(c => c.platform === 'facebook' && c.isActive)
+                      : connections.find(c => c.platform === p && c.isActive);
+                    const fbPagesList = p === 'facebook'
+                      ? connections.filter(c => c.platform.startsWith('facebook_') && c.isActive)
+                      : [];
+                    const hasConnection = p === 'facebook' 
+                      ? (!!rootConn || fbPagesList.length > 0)
+                      : !!rootConn;
+
+                    const isChecked = p === 'facebook'
+                      ? editArticle.targetPlatforms.some(pt => pt.startsWith('facebook_'))
+                      : editArticle.targetPlatforms.includes(p);
+
                     return (
-                      <label key={p} className="flex items-center gap-2 cursor-pointer" style={{ opacity: conn ? 1 : 0.4 }}>
-                        <input type="checkbox" checked={editArticle.targetPlatforms.includes(p)} onChange={() => togglePlatform(p)} disabled={!conn} />
-                        <span>{PLATFORM_ICONS[p]} {p}</span>
-                        {!conn && <span className="text-xs text-text-light">({t('chưa kết nối', 'not connected')})</span>}
+                      <label key={p} className="flex items-center gap-2 cursor-pointer transition-opacity" style={{ opacity: hasConnection ? 1 : 0.4 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          disabled={!hasConnection}
+                          className="w-4.5 h-4.5 accent-primary rounded cursor-pointer"
+                          onChange={() => {
+                            if (p === 'facebook') {
+                              if (isChecked) {
+                                // Uncheck all facebook pages
+                                const platforms = editArticle.targetPlatforms.filter(pt => !pt.startsWith('facebook_'));
+                                setEditArticle({ ...editArticle, targetPlatforms: platforms });
+                              } else {
+                                // Check all connected facebook pages
+                                const platforms = [
+                                  ...editArticle.targetPlatforms.filter(pt => !pt.startsWith('facebook_')),
+                                  ...fbPagesList.map(c => c.platform)
+                                ];
+                                setEditArticle({ ...editArticle, targetPlatforms: platforms });
+                              }
+                            } else {
+                              togglePlatform(p);
+                            }
+                          }}
+                        />
+                        <span className="flex items-center gap-1.5 font-medium text-sm text-text-main capitalize">
+                          {PLATFORM_ICONS[p]} {p}
+                        </span>
+                        {!hasConnection && <span className="text-xs text-text-light">({t('chưa kết nối', 'not connected')})</span>}
                       </label>
                     );
                   })}
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">FB Album</label>
-                <div className="flex gap-2">
-                  <select 
-                    value={editArticle.fbAlbumId || ''} 
-                    onChange={e => setEditArticle({ ...editArticle, fbAlbumId: e.target.value })} 
-                    className={`${inputClass} flex-1`}
-                  >
-                    <option value="">-- {t('Không chọn', 'None')} --</option>
-                    {fbAlbums.map(album => (
-                      <option key={album.id} value={album.album_id}>{album.name}</option>
-                    ))}
-                  </select>
-                  <button 
-                    onClick={() => setShowFbAlbumModal(true)} 
-                    className="bg-primary text-white px-3 py-2 rounded-lg flex-shrink-0 hover:bg-primary-dark transition-colors"
-                    title={t('Thêm Album mới', 'Add new Album')}
-                  >
-                    +
-                  </button>
-                </div>
+
+                {/* Hierarchical Facebook Pages Checklist */}
+                {editArticle.targetPlatforms.some(pt => pt.startsWith('facebook_')) && (
+                  <div className="pl-6 mt-4 pt-3 border-l-2 border-primary/20 space-y-4 bg-background-light p-4 rounded-xl border border-border-color shadow-inner animate-fadeIn">
+                    <p className="text-xs font-bold text-text-light mb-2">{t('Chọn Facebook Page và Album cần đăng:', 'Select Facebook Pages and Albums:')}</p>
+                    {connections.filter(c => c.platform.startsWith('facebook_') && c.isActive).map(page => {
+                      const isPageChecked = editArticle.targetPlatforms.includes(page.platform);
+                      
+                      // Safely parse JSON for fbAlbumId
+                      let albumMap: Record<string, string> = {};
+                      if (editArticle.fbAlbumId && editArticle.fbAlbumId.startsWith('{')) {
+                        try {
+                          albumMap = JSON.parse(editArticle.fbAlbumId);
+                        } catch (e) {}
+                      } else if (editArticle.fbAlbumId) {
+                        // Support single string legacy fallback
+                        albumMap[page.platform] = editArticle.fbAlbumId;
+                      }
+
+                      const currentAlbumValue = albumMap[page.platform] || 'direct';
+                      const isAlbumMode = currentAlbumValue !== 'direct';
+
+                      return (
+                        <div key={page.id} className="p-3 bg-background-panel border border-border-color rounded-xl shadow-sm space-y-3">
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={isPageChecked} 
+                              className="w-4 h-4 accent-primary rounded cursor-pointer"
+                              onChange={() => {
+                                const platforms = isPageChecked
+                                  ? editArticle.targetPlatforms.filter(x => x !== page.platform)
+                                  : [...editArticle.targetPlatforms, page.platform];
+                                setEditArticle({ ...editArticle, targetPlatforms: platforms });
+                              }}
+                            />
+                            <span className="text-sm font-semibold text-text-main">{page.pageName}</span>
+                          </label>
+
+                          {isPageChecked && (
+                            <div className="pl-6 border-l-2 border-primary/10 space-y-3">
+                              <div className="flex gap-4 text-xs font-semibold text-text-light">
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input 
+                                    type="radio" 
+                                    name={`album_mode_${page.platform}`}
+                                    checked={!isAlbumMode}
+                                    onChange={() => {
+                                      const updatedMap = { ...albumMap, [page.platform]: 'direct' };
+                                      setEditArticle({ ...editArticle, fbAlbumId: JSON.stringify(updatedMap) });
+                                    }}
+                                    className="accent-primary"
+                                  />
+                                  <span>{t('Đăng trực tiếp', 'Post directly')}</span>
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input 
+                                    type="radio" 
+                                    name={`album_mode_${page.platform}`}
+                                    checked={isAlbumMode}
+                                    onChange={() => {
+                                      const updatedMap = { ...albumMap, [page.platform]: '' };
+                                      setEditArticle({ ...editArticle, fbAlbumId: JSON.stringify(updatedMap) });
+                                    }}
+                                    className="accent-primary"
+                                  />
+                                  <span>{t('Đăng vào Album', 'Post to Album')}</span>
+                                </label>
+                              </div>
+
+                              {isAlbumMode && (
+                                <div className="flex gap-2">
+                                  {loadingAlbums[page.platform] ? (
+                                    <div className="flex-1 text-xs text-text-light py-2 animate-pulse">Tải album...</div>
+                                  ) : (
+                                    <select 
+                                      value={currentAlbumValue} 
+                                      onChange={e => {
+                                        const updatedMap = { ...albumMap, [page.platform]: e.target.value };
+                                        setEditArticle({ ...editArticle, fbAlbumId: JSON.stringify(updatedMap) });
+                                      }}
+                                      className={`${inputClass} !py-1.5 !text-xs flex-1`}
+                                    >
+                                      <option value="">-- {t('Chọn Album', 'Select Album')} --</option>
+                                      {(albumsCache[page.platform] || []).map(album => (
+                                        <option key={album.id} value={album.album_id}>{album.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  <button 
+                                    onClick={() => {
+                                      setShowFbAlbumModal(true);
+                                    }} 
+                                    className="bg-primary text-white px-2.5 py-1.5 rounded-lg flex-shrink-0 hover:bg-primary-hover transition-colors text-xs font-bold"
+                                    title={t('Thêm Album mới', 'Add new Album')}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">{t('Lên lịch đăng', 'Schedule')}</label>
@@ -1124,6 +1383,140 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
             
             <div className="p-4 border-t border-border-color bg-background flex justify-end">
               <button onClick={() => setFbPages(null)} className={btnOutlineClass}>{t('Đóng', 'Close')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADD/EDIT CONNECTION MODAL ═══ */}
+      {showAddConnection && (
+        <div className={overlayClass}>
+          <div className="bg-background-panel w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-border-color bg-background-light">
+              <h3 className="text-lg font-bold text-text-main">
+                {editingConn 
+                  ? t('Cấu hình Kết Nối MXH', 'Configure Social Connection') 
+                  : t('Thêm Kết Nối MXH Mới', 'Add New Social Connection')}
+              </h3>
+              <p className="text-xs text-text-light mt-1">
+                {editingConn 
+                  ? t('Cập nhật thông tin cấu hình kết nối MXH', 'Update social media connection configuration') 
+                  : t('Chọn và nhập thông tin để thêm kết nối MXH mới', 'Select and enter info to add a new social connection')}
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Select Platform */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-text-light">{t('Nền tảng Mạng Xã Hội', 'Social Platform')}</label>
+                {editingConn ? (
+                  <div className="px-4 py-2.5 bg-background-light border border-border-color rounded-lg text-sm text-text-main font-semibold capitalize flex items-center gap-2">
+                    {editingConn.platform.startsWith('facebook_') ? 'Facebook Page' : editingConn.platform}
+                  </div>
+                ) : (
+                  <select 
+                    value={newConnPlatform} 
+                    onChange={e => setNewConnPlatform(e.target.value as any)} 
+                    className={inputClass}
+                  >
+                    <option value="facebook">Facebook Page (Tự động lấy Token)</option>
+                    <option value="instagram">Instagram (Nhập Token)</option>
+                    <option value="threads">Threads (Nhập Token)</option>
+                    <option value="linkedin">LinkedIn (Nhập Token)</option>
+                  </select>
+                )}
+              </div>
+
+              {/* Conditional Rendering based on Platform */}
+              {!editingConn && newConnPlatform === 'facebook' ? (
+                <div className="p-5 bg-primary/5 rounded-xl border border-primary/20 space-y-4 text-center">
+                  <p className="text-xs text-text-main font-medium leading-relaxed">
+                    {t('Hệ thống sẽ kết nối an toàn với Facebook và lấy danh sách Page cùng Page Token tự động cho bạn thông qua OAuth callback.', 'The system will securely connect to Facebook and fetch your Page list and Page Tokens automatically via OAuth callback.')}
+                  </p>
+                  <div className="flex flex-col gap-2 pt-2">
+                    {connections.some(c => c.platform === 'facebook' && c.isActive) ? (
+                      <>
+                        <button 
+                          onClick={() => {
+                            setShowAddConnection(false);
+                            fetchFbPages();
+                          }}
+                          className={btnPrimaryClass + " w-full font-bold"}
+                        >
+                          ✨ {t('Chọn Page từ tài khoản đã kết nối', 'Select Page from connected account')}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setShowAddConnection(false);
+                            handleConnect('facebook');
+                          }}
+                          className={btnOutlineClass + " w-full text-xs"}
+                        >
+                          🔄 {t('Kết nối tài khoản Facebook mới', 'Link new Facebook account')}
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          setShowAddConnection(false);
+                          handleConnect('facebook');
+                        }}
+                        className={btnPrimaryClass + " w-full font-bold"}
+                      >
+                        🚀 {t('Đăng nhập & Kết nối Facebook (OAuth)', 'Log in & Connect Facebook')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Connection Name */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-text-light">{t('Tên hiển thị / Page Name', 'Display / Page Name')}</label>
+                    <input 
+                      value={newConnName} 
+                      onChange={e => setNewConnName(e.target.value)} 
+                      className={inputClass} 
+                      placeholder={t('Ví dụ: Page Tin Tức Giác Ngộ', 'E.g: Giac Ngo News Page')} 
+                    />
+                  </div>
+
+                  {/* Access Token */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-text-light">{t('Access Token kết nối', 'Access Token')}</label>
+                    <textarea 
+                      value={newConnToken} 
+                      onChange={e => setNewConnToken(e.target.value)} 
+                      className={inputClass + " h-24 font-mono text-xs"} 
+                      placeholder={editingConn ? t('Nhập Token mới để cập nhật', 'Enter new Token to update') : 'EAAG...'} 
+                    />
+                  </div>
+
+                  {/* Page ID / App ID - visible only for facebook_ manual platform if editing facebook_ connection */}
+                  {editingConn && editingConn.platform.startsWith('facebook_') && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-text-light">Page ID (Facebook)</label>
+                      <input 
+                        value={newConnPageId} 
+                        onChange={e => setNewConnPageId(e.target.value)} 
+                        className={inputClass} 
+                        placeholder="100084725492..." 
+                        disabled={true} 
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-border-color bg-background-light flex justify-end gap-3">
+              <button onClick={() => { setShowAddConnection(false); setEditingConn(null); }} className={btnOutlineClass}>{t('Hủy', 'Cancel')}</button>
+              {/* Only show Save button for manual connections or editing */}
+              {(editingConn || newConnPlatform !== 'facebook') && (
+                <button onClick={handleAddConnectionSubmit} disabled={saving} className={btnPrimaryClass}>
+                  {saving ? '...' : (editingConn ? t('Cập nhật', 'Update') : t('Lưu kết nối', 'Save Connection'))}
+                </button>
+              )}
             </div>
           </div>
         </div>

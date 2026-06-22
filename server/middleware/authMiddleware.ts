@@ -30,11 +30,15 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     ].filter(Boolean) as string[];
 
     let decoded: any = null;
+    let isExpired = false;
     for (const s of secrets) {
         try {
             decoded = jwt.verify(token, s);
             if (decoded) break;
-        } catch (e) {
+        } catch (e: any) {
+            if (e && e.name === 'TokenExpiredError') {
+                isExpired = true;
+            }
             // continue to next secret
         }
     }
@@ -50,7 +54,11 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
             }
         } catch (e) {}
         
-        logger.error(`Token verification FAILED for request to: ${req.originalUrl}. Token starts with: ${token.substring(0, 10)}...`);
+        if (isExpired) {
+            logger.warn(`Token EXPIRED for request to: ${req.originalUrl}. Token starts with: ${token.substring(0, 10)}...`);
+        } else {
+            logger.error(`Token verification FAILED for request to: ${req.originalUrl}. Token starts with: ${token.substring(0, 10)}...`);
+        }
         req.user = null;
         return next();
     }

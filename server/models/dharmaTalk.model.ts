@@ -29,7 +29,10 @@ export const dharmaTalkModel = {
             notifications: 'notifications',
             views: 'views',
             likes: 'likes',
-            rating: 'rating'
+            rating: 'rating',
+            category: 'category',
+            thumbnailUrl: 'thumbnail_url',
+            episodeNumber: 'episode_number'
         };
 
         for (const [key, value] of Object.entries(data)) {
@@ -72,7 +75,10 @@ export const dharmaTalkModel = {
             notifications: 'notifications',
             views: 'views',
             likes: 'likes',
-            rating: 'rating'
+            rating: 'rating',
+            category: 'category',
+            thumbnailUrl: 'thumbnail_url',
+            episodeNumber: 'episode_number'
         };
 
         const fieldsToUpdate = Object.keys(dataToUpdate).filter(key => allowedFields[key] !== undefined && dataToUpdate[key] !== undefined);

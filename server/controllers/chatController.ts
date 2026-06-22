@@ -9,6 +9,8 @@ import { aiConfigModel } from '../models/aiConfig.model.js';
 import { geminiService } from '../services/geminiService.js';
 import { gptService } from '../services/gptService.js';
 import { grokService } from '../services/grokService.js';
+import { groqService } from '../services/groqService.js';
+import { ollamaService } from '../services/ollamaService.js';
 import { fileParserService } from '../services/fileParserService.js';
 import weaviateService from '../services/weaviateService.js';
 import { vertexService } from '../services/vertexService.js';
@@ -165,6 +167,22 @@ export const chatController = {
 
             const apiKey = await getApiKeyForAi(aiConfig);
 
+            const lastUserMessage = finalMessages.slice().reverse().find(m => m.sender === 'user');
+            if (lastUserMessage?.text && apiKey) {
+                try {
+                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
+                    const searchApiKey = searchProvider !== aiConfig.modelType
+                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
+                        : apiKey;
+                    const results = await weaviateService.search(searchProvider, aiConfig.id, lastUserMessage.text, searchApiKey);
+                    if (results?.length > 0) {
+                        retrievedContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
+                    }
+                } catch (e: any) {
+                    logger.warn("Weaviate search failed during stream chat:", e.message || String(e));
+                }
+            }
+
             const onChunk = (chunk: string) => res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
             
             const onEnd = async (finalMessage: any) => {
@@ -214,7 +232,7 @@ export const chatController = {
                 }
             };
 
-            const services: Record<string, any> = { gemini: geminiService, gpt: gptService, grok: grokService, vertex: vertexService };
+            const services: Record<string, any> = { gemini: geminiService, gpt: gptService, grok: grokService, groq: groqService, vertex: vertexService, ollama: ollamaService };
             const service = services[aiConfig.modelType];
             if (!service) return onError(new Error(`Unsupported model type: ${aiConfig.modelType}`));
             
@@ -237,7 +255,11 @@ export const chatController = {
             let ragContext = '';
             if (apiKey && userMessage) {
                 try {
-                    const results = await weaviateService.search(aiConfig.modelType, aiConfig.id, userMessage, apiKey);
+                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
+                    const searchApiKey = searchProvider !== aiConfig.modelType
+                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
+                        : apiKey;
+                    const results = await weaviateService.search(searchProvider, aiConfig.id, userMessage, searchApiKey);
                     if (results?.length > 0) {
                         ragContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
                     }
@@ -293,7 +315,11 @@ export const chatController = {
             const lastUserMessage = finalMessages.slice().reverse().find(m => m.sender === 'user');
             if (lastUserMessage?.text && apiKey) {
                 try {
-                    const results = await weaviateService.search(aiConfig.modelType, aiConfig.id, lastUserMessage.text, apiKey);
+                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
+                    const searchApiKey = searchProvider !== aiConfig.modelType
+                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
+                        : apiKey;
+                    const results = await weaviateService.search(searchProvider, aiConfig.id, lastUserMessage.text, searchApiKey);
                     if (results?.length > 0) {
                         retrievedContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
                     }
@@ -322,7 +348,7 @@ export const chatController = {
                 errorMessage = error.message || 'An error occurred';
             };
 
-            const services: Record<string, any> = { gemini: geminiService, gpt: gptService, grok: grokService, vertex: vertexService };
+            const services: Record<string, any> = { gemini: geminiService, gpt: gptService, grok: grokService, groq: groqService, vertex: vertexService, ollama: ollamaService };
             const service = services[aiConfig.modelType];
             if (!service) {
                 return res.status(400).json({ error: `Unsupported model type: ${aiConfig.modelType}` });

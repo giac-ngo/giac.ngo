@@ -329,17 +329,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     const newTab = section || getFirstAllowedTab(user);
     const isPermitted = user.permissions?.includes(newTab) || isSpaceOwner || !!isGlobalAdmin;
     const effectiveSlug = spaceSlug || 'giac-ngo';
+    const baseAdminPath = isGlobalAdmin && !spaceSlug ? '/admin' : `/${effectiveSlug}/admin`;
     if (isPermitted) {
       setActiveTab(newTab);
-      // Luôn đảm bảo URL có đầy đủ /:spaceSlug/admin/:section để F5 không bị mất vị trí
+      // Luôn đảm bảo URL có đầy đủ /:spaceSlug/admin/:section hoặc /admin/:section để F5 không bị mất vị trí
       if (!section) {
-        navigate(`/${effectiveSlug}/admin/${newTab}`, { replace: true });
+        navigate(`${baseAdminPath}/${newTab}`, { replace: true });
       }
     } else {
       const firstAllowed = getFirstAllowedTab(user);
       if (firstAllowed === newTab) return;
       setActiveTab(firstAllowed);
-      navigate(`/${effectiveSlug}/admin/${firstAllowed}`, { replace: true });
+      navigate(`${baseAdminPath}/${firstAllowed}`, { replace: true });
     }
   }, [section, user, navigate, spaceSlug, currentSpace, isGlobalAdmin, mySpaces, mySpacesLoaded]);
 
@@ -409,7 +410,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
 
   const NavItem: React.FC<{ tab: AdminTab; label: string; icon: React.ReactElement<{ className?: string }> }> = ({ tab, label, icon }) => (
     <button
-      onClick={() => navigate(`/${spaceSlug || 'giac-ngo'}/admin/${tab}`)}
+      onClick={() => navigate(`${isGlobalAdmin && !spaceSlug ? '/admin' : `/${spaceSlug || 'giac-ngo'}/admin`}/${tab}`)}
       className={`w-full flex items-center p-3 rounded-lg text-sm font-medium transition-colors ${activeTab === tab
         ? 'bg-primary-light text-primary'
         : 'text-text-light hover:bg-background-light'
@@ -433,7 +434,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
           {!isSidebarCollapsed && logoUrl && (
-            <Link to={`/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
+            <Link to={isGlobalAdmin && !spaceSlug ? '/admin/dashboard' : `/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
               <img src={logoUrl} alt="Logo" className={isGlobalAdmin ? "h-10" : "h-12"} />
             </Link>
           )}
@@ -520,8 +521,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px', color: 'var(--color-text-light, #6b7280)', display: 'flex', alignItems: 'center', borderRadius: 6, marginLeft: 4 }}
                 >
                   {colorMode === 'dark'
-                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
                   }
                 </button>
               </div>

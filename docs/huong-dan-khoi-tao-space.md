@@ -45,7 +45,7 @@
 | Mô tả (tiếng Anh) | | |
 | Ảnh đại diện AI | | Avatar cho chatbot |
 | Loại AI model | ✅ | `gemini` / `gpt` / `vertex` / `grok` |
-| Tên model cụ thể | ✅ | VD: `gemini-2.0-flash`, `gpt-4o` |
+| Tên model cụ thể | ✅ | VD: `gemini-2.5-flash`, `gpt-4o` |
 | API Key của model | ✅ | Google AI Studio Key hoặc OpenAI Key |
 | Nội dung huấn luyện | | Văn bản hướng dẫn cách AI trả lời (system prompt) |
 | Câu hỏi gợi ý (tiếng Việt) | | Danh sách câu hỏi mẫu cho người dùng |

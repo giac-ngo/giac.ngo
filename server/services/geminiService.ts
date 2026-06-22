@@ -182,7 +182,7 @@ export const geminiService = {
     // ---------- OCR from Image ----------
     extractTextFromImage: async (imageBuffer: any, mimeType: string, apiKey: string, modelName: string) => {
         const ai = new GoogleGenAI({ apiKey });
-        const model = modelName || "gemini-3-flash-preview"; // Use flash for speed
+        const model = modelName || "gemini-2.5-flash"; // Use flash for speed
 
         const imagePart = {
             inlineData: {
@@ -204,7 +204,7 @@ export const geminiService = {
     // ---------- Format Extracted Text ----------
     formatExtractedText: async (text: string, apiKey: string, modelName: string) => {
         const ai = new GoogleGenAI({ apiKey });
-        const model = modelName || "gemini-3-flash-preview";
+        const model = modelName || "gemini-2.5-flash";
 
         const prompt = `
 Take the following raw text extracted from a document and format it into clean, readable HTML.
@@ -235,7 +235,7 @@ Formatted HTML:
         if (!text?.trim()) return null;
 
         const ai = new GoogleGenAI({ apiKey });
-        const model = "gemini-3-flash-preview";
+        const model = "gemini-2.5-flash";
         const prompt = `
 Please summarize the following text concisely and clearly. The summary should be in the same language as the original text.
 Focus on the key ideas, tone, and message.
@@ -329,8 +329,7 @@ Summary:`;
                 return;
             }
 
-            const ai = new GoogleGenAI({ apiKey });
-            const model = aiConfig.modelName || "gemini-3-flash-preview";
+            const model = aiConfig.modelName || "gemini-2.5-flash";
 
             const geminiConfig = {
                 systemInstruction,
@@ -343,59 +342,80 @@ Summary:`;
                 (geminiConfig as any).thinkingConfig = { thinkingBudget: aiConfig.thinkingBudget };
             }
 
-            const result = await ai.models.generateContentStream({
-                model,
-                contents,
-                config: geminiConfig
-            });
+            // ── Retry loop for 503 overload errors ──────────────────────────
+            const MAX_RETRIES = 3;
+            const RETRY_DELAYS_MS = [5000, 10000, 15000]; // 5s → 10s → 15s
 
-            let fullResponseText = '';
-            for await (const chunk of result) {
-                // Manually extract text from parts to avoid the SDK warning:
-                // "there are non-text parts thoughtSignature in the response"
-                // which occurs when using the convenient chunk.text getter.
-                let chunkText = '';
-                const parts = chunk?.candidates?.[0]?.content?.parts || [];
-                for (const part of parts) {
-                    if (part.text) {
-                        chunkText += part.text;
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const ai = new GoogleGenAI({ apiKey });
+                    const result = await ai.models.generateContentStream({
+                        model,
+                        contents,
+                        config: geminiConfig
+                    });
+
+                    let fullResponseText = '';
+                    for await (const chunk of result) {
+                        let chunkText = '';
+                        const parts = chunk?.candidates?.[0]?.content?.parts || [];
+                        for (const part of parts) {
+                            if (part.text) {
+                                chunkText += part.text;
+                            }
+                        }
+
+                        if (chunkText) {
+                            fullResponseText += chunkText;
+                            callbacks.onChunk(chunkText);
+                        }
                     }
-                }
 
-                if (chunkText) {
-                    fullResponseText += chunkText;
-                    callbacks.onChunk(chunkText);
+                    // No thought parsing needed
+                    callbacks.onEnd({ text: fullResponseText.trim(), thought: null });
+                    return; // ✅ Success — exit
+
+                } catch (err: unknown) {
+                    const status = (err as any)?.status;
+
+                    if (status === 503 && attempt < MAX_RETRIES) {
+                        const waitMs = RETRY_DELAYS_MS[attempt - 1];
+                        console.warn(`[Gemini] 503 overload (attempt ${attempt}/${MAX_RETRIES}). Retrying in ${waitMs / 1000}s...`);
+                        await new Promise(r => setTimeout(r, waitMs));
+                        continue; // retry
+                    }
+
+                    // Not retryable — format and propagate error
+                    if (status === 429) {
+                        // Extract retry delay if available
+                        let retryMsg = '';
+                        try {
+                            const body = JSON.parse((err as any)?.message || '{}');
+                            const retryInfo = body?.error?.details?.find((d: Record<string, unknown>) => (d['@type'] as string)?.includes('RetryInfo'));
+                            if (retryInfo?.retryDelay) {
+                                const secs = parseInt(retryInfo.retryDelay);
+                                if (!isNaN(secs)) {
+                                    const mins = Math.ceil(secs / 60);
+                                    retryMsg = ` Vui lòng thử lại sau ${mins > 1 ? `${mins} phút` : `${secs} giây`}.`;
+                                }
+                            }
+                        } catch (_) { }
+                        callbacks.onError(new Error(`API Gemini đã đạt giới hạn quota (free tier).${retryMsg} Để sử dụng không giới hạn, hãy nâng cấp lên Gemini API trả phí.`));
+                    } else if (status === 401 || status === 403) {
+                        callbacks.onError(new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại cài đặt.'));
+                    } else if (status === 503) {
+                        callbacks.onError(new Error('Gemini API đang quá tải (503). Đã thử lại 3 lần nhưng không thành công. Vui lòng thử lại sau vài phút.'));
+                    } else {
+                        callbacks.onError(err);
+                    }
+                    return;
                 }
             }
-
-            // No thought parsing needed
-            callbacks.onEnd({ text: fullResponseText.trim(), thought: null });
+            // ────────────────────────────────────────────────────────────────
 
         } catch (err: unknown) {
             console.error("Error calling Gemini Stream API:", err);
-
-            // Format user-friendly error messages
-            const status = (err as any)?.status;
-            if (status === 429) {
-                // Extract retry delay if available
-                let retryMsg = '';
-                try {
-                    const body = JSON.parse((err as any)?.message || '{}');
-                    const retryInfo = body?.error?.details?.find((d: Record<string, unknown>) => (d['@type'] as string)?.includes('RetryInfo'));
-                    if (retryInfo?.retryDelay) {
-                        const secs = parseInt(retryInfo.retryDelay);
-                        if (!isNaN(secs)) {
-                            const mins = Math.ceil(secs / 60);
-                            retryMsg = ` Vui lòng thử lại sau ${mins > 1 ? `${mins} phút` : `${secs} giây`}.`;
-                        }
-                    }
-                } catch (_) { }
-                callbacks.onError(new Error(`API Gemini đã đạt giới hạn quota (free tier).${retryMsg} Để sử dụng không giới hạn, hãy nâng cấp lên Gemini API trả phí.`));
-            } else if (status === 401 || status === 403) {
-                callbacks.onError(new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại cài đặt.'));
-            } else {
-                callbacks.onError(err);
-            }
+            callbacks.onError(err);
         }
     },
 

@@ -172,9 +172,15 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `POST /api/cms/:spaceId/articles/:id/share-to-feed`: Share bài viết CMS vào Bảng tin Cộng Đồng nội bộ của Space.
 * **Social Connections**:
   - `GET /api/cms/:spaceId/connections`, `DELETE /:id`: Quản lý Token nối tới mạng xã hội.
-  - `GET /api/cms/:spaceId/oauth/:platform/url`: Nhận URL uỷ quyền (OAuth).
+  - `GET /api/cms/:spaceId/oauth/:platform/url`: Nhận URL uỷ quyền (OAuth) — Trả về URL tới `facebook-connect.phoai.vn` kèm `state=space_{spaceId}_{platform}` và `redirect_uri=https://{currentHost}/api/cms/oauth/callback`. **Quan trọng**: `redirect_uri` được tạo ĐỘNG từ `req.get('host')` — KHÔNG được hardcode — để hỗ trợ multi-tenant (mỗi Space trên custom domain khác nhau tự tạo callback URL của mình).
+  - `GET /api/cms/oauth/callback`: Endpoint nhận lại từ `facebook-connect.phoai.vn` sau khi user uỷ quyền. Lưu token vào DB, sau đó **redirect về `/{slug}/admin/cms_approve?oauth=success&platform={platform}`** (KHÔNG phải `/admin/cms`).
   - `GET /api/cms/:spaceId/connections/facebook/pages` & `PUT /.../facebook`: Swap Page Access Token của Fanpage hoặc Profile Cá Nhân.
   - Cấu hình quản lý `fb-albums`.
+* **Tab MXH (Kết Nối Mạng Xã Hội) trong CMS**:
+  - Giao diện có nút `+` để thêm mới kết nối MXH (Facebook, Instagram, Threads, LinkedIn).
+  - Mỗi kết nối hiện ra như 1 card với icon, tên, nút Cấu hình và Ngắt kết nối.
+  - Nhấn `+` → modal chọn loại MXH → nhập tên hiển thị + token → Lưu.
+  - Facebook: sau khi nhấn "Kết nối qua Facebook", hệ thống gọi `GET /api/cms/:spaceId/oauth/facebook/url` để lấy OAuth URL → mở popup → facebook-connect.phoai.vn xác thực → callback về backend → redirect về `cms_approve`.
 
 ### 12. Phân hệ Thanh Toán, Cúng Dường & Lịch Sử Giao Dịch (`/api/billing`, `/api/payos`)
 * **Billing (Trực tiếp bằng thẻ via Stripe)**:

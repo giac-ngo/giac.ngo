@@ -2,6 +2,53 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-05-30
+
+### 🐛 Khắc phục lỗi model Gemini bị Deprecated & Cập nhật danh sách Model Hoạt động
+**Vấn đề**: Google ngưng hỗ trợ (`deprecated`) model `gemini-2.0-flash` trên diện rộng, khiến các chatbot sử dụng cấu hình cũ này (như bot *Giác Ngộ* và *VietGrow AI*) gặp lỗi quota hoặc dừng phản hồi. Bản thử nghiệm cũ của SDK cũng phát sinh cảnh báo không tương thích.
+
+**Giải pháp & Thay đổi đã thực hiện**:
+1. **Database Migration**: Chạy script di chuyển cấu hình các AI trong bảng `ai_configs` từ `gemini-2.0-flash` sang **`gemini-2.5-flash`** (mẫu model thế hệ mới cực nhanh và ổn định).
+2. **Backend (`systemController.ts`)**: Cập nhật danh sách model Gemini khả dụng trả về từ API chỉ giữ các model được kiểm thử hoạt động thành công thực tế:
+   ```ts
+   res.json(['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview']);
+   ```
+3. **Backend Services (`geminiService.ts`)**: Di chuyển toàn bộ các model mặc định và fallback phục vụ cho trích xuất ảnh (OCR), định dạng HTML và tóm tắt văn bản sang **`gemini-2.5-flash`**.
+4. **Frontend UI (`AiManagement.tsx`)**: 
+   - Đồng bộ danh sách fallback model trong dropdown chỉnh sửa AI khi API lỗi khớp chính xác với backend.
+   - Làm rõ cơ chế ẩn hiện nút màu cam báo số lượng **Huấn luyện chưa đồng bộ (Unsynced count)**: Nút này sẽ tự động ẩn đi khi toàn bộ dữ liệu (9 mục gồm 7 files + 2 QA) đã được vector hóa thành công và đồng bộ 100% lên Weaviate (số lượng chưa đồng bộ về 0).
+
+## 2026-05-27
+
+### 🔗 Bổ sung Kết Nối MXH (Nhiều Facebook Pages & Albums tự động qua OAuth & Cấu hình Động) ở CMS: Duyệt & Đăng bài
+**Mục tiêu**: Tích hợp khả năng liên kết nhiều Facebook Pages đồng thời và cho phép người duyệt bài chọn đăng trực tiếp hoặc đăng vào Album cụ thể của từng Page tại trang quản trị **CMS: Duyệt & Đăng bài (`cms_approve`)**.
+
+**Giải pháp & Thiết kế**:
+1. **Thiết kế không thay đổi SQL Schema**: Tận dụng hoàn toàn cột `platform` và `fb_album_id` hiện tại. Mỗi Facebook Page được lưu dưới tên platform `facebook_<pageId>` (ví dụ: `facebook_1029384756`) để vượt qua ràng buộc unique constraint của bảng `cms_social_connections` mà không thay đổi database.
+2. **Luồng Facebook OAuth & Callback Tự động**:
+   - Khi thêm Facebook Page trong tab Kết Nối MXH, hệ thống sử dụng chính xác callback URL OAuth hiện có để lấy token tự động.
+   - Khi đăng nhập thành công và trả về `oauth=success`, frontend tự động mở popup **"Chọn Facebook Page"** (không bắt buộc nhập tay ID hay Token).
+   - Nếu tài khoản Facebook cá nhân gốc đã kết nối trước đó, hệ thống cho phép chọn ngay Page từ tài khoản hiện tại mà không cần đăng nhập lại.
+3. **Đăng bài & Chọn Album linh hoạt**:
+   - Giao diện Editor của bài viết cho phép tích chọn đồng thời nhiều Facebook Page đã liên kết.
+   - Với mỗi Facebook Page được tích chọn, người dùng có thể chọn **Đăng trực tiếp** hoặc **Đăng vào Album** (tự động hiển thị hiệu ứng Loading và tải động danh sách album từ Facebook Graph API thời gian thực thông qua backend).
+   - Áp dụng cơ chế **State caching động** cho danh sách album của từng Page để tối ưu hóa hiệu năng, giảm thiểu request lặp.
+   - Cấu hình album được lưu trữ dưới dạng một chuỗi JSON map (ví dụ: `{"facebook_111": "album_abc", "facebook_222": "direct"}`) trong cột `fb_album_id` của bảng `cms_articles`.
+   - Backend phân rã chuỗi JSON này để gửi đúng cấu hình platform riêng biệt sang n8n.
+
+**Chi tiết các file thay đổi**:
+* **Backend (`server/controllers/cmsController.ts`)**:
+  - `updateFacebookConnection`: Hỗ trợ lưu cấu hình Page Access Token dưới tên platform động `facebook_<pageId>`.
+  - `getFbAlbums`: Nhận query `?pageId=xxx` để gọi API Facebook lấy album của Page cụ thể bằng token tương ứng.
+  - `publishArticle`: Phân tách chuỗi JSON `fb_album_id` để đính kèm Album ID riêng biệt cho từng Page trước khi gửi sang webhook n8n.
+  - `oauthCallback`: Điều hướng đúng về đường dẫn `/admin/cms_approve` để tránh treo trang.
+* **Frontend Service (`client/src/services/apiService.ts`)**:
+  - Cập nhật hàm `getCmsFbAlbums` để truyền `pageId` tùy chọn làm query parameter.
+* **Frontend UI (`client/src/components/admin/CmsManagement.tsx`)**:
+  - **Tab Kết Nối MXH**: Hiển thị danh sách kết nối động cùng nút **Cấu hình** (để chỉnh sửa tên/token nhanh) và nút **Ngắt kết nối** riêng biệt cho từng Page.
+  - **Card dấu "+" lớn**: Thiết kế Card dấu cộng **"Thêm Kết Nối Mới"** mở ra Modal cho phép chọn loại mạng xã hội (Facebook, Instagram, Threads, LinkedIn).
+  - Tự động hóa OAuth và hiển thị popup chọn Page khi nhận được callback đăng nhập thành công.
+
 ## 2026-05-22
 
 ### 🐛 Khắc phục lỗ hổng Global Admin nghiêm trọng trên toàn bộ Backend

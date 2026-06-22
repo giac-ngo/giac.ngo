@@ -63,8 +63,10 @@ export interface AIConfig {
     name: string;
     description?: string;
     avatarUrl?: string;
-    modelType: 'gemini' | 'gpt' | 'grok' | 'vertex';
+    modelType: 'gemini' | 'gpt' | 'grok' | 'vertex' | 'groq' | 'ollama';
     modelName?: string;
+    embeddingProvider?: string; // Provider dùng để vectorize huấn luyện (gemini | gpt)
+    embeddingModel?: string;    // Model embedding cụ thể (optional, auto-detect nếu null)
     isPublic?: boolean;
     views?: number;
     likes?: number;
@@ -100,5 +102,8 @@ export interface DharmaTalk {
     status?: string;
     likes?: number;
     views?: number;
+    category?: 'dharma_talk' | 'music' | 'podcast';
+    thumbnailUrl?: string;
+    episodeNumber?: number;
     [key: string]: any;
 }

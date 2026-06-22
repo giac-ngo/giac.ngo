@@ -25,7 +25,7 @@ export interface Message {
   feedback?: 'liked' | 'disliked' | null;
 }
 
-export type ModelType = 'gemini' | 'gpt' | 'grok' | 'vertex';
+export type ModelType = 'gemini' | 'gpt' | 'grok' | 'groq' | 'vertex' | 'ollama';
 
 export interface AIConfig {
   id: string | number;
@@ -37,6 +37,8 @@ export interface AIConfig {
   avatarUrl?: string;
   modelType: ModelType;
   modelName: string;
+  embeddingProvider?: ModelType | string; // Provider dùng để vectorize (gemini | gpt)
+  embeddingModel?: string;                // Model embedding cụ thể
   trainingContent: string;
   suggestedQuestions: string[];
   suggestedQuestionsEn?: string[];
@@ -524,6 +526,9 @@ export interface DharmaTalk {
   status?: string;
   statusEn?: string;
   notifications?: number;
+  category?: 'dharma_talk' | 'music' | 'podcast';
+  thumbnailUrl?: string;
+  episodeNumber?: number;
   createdAt?: string;
 }
 

@@ -57,6 +57,19 @@ const LoginRedirect: React.FC = () => {
   const isCustomDomain = !isRootDomain();
   const pathParts = window.location.pathname.split('/').filter(Boolean);
   
+  let isGlobalAdmin = false;
+  try {
+    const savedUser = localStorage.getItem('user');
+    const parsed = savedUser ? JSON.parse(savedUser) : null;
+    isGlobalAdmin = !!parsed?.isGlobalAdmin;
+  } catch (e) {
+    // ignore
+  }
+
+  if (isGlobalAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+  
   // If URL is /:spaceSlug/login, redirect to that space's chat
   if (pathParts.length >= 2 && pathParts[1] === 'login') {
     const spaceSlug = pathParts[0];
@@ -306,6 +319,12 @@ const App: React.FC = () => {
             </Route>
 
             {/* Admin Route (must be before dynamic slug routes) */}
+            <Route path="/admin/:section?" element={
+              isRootDomain()
+                ? <ProtectedRoute user={user}>{user && <AdminPage user={user} onLogout={handleLogout} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onSystemConfigUpdate={handleSystemConfigUpdate} onUserUpdate={handleUserUpdate} isGlobalAdmin={!!user?.isGlobalAdmin} />}</ProtectedRoute>
+                : <ProtectedRoute user={user}><SlugRedirect path="admin" /></ProtectedRoute>
+            } />
+
             <Route path="/:spaceSlug/admin/:section?" element={
               <ProtectedRoute user={user}>
                 {user && <AdminPage
@@ -316,6 +335,7 @@ const App: React.FC = () => {
                   systemConfig={systemConfig}
                   onSystemConfigUpdate={handleSystemConfigUpdate}
                   onUserUpdate={handleUserUpdate}
+                  isGlobalAdmin={!!user?.isGlobalAdmin}
                 />}
               </ProtectedRoute>
             } />
@@ -327,11 +347,6 @@ const App: React.FC = () => {
             <Route path="/library" element={isRootDomain() ? <PracticeSpacePage user={user} systemConfig={systemConfig} onLogout={handleLogout} onGoToLogin={handleGoToLogin} language={language} setLanguage={setLanguage} onUserUpdate={handleUserUpdate} inferredSpaceSlug="giac-ngo" inferredView="library" /> : <SlugRedirect path="library" />} />
             <Route path="/dharmatalks" element={isRootDomain() ? <PracticeSpacePage user={user} systemConfig={systemConfig} onLogout={handleLogout} onGoToLogin={handleGoToLogin} language={language} setLanguage={setLanguage} onUserUpdate={handleUserUpdate} inferredSpaceSlug="giac-ngo" inferredView="dharmatalks" /> : <SlugRedirect path="dharmatalks" />} />
             <Route path="/meditationtimer" element={isRootDomain() ? <PracticeSpacePage user={user} systemConfig={systemConfig} onLogout={handleLogout} onGoToLogin={handleGoToLogin} language={language} setLanguage={setLanguage} onUserUpdate={handleUserUpdate} inferredSpaceSlug="giac-ngo" inferredView="meditationtimer" /> : <SlugRedirect path="meditationtimer" />} />
-            <Route path="/admin/:section?" element={
-              isRootDomain()
-                ? <ProtectedRoute user={user}>{user && <AdminPage user={user} onLogout={handleLogout} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onSystemConfigUpdate={handleSystemConfigUpdate} onUserUpdate={handleUserUpdate} isGlobalAdmin={!!user?.isGlobalAdmin} />}</ProtectedRoute>
-                : <ProtectedRoute user={user}><SlugRedirect path="admin" /></ProtectedRoute>
-            } />
 
             {/* Redirect /spaceSlug/donation back to space home (donation is handled as modal in homepage) */}
             <Route path="/:spaceSlug/donation" element={<SpaceDonationRedirect />} />

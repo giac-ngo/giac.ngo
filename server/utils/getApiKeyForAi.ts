@@ -14,6 +14,10 @@ import { systemModel } from '../models/system.model.js';
 export async function getApiKeyForAi(aiConfig: AIConfig, providerOverride?: string): Promise<string> {
     const provider = providerOverride || aiConfig.modelType;
 
+    if (provider === 'ollama') {
+        return 'local-no-key-required';
+    }
+
     // 1. Try Space API Keys
     if (aiConfig.spaceId) {
         const space = await spaceModel.findById(aiConfig.spaceId);

@@ -1,18 +1,10 @@
 
 // client/src/components/admin/Settings.tsx
 import React, { useState, useEffect } from 'react';
-import { SystemConfig, User, Space } from '../../types';
+import { User, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
-import { EyeIcon, EyeOffIcon, SpinnerIcon, CopyIcon, UsersIcon, KeyIcon, SpeakerWaveIcon } from '../Icons';
-// Official Gemini TTS voice list
-const GEMINI_VOICES = [
-    'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus',
-    'Perseus', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Alathea',
-    'Erinome', 'Algieba', 'Despina', 'Callirrhoe', 'Zubenelgenubi',
-    'Vindemiatrix', 'Sadachbia', 'Sulafat', 'Schedar', 'Achird', 'Gacrux',
-    'Rasalgethi', 'Chara', 'Alnilam', 'Pulcherrima',
-];
+import { EyeIcon, EyeOffIcon, SpinnerIcon, CopyIcon, KeyIcon } from '../Icons';
 
 const translations = {
     vi: {
@@ -96,14 +88,14 @@ const translations = {
 interface SettingsProps {
     user: User;
     language: 'vi' | 'en';
-    systemConfig: SystemConfig;
-    onSystemConfigUpdate: (newConfig: SystemConfig) => void;
+    systemConfig?: any; // kept for API compatibility
+    onSystemConfigUpdate?: (newConfig: any) => void;
     onUserUpdate: (updatedData: Partial<User>) => void;
     space?: Space | null;
     onSpaceUpdate?: (space: Space) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig, onSystemConfigUpdate, onUserUpdate, space, onSpaceUpdate }) => {
+export const Settings: React.FC<SettingsProps> = ({ user, language, onUserUpdate, space, onSpaceUpdate }) => {
     const t = translations[language];
     const { showToast } = useToast();
 
@@ -121,12 +113,8 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
         try {
             const promises = [];
 
-            // 1. Cập nhật User Keys (Personal Token)
-            const userPayload: Partial<User> = {
-                id: localUser.id,
-                apiKeys: localUser.apiKeys || {},
-            };
-            promises.push(apiService.updateUser(userPayload as any).then(onUserUpdate));
+            // 1. Cập nhật User (Personal Token - chỉ regenerate thủ công, không update ở đây)
+            // API Keys đã chuyển sang Space - không lưu apiKeys ở user nữa
 
             // 2. Cập nhật Space (SMTP config)
             if (space && onSpaceUpdate) {
@@ -160,7 +148,6 @@ export const Settings: React.FC<SettingsProps> = ({ user, language, systemConfig
         showToast(t.copied, 'info');
     };
 
-    const isAdmin = user.permissions?.includes('settings');
 
     return (
         <div className="p-8 max-w-7xl mx-auto">

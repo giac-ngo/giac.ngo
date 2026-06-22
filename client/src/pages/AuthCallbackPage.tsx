@@ -33,8 +33,11 @@ export const AuthCallbackPage: React.FC<AuthCallbackPageProps> = ({ onLogin }) =
                 const userJson = atob(userParam);
                 const userData: User = JSON.parse(userJson);
                 onLogin(userData);
-                const redirectPath = sessionStorage.getItem('redirectPath') || '/';
+                let redirectPath = sessionStorage.getItem('redirectPath') || '/';
                 sessionStorage.removeItem('redirectPath');
+                if (userData.isGlobalAdmin) {
+                    redirectPath = '/admin';
+                }
                 navigate(redirectPath, { replace: true });
             } catch (e) {
                 console.error("Failed to parse user data from callback:", e);

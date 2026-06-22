@@ -515,7 +515,8 @@ const CategoryManagerModal: React.FC<{
     documentTypes: DocumentType[];
     documentAuthors: DocumentAuthor[];
     initialSpaceId?: string;
-}> = ({ category, isOpen, onClose, onUpdate, language, user, spaces, documentTypes, documentAuthors, initialSpaceId }) => {
+    isSpaceLocked?: boolean;
+}> = ({ category, isOpen, onClose, onUpdate, language, user, spaces, documentTypes, documentAuthors, initialSpaceId, isSpaceLocked }) => {
     const t = translations[language];
     const { showToast } = useToast();
     useEscapeKey(onClose, isOpen);
@@ -629,7 +630,7 @@ const CategoryManagerModal: React.FC<{
         if (!isManagingTopics) {
             return items;
         }
-        
+
         let result = items;
         if (topicSearch) {
             const searchLower = topicSearch.toLowerCase();
@@ -713,7 +714,7 @@ const CategoryManagerModal: React.FC<{
                                     <input type="text" value={editingItem.name} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} className="p-1 border rounded-md flex-grow min-w-[100px]" autoFocus placeholder={t.nameLabel} />
                                     <input type="text" value={editingItem.nameEn} onChange={(e) => setEditingItem({ ...editingItem, nameEn: e.target.value })} className="p-1 border rounded-md flex-grow min-w-[100px]" placeholder={t.nameEnLabel} />
                                     {isSuperAdmin && (
-                                        <select value={editingItem.spaceId} onChange={(e) => setEditingItem({ ...editingItem, spaceId: e.target.value })} className="p-1 border rounded-md text-xs w-28">{spaces.map(s => <option key={s.id as number} value={s.id as number}>{s.name}</option>)}</select>
+                                        <select value={editingItem.spaceId} onChange={(e) => setEditingItem({ ...editingItem, spaceId: e.target.value })} disabled={isSpaceLocked} className="p-1 border rounded-md text-xs w-28 disabled:opacity-75 disabled:cursor-not-allowed">{spaces.map(s => <option key={s.id as number} value={s.id as number}>{s.name}</option>)}</select>
                                     )}
                                     {isManagingTopics && (
                                         <>
@@ -766,7 +767,7 @@ const CategoryManagerModal: React.FC<{
                         <input type="text" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} placeholder={t.nameLabel} className="p-2 border rounded-md flex-grow" />
                         <input type="text" value={newItem.nameEn} onChange={(e) => setNewItem({ ...newItem, nameEn: e.target.value })} placeholder={t.nameEnLabel} className="p-2 border rounded-md flex-grow" />
                         {isSuperAdmin && (
-                            <select value={newItem.spaceId} onChange={e => setNewItem({ ...newItem, spaceId: e.target.value })} className="p-2 border rounded-md text-sm">{spaces.map(s => <option key={s.id as number} value={s.id as number}>{s.name}</option>)}</select>
+                            <select value={newItem.spaceId} onChange={e => setNewItem({ ...newItem, spaceId: e.target.value })} disabled={isSpaceLocked} className="p-2 border rounded-md text-sm disabled:opacity-75 disabled:cursor-not-allowed">{spaces.map(s => <option key={s.id as number} value={s.id as number}>{s.name}</option>)}</select>
                         )}
                         {isManagingTopics && (
                             <>
@@ -840,8 +841,6 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
     const titleInputRef = useRef<HTMLInputElement>(null);
 
     const manageableSpaces = useMemo(() => {
-        // Backend (getSpaces) already filters: super admin sees all, others see only their owned/member spaces.
-        // If this is a global super admin context, show all. Otherwise, allSpaces is already scoped correctly.
         return allSpaces;
     }, [allSpaces]);
 
@@ -866,14 +865,21 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
 
             // Auto-select first available space for non-global-admins.
             // allSpacesData is already scoped by backend to spaces user owns or is a member of.
-            if (!isGlobalAdmin && (allSpacesData || []).length > 0) {
+            if (activeSpace) {
+                setFilters(prev => ({ ...prev, spaceId: activeSpace.id.toString() }));
+            } else if (!isGlobalAdmin && (allSpacesData || []).length > 0) {
                 setFilters(prev => ({ ...prev, spaceId: String((allSpacesData || [])[0].id) }));
             }
         } catch (error) {
             showToast(t.fetchError, 'error');
         }
-    }, [showToast, t.fetchError, user]); // Added user dependency
+    }, [showToast, t.fetchError, user, activeSpace, isGlobalAdmin]); // Added dependencies
 
+    useEffect(() => {
+        if (activeSpace) {
+            setFilters(prev => ({ ...prev, spaceId: activeSpace.id.toString() }));
+        }
+    }, [activeSpace]);
 
     const fetchCategories = useCallback(async (spaceIdFilter: string) => {
         try {
@@ -1386,6 +1392,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                     documentTypes={documentTypes}
                     documentAuthors={documentAuthors}
                     initialSpaceId={filters.spaceId}
+                    isSpaceLocked={!!activeSpace}
                 />
             )}
             <DocumentConfigModal

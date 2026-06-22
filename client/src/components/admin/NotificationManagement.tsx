@@ -33,7 +33,7 @@ const MemberPickerModal: React.FC<{
     const fetchMembers = async () => {
         setIsLoading(true);
         try {
-            let url = '/notifications/members-list';
+            let url = '/api/notifications/members-list';
             if (spaceId) url += `?spaceId=${spaceId}`;
             const data = await apiService.request(url);
             setAllMembers(data.members || []);
@@ -214,13 +214,127 @@ interface NotificationLog {
     createdAt: string;
 }
 
-const TARGET_GROUP_LABELS: Record<string, string> = {
-    test: 'Gửi Test (Nhập Email)'
+const TARGET_GROUP_LABELS: Record<string, Record<string, string>> = {
+    vi: { test: 'Gửi Test (Nhập Email)' },
+    en: { test: 'Test Send (Enter Email)' },
 };
 
-const CHANNEL_LABELS: Record<string, string> = {
-    email: '📧 Email',
-    both: '📧 Email',
+const CHANNEL_LABELS: Record<string, Record<string, string>> = {
+    vi: { email: '📧 Email', both: '📧 Email' },
+    en: { email: '📧 Email', both: '📧 Email' },
+};
+
+const translations = {
+    vi: {
+        pageTitle: '📢 Gửi Thông Báo',
+        pageDesc: 'Gửi email thông báo hàng loạt đến thành viên qua SMTP',
+        tabCompose: '✏️ Soạn thông báo',
+        tabHistory: '📋 Lịch sử gửi',
+        tabTemplate: '✉️ Template Email',
+        recipientLabel: 'Danh sách email người nhận',
+        recipientHint: '(cách nhau bằng dấu phẩy)',
+        pickFromList: '👥 Chọn từ danh sách',
+        recipientPlaceholder: 'email1@example.com, email2@example.com',
+        recipientCount: (n: number) => `${n} email · Nhập trực tiếp hoặc chọn từ danh sách thành viên`,
+        titleLabel: 'Tiêu đề',
+        titlePlaceholder: 'VD: Thông báo lịch tu tập tháng 3/2026',
+        titleCount: (n: number) => `${n}/200 ký tự`,
+        bodyLabel: 'Nội dung',
+        bodyPlaceholder: 'Viết nội dung thông báo ở đây...',
+        bodyCount: (n: number) => `${n} ký tự · Xuống dòng (Enter) sẽ được giữ nguyên trong email`,
+        channelInfo: 'Gửi qua SMTP LarkSuite (admin@giac.ngo) · Tốc độ: ~4 email/giây',
+        sendTip: '💡 Email được gửi từng cái một để tránh bị đánh dấu spam',
+        sendBtn: '📨 Gửi Thông Báo',
+        sending: 'Đang gửi...',
+        sentStats: (sent: number, failed: number) => `Thành công: ${sent} · Thất bại: ${failed}`,
+        errorNoContent: 'Vui lòng nhập tiêu đề và nội dung thông báo.',
+        errorNoEmail: 'Vui lòng nhập ít nhất 1 email vào danh sách người nhận.',
+        confirmSend: (n: number) => `Bạn sắp gửi email đến ${n} địa chỉ.\n\nBạn có chắc chắn muốn tiếp tục?`,
+        historyLoading: 'Đang tải lịch sử...',
+        historyEmpty: 'Chưa có thông báo nào được gửi.',
+        historyBy: (name: string) => `bởi ${name}`,
+        prevPage: '← Trước',
+        nextPage: 'Sau →',
+        templateTitle: 'Cấu hình Template Email',
+        templateDesc: 'Sử dụng HTML/CSS nội tuyến (inline styles) để thiết kế khung Email cho Không gian hiện tại.',
+        templateVarHint: 'vào nơi bạn muốn hệ thống chèn nội dung văn bản tự động.',
+        codeTab: '💻 Mã HTML',
+        previewTab: '👁️ Xem trước',
+        templatePlaceholder: 'Nhập mã HTML...',
+        savingTemplate: 'Đang lưu...',
+        saveTemplate: 'Lưu Template',
+        saveTemplateSuccess: 'Lưu Cấu hình Template thành công!',
+        saveTemplateFail: 'Lưu Template thất bại: ',
+        confirmTitle: 'Xác nhận gửi thông báo',
+        confirmCancel: 'Hủy',
+        confirmOk: 'Xác nhận gửi',
+        pickerTitle: '👥 Chọn thành viên',
+        pickerSelected: (n: number, total: number) => `Đã chọn ${n} / ${total} thành viên`,
+        pickerSearch: 'Tìm kiếm theo tên hoặc email...',
+        pickerSelectAll: (n: number) => `Chọn tất cả (${n})`,
+        pickerDeselectAll: 'Bỏ chọn tất cả',
+        pickerLoading: '⏳ Đang tải danh sách...',
+        pickerEmpty: 'Không có thành viên nào',
+        pickerNotFound: (q: string) => `Không tìm thấy "${q}"`,
+        pickerClear: 'Xóa chọn lựa',
+        pickerCancel: 'Hủy',
+        pickerConfirm: (n: number) => `Xác nhận (${n})`,
+    },
+    en: {
+        pageTitle: '📢 Send Notifications',
+        pageDesc: 'Send bulk email notifications to members via SMTP',
+        tabCompose: '✏️ Compose',
+        tabHistory: '📋 History',
+        tabTemplate: '✉️ Email Template',
+        recipientLabel: 'Recipient email list',
+        recipientHint: '(comma-separated)',
+        pickFromList: '👥 Pick from list',
+        recipientPlaceholder: 'email1@example.com, email2@example.com',
+        recipientCount: (n: number) => `${n} emails · Type directly or pick from member list`,
+        titleLabel: 'Subject',
+        titlePlaceholder: 'e.g. March 2026 Schedule Announcement',
+        titleCount: (n: number) => `${n}/200 characters`,
+        bodyLabel: 'Body',
+        bodyPlaceholder: 'Write the notification content here...',
+        bodyCount: (n: number) => `${n} characters · Line breaks will be preserved in the email`,
+        channelInfo: 'Sent via LarkSuite SMTP (admin@giac.ngo) · Speed: ~4 emails/sec',
+        sendTip: '💡 Emails are sent one by one to avoid spam filters',
+        sendBtn: '📨 Send Notification',
+        sending: 'Sending...',
+        sentStats: (sent: number, failed: number) => `Sent: ${sent} · Failed: ${failed}`,
+        errorNoContent: 'Please enter a subject and body.',
+        errorNoEmail: 'Please enter at least 1 email recipient.',
+        confirmSend: (n: number) => `You are about to send an email to ${n} addresses.\n\nAre you sure you want to continue?`,
+        historyLoading: 'Loading history...',
+        historyEmpty: 'No notifications have been sent yet.',
+        historyBy: (name: string) => `by ${name}`,
+        prevPage: '← Prev',
+        nextPage: 'Next →',
+        templateTitle: 'Email Template Configuration',
+        templateDesc: 'Use inline HTML/CSS to design the Email layout for this Space.',
+        templateVarHint: 'where you want the system to insert the message body automatically.',
+        codeTab: '💻 HTML Code',
+        previewTab: '👁️ Preview',
+        templatePlaceholder: 'Enter HTML code...',
+        savingTemplate: 'Saving...',
+        saveTemplate: 'Save Template',
+        saveTemplateSuccess: 'Email template saved successfully!',
+        saveTemplateFail: 'Failed to save template: ',
+        confirmTitle: 'Confirm sending notification',
+        confirmCancel: 'Cancel',
+        confirmOk: 'Confirm Send',
+        pickerTitle: '👥 Select Members',
+        pickerSelected: (n: number, total: number) => `Selected ${n} / ${total} members`,
+        pickerSearch: 'Search by name or email...',
+        pickerSelectAll: (n: number) => `Select all (${n})`,
+        pickerDeselectAll: 'Deselect all',
+        pickerLoading: '⏳ Loading members...',
+        pickerEmpty: 'No members found',
+        pickerNotFound: (q: string) => `No results for "${q}"`,
+        pickerClear: 'Clear selection',
+        pickerCancel: 'Cancel',
+        pickerConfirm: (n: number) => `Confirm (${n})`,
+    },
 };
 
 interface NotificationManagementProps {
@@ -231,6 +345,9 @@ interface NotificationManagementProps {
 }
 
 export const NotificationManagement: React.FC<NotificationManagementProps> = ({ user, space, language, onSpaceUpdate }) => {
+    const t = translations[language];
+    const tGroups = TARGET_GROUP_LABELS[language];
+    const tChannels = CHANNEL_LABELS[language];
     void (user.permissions?.includes('users') || user.permissions?.includes('roles')); // isSuperAdmin check for future use
     const { showToast } = useToast();
     
@@ -247,9 +364,9 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
         try {
             const updatedSpace = await apiService.updateSpace(space.id, { emailTemplate: localSpaceData.emailTemplate });
             onSpaceUpdate(updatedSpace);
-            showToast('Lưu Cấu hình Template thành công!', 'success');
+            showToast(t.saveTemplateSuccess, 'success');
         } catch (e: any) {
-            showToast('Lưu Template thất bại: ' + (e?.message || String(e)), 'error');
+            showToast(t.saveTemplateFail + (e?.message || String(e)), 'error');
         } finally {
             setIsSavingTemplate(false);
         }
@@ -300,7 +417,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
     const fetchLogs = useCallback(async (page = 1) => {
         setIsLoadingLogs(true);
         try {
-            const data = await apiService.request(`/notifications/logs?page=${page}&limit=10`);
+            const data = await apiService.request(`/api/notifications/logs?page=${page}&limit=10`);
             setLogs(data.logs || []);
             setLogsTotalPages(data.totalPages || 1);
             setLogsPage(page);
@@ -319,7 +436,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
 
     const handleSend = async () => {
         if (!title.trim() || !body.trim()) {
-            setSendResult({ success: false, message: 'Vui lòng nhập tiêu đề và nội dung thông báo.' });
+            setSendResult({ success: false, message: t.errorNoContent });
             return;
         }
 
@@ -329,13 +446,11 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
             : customEmails.split(',').map((e: string) => e.trim()).filter((e: string) => e);
 
         if (emailList.length === 0) {
-            setSendResult({ success: false, message: 'Vui lòng nhập ít nhất 1 email vào danh sách người nhận.' });
+            setSendResult({ success: false, message: t.errorNoEmail });
             return;
         }
 
-        const confirmed = await askConfirm(
-            `Bạn sắp gửi email đến ${emailList.length} địa chỉ.\n\nBạn có chắc chắn muốn tiếp tục?`
-        );
+        const confirmed = await askConfirm(t.confirmSend(emailList.length));
         if (!confirmed) return;
 
         setIsSending(true);
@@ -353,7 +468,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                 bodyPayload.spaceId = space.id;
             }
 
-            const result = await apiService.request('/notifications/broadcast', {
+            const result = await apiService.request('/api/notifications/broadcast', {
                 method: 'POST',
                 body: JSON.stringify(bodyPayload),
             });
@@ -381,42 +496,22 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
         <div className="p-6 max-w-4xl mx-auto">
             {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-text-main">📢 Gửi Thông Báo {space ? `(Không gian: ${space.name})` : ''}</h1>
+                <h1 className="text-2xl font-bold text-text-main">{t.pageTitle} {space ? `(${space.name})` : ''}</h1>
                 <p className="text-text-light mt-1 text-sm">
-                    Gửi email thông báo hàng loạt đến thành viên qua SMTP <code className="bg-background-light px-1 rounded text-xs">smtp.larksuite.com</code>
+                    {t.pageDesc} <code className="bg-background-light px-1 rounded text-xs">smtp.larksuite.com</code>
                 </p>
             </div>
 
             {/* Tabs */}
             <div className="flex gap-2 mb-6 border-b border-border-color">
-                <button
-                    onClick={() => setActiveTab('compose')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'compose'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-text-light hover:text-text-main'
-                        }`}
-                >
-                    ✏️ Soạn thông báo
-                </button>
-                <button
-                    onClick={() => setActiveTab('history')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'history'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-text-light hover:text-text-main'
-                        }`}
-                >
-                    📋 Lịch sử gửi
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('template')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'template'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-text-light hover:text-text-main'
-                        }`}
-                >
-                    ✉️ Template Email
-                </button>
+                {(['compose', 'history', 'template'] as const).map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-text-light hover:text-text-main'
+                        }`}>
+                        {tab === 'compose' ? t.tabCompose : tab === 'history' ? t.tabHistory : t.tabTemplate}
+                    </button>
+                ))}
             </div>
 
             {/* ─── TAB: COMPOSE ─── */}
@@ -426,63 +521,51 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
                             <label className="block text-sm font-semibold text-text-main">
-                                Danh sách email người nhận
-                                <span className="ml-2 text-xs font-normal text-text-light">(cách nhau bằng dấu phẩy)</span>
+                                {t.recipientLabel}
+                                <span className="ml-2 text-xs font-normal text-text-light">{t.recipientHint}</span>
                             </label>
-                            <button
-                                onClick={() => setShowMemberPicker(true)}
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                            >
-                                👥 Chọn từ danh sách
+                            <button onClick={() => setShowMemberPicker(true)}
+                                className="text-xs text-primary hover:underline flex items-center gap-1">
+                                {t.pickFromList}
                             </button>
                         </div>
-                        <textarea
-                            value={customEmails}
-                            onChange={e => setCustomEmails(e.target.value)}
-                            placeholder="email1@example.com, email2@example.com"
-                            rows={3}
+                        <textarea value={customEmails} onChange={e => setCustomEmails(e.target.value)}
+                            placeholder={t.recipientPlaceholder} rows={3}
                             className="w-full border border-border-color rounded-lg px-4 py-2.5 text-sm text-text-main bg-background-panel focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent placeholder:text-text-light"
                         />
                         <p className="text-xs text-text-light">
-                            {customEmails.split(',').map(e => e.trim()).filter(e => e).length} email · Nhập trực tiếp hoặc chọn từ danh sách thành viên
+                            {t.recipientCount(customEmails.split(',').map(e => e.trim()).filter(e => e).length)}
                         </p>
                     </div>
 
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-semibold text-text-main mb-1">
-                            Tiêu đề <span className="text-accent-red">*</span>
+                            {t.titleLabel} <span className="text-accent-red">*</span>
                         </label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={e => setTitle(e.target.value)}
-                            placeholder="VD: Thông báo lịch tu tập tháng 3/2026"
-                            maxLength={200}
+                        <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                            placeholder={t.titlePlaceholder} maxLength={200}
                             className="w-full border border-border-color rounded-lg px-4 py-2.5 text-sm text-text-main bg-background-panel focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent placeholder:text-text-light"
                         />
-                        <p className="text-xs text-text-light mt-1">{title.length}/200 ký tự</p>
+                        <p className="text-xs text-text-light mt-1">{t.titleCount(title.length)}</p>
                     </div>
 
                     {/* Body */}
                     <div>
                         <label className="block text-sm font-semibold text-text-main mb-1">
-                            Nội dung <span className="text-accent-red">*</span>
+                            {t.bodyLabel} <span className="text-accent-red">*</span>
                         </label>
-                        <textarea
-                            value={body}
-                            onChange={e => setBody(e.target.value)}
-                            rows={10}
-                            placeholder={`Viết nội dung thông báo ở đây...\n\nVí dụ:\nKính gửi quý đạo hữu,\n\nChùa xin thông báo lịch tu học tháng 3/2026:\n- Ngày 15/3: Khóa tu thiền định\n- Ngày 22/3: Buổi pháp thoại\n\nTrân trọng.`}
+                        <textarea value={body} onChange={e => setBody(e.target.value)} rows={10}
+                            placeholder={t.bodyPlaceholder}
                             className="w-full border border-border-color rounded-lg px-4 py-3 text-sm text-text-main bg-background-panel focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent placeholder:text-text-light resize-none font-mono leading-relaxed"
                         />
-                        <p className="text-xs text-text-light mt-1">{body.length} ký tự · Xuống dòng (Enter) sẽ được giữ nguyên trong email</p>
+                        <p className="text-xs text-text-light mt-1">{t.bodyCount(body.length)}</p>
                     </div>
 
                     {/* Channel info */}
                     <div className="p-3 bg-background-light border border-border-color rounded-lg flex items-center gap-2 text-sm text-text-light">
                         <span>📧</span>
-                        <span>Gửi qua <strong>SMTP LarkSuite</strong> (<code className="text-xs">admin@giac.ngo</code>) · Tốc độ: ~4 email/giây</span>
+                        <span>{t.channelInfo}</span>
                     </div>
 
                     {/* Result */}
@@ -497,7 +580,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                                     <p className="font-semibold">{sendResult.message}</p>
                                     {sendResult.sent !== undefined && (
                                         <p className="mt-1 text-xs opacity-80">
-                                            Thành công: {sendResult.sent} · Thất bại: {sendResult.failed}
+                                            {t.sentStats(sendResult.sent, sendResult.failed ?? 0)}
                                         </p>
                                     )}
                                 </div>
@@ -507,25 +590,18 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
 
                     {/* Send button */}
                     <div className="flex items-center justify-between pt-2">
-                        <p className="text-xs text-text-light">
-                            💡 Email được gửi từng cái một để tránh bị đánh dấu spam
-                        </p>
-                        <button
-                            onClick={handleSend}
-                            disabled={isSending || !title.trim() || !body.trim()}
-                            className="px-6 py-2.5 bg-primary text-text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-                        >
+                        <p className="text-xs text-text-light">{t.sendTip}</p>
+                        <button onClick={handleSend} disabled={isSending || !title.trim() || !body.trim()}
+                            className="px-6 py-2.5 bg-primary text-text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
                             {isSending ? (
                                 <>
                                     <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    Đang gửi...
+                                    {t.sending}
                                 </>
-                            ) : (
-                                <>📨 Gửi Thông Báo</>
-                            )}
+                            ) : t.sendBtn}
                         </button>
                     </div>
                 </div>
@@ -535,11 +611,11 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
             {activeTab === 'history' && (
                 <div>
                     {isLoadingLogs ? (
-                        <div className="text-center py-12 text-text-light">Đang tải lịch sử...</div>
+                        <div className="text-center py-12 text-text-light">{t.historyLoading}</div>
                     ) : logs.length === 0 ? (
                         <div className="text-center py-12 text-text-light">
                             <p className="text-4xl mb-3">📭</p>
-                            <p>Chưa có thông báo nào được gửi.</p>
+                            <p>{t.historyEmpty}</p>
                         </div>
                     ) : (
                         <>
@@ -550,10 +626,10 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
                                                     <span className="text-xs bg-primary-light text-primary px-2 py-0.5 rounded-full font-medium">
-                                                        {CHANNEL_LABELS[log.channel] || log.channel}
+                                                        {tChannels[log.channel] || log.channel}
                                                     </span>
                                                     <span className="text-xs bg-background-light text-text-light px-2 py-0.5 rounded-full">
-                                                        {TARGET_GROUP_LABELS[log.targetGroup] || log.targetGroup}
+                                                        {tGroups[log.targetGroup] || log.targetGroup}
                                                     </span>
                                                 </div>
                                                 <h3 className="font-semibold text-text-main text-sm truncate">{log.title}</h3>
@@ -568,7 +644,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                                                     )}
                                                 </p>
                                                 {log.createdByName && (
-                                                    <p className="text-xs text-text-light mt-0.5">bởi {log.createdByName}</p>
+                                                    <p className="text-xs text-text-light mt-0.5">{t.historyBy(log.createdByName)}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -579,22 +655,14 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                             {/* Pagination */}
                             {logsTotalPages > 1 && (
                                 <div className="flex justify-center gap-2 mt-4">
-                                    <button
-                                        onClick={() => fetchLogs(logsPage - 1)}
-                                        disabled={logsPage <= 1}
-                                        className="px-3 py-1 text-xs border border-border-color rounded disabled:opacity-40 hover:bg-background-light"
-                                    >
-                                        ← Trước
+                                    <button onClick={() => fetchLogs(logsPage - 1)} disabled={logsPage <= 1}
+                                        className="px-3 py-1 text-xs border border-border-color rounded disabled:opacity-40 hover:bg-background-light">
+                                        {t.prevPage}
                                     </button>
-                                    <span className="px-3 py-1 text-xs text-text-light">
-                                        {logsPage} / {logsTotalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => fetchLogs(logsPage + 1)}
-                                        disabled={logsPage >= logsTotalPages}
-                                        className="px-3 py-1 text-xs border border-border-color rounded disabled:opacity-40 hover:bg-background-light"
-                                    >
-                                        Sau →
+                                    <span className="px-3 py-1 text-xs text-text-light">{logsPage} / {logsTotalPages}</span>
+                                    <button onClick={() => fetchLogs(logsPage + 1)} disabled={logsPage >= logsTotalPages}
+                                        className="px-3 py-1 text-xs border border-border-color rounded disabled:opacity-40 hover:bg-background-light">
+                                        {t.nextPage}
                                     </button>
                                 </div>
                             )}
@@ -610,26 +678,23 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                 <div className="space-y-6">
                     <div className="bg-background-panel shadow-md rounded-xl p-6 border border-border-color mt-4">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Cấu hình Template Email</h2>
+                            <h2 className="text-xl font-bold">{t.templateTitle}</h2>
                         </div>
                         <p className="text-sm text-text-light mb-6 text-justify leading-relaxed">
-                            Sử dụng HTML/CSS nội tuyến (inline styles) để thiết kế khung Email cho Không gian hiện tại. <br/>
-                            Bạn bắt buộc phải đặt biến <code className="bg-background-light border border-border-color px-1.5 py-0.5 rounded text-primary text-xs">{"{{content}}"}</code> vào nơi bạn muốn hệ thống chèn nội dung văn bản tự động.
+                            {t.templateDesc} <br/>
+                            <span dangerouslySetInnerHTML={{ __html: '' }} />{/* placeholder */}
+                            {t.templateVarHint.split('{{content}}')[0]}<code className="bg-background-light border border-border-color px-1.5 py-0.5 rounded text-primary text-xs">{'{{'+'content'+'}}'}  </code>{t.templateVarHint}
                         </p>
 
                         <div className="border border-border-color rounded-lg overflow-hidden flex flex-col">
                             <div className="flex bg-background-light border-b border-border-color">
-                                <button
-                                    onClick={() => setViewMode('code')}
-                                    className={`px-6 py-3 text-sm font-semibold transition-colors ${viewMode === 'code' ? 'bg-background-panel text-primary border-b-2 border-primary' : 'text-text-light hover:text-text-main hover:bg-white'}`}
-                                >
-                                    💻 Mã HTML
+                                <button onClick={() => setViewMode('code')}
+                                    className={`px-6 py-3 text-sm font-semibold transition-colors ${viewMode === 'code' ? 'bg-background-panel text-primary border-b-2 border-primary' : 'text-text-light hover:text-text-main hover:bg-white'}`}>
+                                    {t.codeTab}
                                 </button>
-                                <button
-                                    onClick={() => setViewMode('preview')}
-                                    className={`px-6 py-3 text-sm font-semibold transition-colors ${viewMode === 'preview' ? 'bg-background-panel text-primary border-b-2 border-primary' : 'text-text-light hover:text-text-main hover:bg-white'}`}
-                                >
-                                    👁️ Xem trước
+                                <button onClick={() => setViewMode('preview')}
+                                    className={`px-6 py-3 text-sm font-semibold transition-colors ${viewMode === 'preview' ? 'bg-background-panel text-primary border-b-2 border-primary' : 'text-text-light hover:text-text-main hover:bg-white'}`}>
+                                    {t.previewTab}
                                 </button>
                             </div>
                             
@@ -651,12 +716,9 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                             </div>
                         </div>
                         <div className="flex justify-end pt-6">
-                            <button
-                                onClick={handleSaveTemplate}
-                                disabled={isSavingTemplate}
-                                className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold shadow transition-colors disabled:opacity-70"
-                            >
-                                {isSavingTemplate ? 'Đang lưu...' : 'Lưu Template'}
+                            <button onClick={handleSaveTemplate} disabled={isSavingTemplate}
+                                className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold shadow transition-colors disabled:opacity-70">
+                                {isSavingTemplate ? t.savingTemplate : t.saveTemplate}
                             </button>
                         </div>
                     </div>
@@ -680,22 +742,18 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
                         <div className="flex items-start gap-3 mb-5">
                             <span className="text-2xl flex-shrink-0">📨</span>
                             <div>
-                                <h3 className="font-bold text-text-main text-base mb-1">Xác nhận gửi thông báo</h3>
+                                <h3 className="font-bold text-text-main text-base mb-1">{t.confirmTitle}</h3>
                                 <p className="text-sm text-text-light whitespace-pre-line">{confirmModal.message}</p>
                             </div>
                         </div>
                         <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={() => handleConfirmModalClose(false)}
-                                className="px-4 py-2 text-sm border border-border-color rounded-lg hover:bg-background-light transition-colors text-text-main"
-                            >
-                                Hủy
+                            <button onClick={() => handleConfirmModalClose(false)}
+                                className="px-4 py-2 text-sm border border-border-color rounded-lg hover:bg-background-light transition-colors text-text-main">
+                                {t.confirmCancel}
                             </button>
-                            <button
-                                onClick={() => handleConfirmModalClose(true)}
-                                className="px-5 py-2 text-sm bg-primary text-text-on-primary font-semibold rounded-lg hover:bg-primary-hover transition-colors"
-                            >
-                                Xác nhận gửi
+                            <button onClick={() => handleConfirmModalClose(true)}
+                                className="px-5 py-2 text-sm bg-primary text-text-on-primary font-semibold rounded-lg hover:bg-primary-hover transition-colors">
+                                {t.confirmOk}
                             </button>
                         </div>
                     </div>
