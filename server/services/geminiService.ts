@@ -286,7 +286,7 @@ Summary:`;
     },
 
     // ---------- Stream Chat ----------
-    sendMessageStream: async (aiConfig: any, history: any[], apiKey: string, callbacks: any, language: string, retrievedContext = '') => {
+    sendMessageStream: async (aiConfig: any, history: any[], apiKey: string, callbacks: any, language: string, retrievedContext = '', userPersona?: any) => {
         try {
             if (!apiKey) throw new Error("Gemini API Key missing.");
 
@@ -315,11 +315,30 @@ Summary:`;
                 ? `**CRITICAL LANGUAGE RULE:** You MUST respond ONLY in English. Do NOT use Vietnamese under any circumstances, regardless of any other instructions below. This overrides all other language settings.`
                 : `**QUY TẮC NGÔN NGỮ:** Hãy trả lời bằng tiếng Việt.`;
 
+            let userPersonaInstruction = '';
+            if (userPersona) {
+                if (typeof userPersona === 'string') {
+                    userPersonaInstruction = `**USER PERSONA INFORMATION:**\n${userPersona}`;
+                } else if (typeof userPersona === 'object') {
+                    const { name, age, gender, style } = userPersona;
+                    const details = [];
+                    if (name) details.push(`- Tên: ${name}`);
+                    if (age) details.push(`- Tuổi: ${age}`);
+                    if (gender) details.push(`- Giới tính: ${gender === 'male' ? 'Nam' : (gender === 'female' ? 'Nữ' : gender)}`);
+                    if (style) details.push(`- Cách xưng hô/Phong cách yêu cầu: ${style}`);
+                    
+                    userPersonaInstruction = `**THÔNG TIN VỀ NGƯỜI ĐỐI THOẠI (USER PERSONA):**\n` +
+                        `Dưới đây là thông tin về người đang trò chuyện với bạn. Hãy sử dụng thông tin này để xưng hô và điều chỉnh cách trả lời cho phù hợp (ví dụ xưng hô "Lão - con", xưng "Ta", hoặc gọi tên phù hợp với tuổi tác/giới tính):\n` +
+                        details.join('\n');
+                }
+            }
+
             const systemInstruction = [
                 languageInstruction,
                 ragContext,
                 aiConfig.trainingContent,
                 additionalTrainingText,
+                userPersonaInstruction,
                 `Use Markdown for formatting.`
             ].filter(Boolean).join('\n\n---\n\n');
 

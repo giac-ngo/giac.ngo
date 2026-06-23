@@ -52,17 +52,17 @@ const upload = multer({
 
 const router = Router();
 
-router.get('/', spacesController.getAllSpaces);
+router.get('/', optionalAuth, spacesController.getAllSpaces);
 router.get('/my-spaces', isAuthenticated, spacesController.getMySpaces); // Admin panel: get only my owned/member spaces
-router.get('/:id(\\d+)', spacesController.getSpaceById);
+router.get('/:id(\\d+)', optionalAuth, spacesController.getSpaceById);
 // Specific sub-routes MUST come before the generic /:slug route
-router.get('/domain/:domain', spacesController.getSpaceByDomain);
+router.get('/domain/:domain', optionalAuth, spacesController.getSpaceByDomain);
 router.get('/managed/:userId', isAuthenticated, userController.getUserSpaces); // alias: GET /api/spaces/managed/:userId
 router.get('/owners', isAuthenticated, userController.getSpaceOwners);         // alias: GET /api/spaces/owners
 router.get('/owner-data', isAuthenticated, userController.getMySpaceOwnerData); // alias: GET /api/spaces/owner-data
-router.get('/slug/:slug', spacesController.getSpaceBySlug);                    // explicit slug prefix for apiService
+router.get('/slug/:slug', optionalAuth, spacesController.getSpaceBySlug);                    // explicit slug prefix for apiService
 router.get('/:slug/published-page/:pageSlug(*)?', spacePageController.servePublicPage);
-router.get('/:slug', spacesController.getSpaceBySlug);
+router.get('/:slug', optionalAuth, spacesController.getSpaceBySlug);
 router.post('/', checkPermission('spaces'), upload.single('image'), spacesController.createSpace);
 router.put('/:id', checkPermission('spaces'), upload.single('image'), spacesController.updateSpace);
 router.delete('/:id', checkPermission('spaces'), spacesController.deleteSpace);

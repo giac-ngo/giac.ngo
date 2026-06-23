@@ -2470,30 +2470,40 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                                 <div className="space-y-6">
                                     <p className="text-sm text-text-light">{t.apiEndpointDesc}</p>
                                     <div>
-                                        <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
-                                        <div className="mt-1 flex rounded-md shadow-sm">
-                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/chat`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
-                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/chat`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
-                                        </div>
-                                    </div>
-                                    <div>
                                         <label className="block text-sm font-medium text-text-main">API Token ({isSuperAdmin ? 'Admin' : t.owner})</label>
                                         <div className="mt-1 flex rounded-md shadow-sm">
                                             <input type="password" readOnly value={user.apiToken || ''} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
                                             <button onClick={() => { navigator.clipboard.writeText(user.apiToken || ''); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
-                                        <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
-                                            {language === 'vi' ? `POST /api/v1/chat
+
+                                    <div className="border-t border-border-color pt-6 space-y-4">
+                                        <h3 className="text-base font-semibold text-text-main">1. Chat API (Hội thoại AI & RAG)</h3>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                            <div className="mt-1 flex rounded-md shadow-sm">
+                                                <input type="text" readOnly value={`${window.location.origin}/api/v1/chat`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/chat`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                            <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                {language === 'vi' ? `POST /api/v1/chat
 Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
 {
   "aiConfigId": ${selectedAi.id},
   "message": "Xin chào!",
-  "language": "vi"
+  "language": "vi",
+  "stream": false,
+  "userPersona": {
+    "name": "Khách",
+    "age": 30,
+    "gender": "male",
+    "style": "thân thiện"
+  }
 }` : `POST /api/v1/chat
 Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
@@ -2501,24 +2511,79 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 {
   "aiConfigId": ${selectedAi.id},
   "message": "Hello!",
-  "language": "en"
+  "language": "en",
+  "stream": false,
+  "userPersona": {
+    "name": "Guest",
+    "age": 30,
+    "gender": "male",
+    "style": "friendly"
+  }
 }`}
-                                        </pre>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response)' : 'Response'}</label>
-                                        <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
-                                            {language === 'vi' ? `{
+                                            </pre>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response - JSON thuần)' : 'Response - Plain JSON'}</label>
+                                            <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                {language === 'vi' ? `{
   "message": "Xin chào! Tôi có thể giúp gì cho bạn?"
 }` : `{
   "message": "Hello! How can I help you?"
 }`}
-                                        </pre>
-                                        <p className="mt-2 text-xs text-text-light whitespace-pre-line">
-                                            {language === 'vi'
-                                                ? '• message: Nội dung tin nhắn (bắt buộc)\n• language: "vi" hoặc "en" (mặc định: "vi")\n• Phản hồi: JSON thuần (không streaming)'
-                                                : '• message: Message content (required)\n• language: "vi" or "en" (default: "vi")\n• Response: Plain JSON (non-streaming)'}
-                                        </p>
+                                            </pre>
+                                            <p className="mt-2 text-xs text-text-light whitespace-pre-line">
+                                                {language === 'vi'
+                                                    ? '• message: Nội dung tin nhắn gửi đi (bắt buộc)\n• stream: Tùy chọn (true để nhận Server-Sent Events stream, false/không truyền để nhận JSON)\n• userPersona: Thông tin khách đang nói chuyện để AI xưng hô tự động'
+                                                    : '• message: Message content to send (required)\n• stream: Optional (true for Server-Sent Events stream, false/omitted for plain JSON)\n• userPersona: Optional context about the speaker for dynamic AI styling'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-border-color pt-6 space-y-4">
+                                        <h3 className="text-base font-semibold text-text-main">2. TTS API (Sinh giọng nói AI)</h3>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                            <div className="mt-1 flex rounded-md shadow-sm">
+                                                <input type="text" readOnly value={`${window.location.origin}/api/v1/tts`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/tts`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                            <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                {language === 'vi' ? `POST /api/v1/tts
+Content-Type: application/json
+Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
+
+{
+  "aiConfigId": ${selectedAi.id},
+  "text": "Nam Mô A Di Đà Phật!"
+}` : `POST /api/v1/tts
+Content-Type: application/json
+Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
+
+{
+  "aiConfigId": ${selectedAi.id},
+  "text": "Welcome to Giac Ngo AI!"
+}`}
+                                            </pre>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response)' : 'Response'}</label>
+                                            <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                {`{
+  "audioContent": "BASE64_AUDIO_DATA...",
+  "mimeType": "audio/mp3",
+  "provider": "${selectedAi.ttsProvider || 'gemini'}",
+  "voice": "${selectedAi.ttsVoice || 'Puck'}"
+}`}
+                                            </pre>
+                                            <p className="mt-2 text-xs text-text-light whitespace-pre-line">
+                                                {language === 'vi'
+                                                    ? '• text: Văn bản cần đọc (bắt buộc)\n• aiConfigId: ID cấu hình AI để lấy cài đặt giọng nói từ trang cấu hình\n• Phản hồi: Dữ liệu âm thanh Base64 và thông tin định dạng âm thanh'
+                                                    : '• text: Text content to read (required)\n• aiConfigId: AI config ID to auto-load its voice settings\n• Response: Base64 audio content and format details'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             )}

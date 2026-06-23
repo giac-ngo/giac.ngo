@@ -28,7 +28,7 @@ const mapAndSanitizeUser = (user: User | null) => {
 
 export const chatController = {
     async sendMessageStream(req: Request, res: Response) {
-        let { aiConfig, aiConfigId, messages, message, conversationId, isTestChat, language, clientAiMessageId, guestTurnCount } = req.body;
+        let { aiConfig, aiConfigId, messages, message, conversationId, isTestChat, language, clientAiMessageId, guestTurnCount, userPersona } = req.body;
 
         if (!messages && message) {
             if (typeof message === 'string') {
@@ -236,7 +236,7 @@ export const chatController = {
             const service = services[aiConfig.modelType];
             if (!service) return onError(new Error(`Unsupported model type: ${aiConfig.modelType}`));
             
-            service.sendMessageStream(aiConfig, finalMessages.slice(-8), apiKey, { onChunk, onEnd, onError }, language, retrievedContext);
+            service.sendMessageStream(aiConfig, finalMessages.slice(-8), apiKey, { onChunk, onEnd, onError }, language, retrievedContext, userPersona);
 
         } catch (error: any) {
             onError(error);
@@ -279,7 +279,7 @@ export const chatController = {
 
     async sendMessageJson(req: Request, res: Response) {
         try {
-            let { aiConfigId, message, language = 'vi' } = req.body;
+            let { aiConfigId, message, language = 'vi', userPersona } = req.body;
 
             if (!aiConfigId) {
                 return res.status(400).json({ error: 'aiConfigId is required' });
@@ -360,7 +360,8 @@ export const chatController = {
                 apiKey,
                 { onChunk, onEnd, onError },
                 language,
-                retrievedContext
+                retrievedContext,
+                userPersona
             );
 
             if (hasError) {

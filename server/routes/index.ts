@@ -21,6 +21,7 @@ import spaceTypesRoutes from './spaceTypesRoutes.js';
 import systemRoutes from './systemRoutes.js';
 import trainingDataRoutes from './trainingDataRoutes.js';
 import userRoutes from './userRoutes.js';
+import v1Routes from './v1Routes.js';
 
 const router = Router();
 
@@ -46,5 +47,6 @@ router.use('/space-types', spaceTypesRoutes);
 router.use('/system', systemRoutes);
 router.use('/training-data', trainingDataRoutes);
 router.use('/users', userRoutes);
+router.use('/v1', v1Routes);
 
 export default router;

@@ -586,10 +586,10 @@ export const apiService = {
     getSpaces: (): Promise<Space[]> => authedFetch('/api/spaces').then(handleResponse),
     // Admin panel: get only spaces the current user owns or is a member of (requires auth)
     getMySpaces: (): Promise<Space[]> => authedFetch('/api/spaces/my-spaces').then(handleResponse),
-    getSpace: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
-    getSpaceById: (id: number | string): Promise<Space> => fetch(`/api/spaces/${id}`).then(handleResponse),
-    getSpaceBySlug: (slug: string): Promise<Space> => fetch(`/api/spaces/slug/${slug}`).then(handleResponse),
-    getSpaceByDomain: (domain: string): Promise<Space> => fetch(`/api/spaces/domain/${domain}`).then(handleResponse),
+    getSpace: (id: number | string): Promise<Space> => authedFetch(`/api/spaces/${id}`).then(handleResponse),
+    getSpaceById: (id: number | string): Promise<Space> => authedFetch(`/api/spaces/${id}`).then(handleResponse),
+    getSpaceBySlug: (slug: string): Promise<Space> => authedFetch(`/api/spaces/slug/${slug}`).then(handleResponse),
+    getSpaceByDomain: (domain: string): Promise<Space> => authedFetch(`/api/spaces/domain/${domain}`).then(handleResponse),
     getManagedSpaces: (userId: number): Promise<Space[]> => authedFetch(`/api/spaces/managed/${userId}`).then(handleResponse),
     getSpaceOwners: (): Promise<User[]> => authedFetch('/api/spaces/owners').then(handleResponse),
 
