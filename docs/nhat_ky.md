@@ -2,6 +2,26 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-06-23
+
+### 🐛 Khắc phục lỗi không load được API Keys trong tab Cấu hình mở rộng Không gian
+**Vấn đề**: Khi truy cập trang quản trị Không gian (`SpaceManagement.tsx`), tab **Cấu hình mở rộng** (Extended Configuration) luôn hiển thị các trường API Keys (Google AI Studio, OpenAI, Groq Cloud) trống trơn mặc dù dữ liệu đã được lưu thành công trong CSDL.
+- *Nguyên nhân*: Các API `getSpace`, `getSpaceById`, `getSpaceBySlug` và `getSpaceByDomain` trong `client/src/services/apiService.ts` gọi hàm `fetch` gốc thay vì `authedFetch`, làm thiếu `Authorization` header. Backend không nhận diện được token người dùng (`req.user = undefined`), xem đây là request công khai chưa đăng nhập và kích hoạt hàm `mapAndSanitizeSpace` để ẩn toàn bộ keys.
+
+**Thay đổi đã thực hiện**:
+1. **Frontend (`apiService.ts`)**: Thay đổi cả 4 hàm fetch dữ liệu Không gian sang sử dụng `authedFetch` để tự động truyền kèm token JWT khi người dùng đã đăng nhập.
+2. **Backend (`spacesRoutes.ts`)**: Bổ sung middleware `optionalAuth` cho các endpoint lấy chi tiết Không gian để cho phép backend phân giải token, kiểm tra quyền và trả về API Keys đã giải mã nếu là Owner/Admin.
+
+---
+
+### 🎙️ Hỗ trợ API v1 (Chat, TTS) & Xưng hô động theo đối tượng (User Persona)
+**Tính năng mới**:
+1. **API v1 (`v1Routes.ts`)**: Mở rộng hệ thống API ngoài phục vụ các ứng dụng liên kết (như n8n) với endpoint `/api/v1/chat` và `/api/v1/tts`.
+2. **Xưng hô động theo đối tượng (`chatController.ts`, `geminiService.ts`)**:
+   - Thêm tham số `userPersona` (chứa các thông tin cá nhân như Tên, Tuổi, Giới tính, Phong cách xưng hô mong muốn) vào luồng chat.
+   - Backend phân tích `userPersona` này để tạo prompt chỉ dẫn (system instruction) chi tiết cho Gemini, giúp AI tự điều chỉnh ngôi xưng hô phù hợp (ví dụ xưng "Ta" gọi con, xưng hô tôn kính phù hợp tuổi tác).
+3. **Tài liệu API trên UI (`AiManagement.tsx`)**: Bổ sung tab tài liệu mô tả Request/Response và hướng dẫn tích hợp cả API Chat (JSON/SSE stream) lẫn API TTS (Sinh giọng nói AI trả về dữ liệu âm thanh dạng Base64).
+
 ## 2026-05-30
 
 ### 🐛 Khắc phục lỗi model Gemini bị Deprecated & Cập nhật danh sách Model Hoạt động
