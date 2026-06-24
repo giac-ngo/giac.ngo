@@ -2,6 +2,18 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-06-24
+
+### ➕ Thêm API lấy danh sách AI Công khai & Thiết kế giao diện API Collapsible (Accordion)
+**Tính năng & Thay đổi đã thực hiện**:
+1. **Backend (`v1Routes.ts`)**: Bổ sung endpoint `GET /api/v1/public-ais` (có xác thực qua token Bearer) để truy vấn và trả về danh sách cấu hình của tất cả các AI được check "Công khai AI này" (`is_public = true`). Dữ liệu trả về được lọc (sanitize) loại bỏ các trường nhạy cảm như System Prompt để bảo mật thông tin huấn luyện.
+2. **Frontend UI (`AiManagement.tsx`)**:
+   - Chuyển đổi giao diện hiển thị danh sách các API Endpoint (trong Tab API Endpoint) từ danh sách tĩnh sang dạng collapsible (accordion) đóng/mở.
+   - Thêm component `ChevronDownIcon` làm chỉ báo đóng/mở với hiệu ứng xoay 180 độ.
+   - Thêm tài liệu hướng dẫn tích hợp chi tiết (URL Endpoint, Yêu cầu Request, Phản hồi Response mẫu) cho API lấy danh sách AI công khai vừa tạo.
+
+---
+
 ## 2026-06-23
 
 ### 🐛 Khắc phục lỗi không load được API Keys trong tab Cấu hình mở rộng Không gian

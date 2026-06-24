@@ -54,4 +54,31 @@ router.post('/tts', isAuthenticated, async (req: Request, res: Response, next: N
     }
 });
 
+// GET /api/v1/public-ais
+// Get list of public AIs (sanitized configs)
+router.get('/public-ais', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const publicAis = await aiConfigModel.findVisibleForUser(null);
+        // Map to return only safe details to avoid exposing system prompt or internal credentials
+        const sanitized = publicAis.map(ai => ({
+            id: ai.id,
+            spaceId: ai.spaceId,
+            name: ai.name,
+            nameEn: ai.nameEn,
+            description: ai.description,
+            descriptionEn: ai.descriptionEn,
+            avatarUrl: ai.avatarUrl,
+            tags: ai.tags,
+            modelType: ai.modelType,
+            modelName: ai.modelName,
+            baseDailyLimit: ai.baseDailyLimit,
+            createdAt: ai.createdAt,
+            updatedAt: ai.updatedAt
+        }));
+        res.json(sanitized);
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;

@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AIConfig, Message, User, TrainingDataSource, KoiiTask, Conversation, Document, Tag, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
-import { ExpandIcon, PaperclipIcon, BrainwaveIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon, ThumbsUpIcon, ThumbsDownIcon, ShareIcon } from '../Icons';
+import { ExpandIcon, PaperclipIcon, BrainwaveIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon, ThumbsUpIcon, ThumbsDownIcon, ShareIcon, ChevronDownIcon } from '../Icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { normalizePostgresArray } from '../../utils/arrayUtils';
@@ -718,6 +718,14 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const [pristineAi, setPristineAi] = useState<AIConfig | null>(null); // For checking unsaved changes
     const [trainingData, setTrainingData] = useState<TrainingDataSource[]>([]);
     const [activeTab, setActiveTab] = useState<'configuration' | 'training' | 'tags' | 'api' | 'tts'>('configuration');
+    const [openApis, setOpenApis] = useState<Record<string, boolean>>({
+        chat: false,
+        tts: false,
+        publicList: false
+    });
+    const toggleApiCollapse = (key: string) => {
+        setOpenApis(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     // Chat states
     const [allMessages, setAllMessages] = useState<Message[]>([]);
@@ -2477,19 +2485,32 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                                         </div>
                                     </div>
 
-                                    <div className="border-t border-border-color pt-6 space-y-4">
-                                        <h3 className="text-base font-semibold text-text-main">1. Chat API (Hội thoại AI & RAG)</h3>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
-                                            <div className="mt-1 flex rounded-md shadow-sm">
-                                                <input type="text" readOnly value={`${window.location.origin}/api/v1/chat`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
-                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/chat`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                    <div className="space-y-4 pt-4">
+                                        {/* 1. Chat API */}
+                                        <div className="border border-border-color rounded-xl overflow-hidden shadow-sm bg-background-panel transition-all hover:shadow-md">
+                                            <div 
+                                                onClick={() => toggleApiCollapse('chat')}
+                                                className="flex justify-between items-center px-5 py-4 bg-background-light cursor-pointer hover:bg-gray-200/55 select-none transition-colors border-b border-border-color"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-green-600 text-white font-mono">POST</span>
+                                                    <h3 className="text-base font-semibold text-text-main">1. Chat API (Hội thoại AI & RAG)</h3>
+                                                </div>
+                                                <ChevronDownIcon className={`w-5 h-5 text-text-light transition-transform duration-300 ${openApis.chat ? 'rotate-180' : ''}`} />
                                             </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
-                                            <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
-                                                {language === 'vi' ? `POST /api/v1/chat
+                                            {openApis.chat && (
+                                                <div className="p-5 space-y-4 bg-background-panel animate-fade-in">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                                        <div className="mt-1 flex rounded-md shadow-sm">
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/chat`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/chat`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {language === 'vi' ? `POST /api/v1/chat
 Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
@@ -2520,38 +2541,52 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
     "style": "friendly"
   }
 }`}
-                                            </pre>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response - JSON thuần)' : 'Response - Plain JSON'}</label>
-                                            <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
-                                                {language === 'vi' ? `{
+                                                        </pre>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response - JSON thuần)' : 'Response - Plain JSON'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {language === 'vi' ? `{
   "message": "Xin chào! Tôi có thể giúp gì cho bạn?"
 }` : `{
   "message": "Hello! How can I help you?"
 }`}
-                                            </pre>
-                                            <p className="mt-2 text-xs text-text-light whitespace-pre-line">
-                                                {language === 'vi'
-                                                    ? '• message: Nội dung tin nhắn gửi đi (bắt buộc)\n• stream: Tùy chọn (true để nhận Server-Sent Events stream, false/không truyền để nhận JSON)\n• userPersona: Thông tin khách đang nói chuyện để AI xưng hô tự động'
-                                                    : '• message: Message content to send (required)\n• stream: Optional (true for Server-Sent Events stream, false/omitted for plain JSON)\n• userPersona: Optional context about the speaker for dynamic AI styling'}
-                                            </p>
+                                                        </pre>
+                                                        <p className="mt-2 text-xs text-text-light whitespace-pre-line">
+                                                            {language === 'vi'
+                                                                ? '• message: Nội dung tin nhắn gửi đi (bắt buộc)\n• stream: Tùy chọn (true để nhận Server-Sent Events stream, false/không truyền để nhận JSON)\n• userPersona: Thông tin khách đang nói chuyện để AI xưng hô tự động'
+                                                                : '• message: Message content to send (required)\n• stream: Optional (true for Server-Sent Events stream, false/omitted for plain JSON)\n• userPersona: Optional context about the speaker for dynamic AI styling'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
 
-                                    <div className="border-t border-border-color pt-6 space-y-4">
-                                        <h3 className="text-base font-semibold text-text-main">2. TTS API (Sinh giọng nói AI)</h3>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
-                                            <div className="mt-1 flex rounded-md shadow-sm">
-                                                <input type="text" readOnly value={`${window.location.origin}/api/v1/tts`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
-                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/tts`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                        {/* 2. TTS API */}
+                                        <div className="border border-border-color rounded-xl overflow-hidden shadow-sm bg-background-panel transition-all hover:shadow-md">
+                                            <div 
+                                                onClick={() => toggleApiCollapse('tts')}
+                                                className="flex justify-between items-center px-5 py-4 bg-background-light cursor-pointer hover:bg-gray-200/55 select-none transition-colors border-b border-border-color"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-green-600 text-white font-mono">POST</span>
+                                                    <h3 className="text-base font-semibold text-text-main">2. TTS API (Sinh giọng nói AI)</h3>
+                                                </div>
+                                                <ChevronDownIcon className={`w-5 h-5 text-text-light transition-transform duration-300 ${openApis.tts ? 'rotate-180' : ''}`} />
                                             </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
-                                            <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
-                                                {language === 'vi' ? `POST /api/v1/tts
+                                            {openApis.tts && (
+                                                <div className="p-5 space-y-4 bg-background-panel animate-fade-in">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                                        <div className="mt-1 flex rounded-md shadow-sm">
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/tts`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/tts`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {language === 'vi' ? `POST /api/v1/tts
 Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
@@ -2566,29 +2601,93 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
   "aiConfigId": ${selectedAi.id},
   "text": "Welcome to Giac Ngo AI!"
 }`}
-                                            </pre>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response)' : 'Response'}</label>
-                                            <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
-                                                {`{
+                                                        </pre>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response)' : 'Response'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {`{
   "audioContent": "BASE64_AUDIO_DATA...",
   "mimeType": "audio/mp3",
   "provider": "${selectedAi.ttsProvider || 'gemini'}",
   "voice": "${selectedAi.ttsVoice || 'Puck'}"
 }`}
-                                            </pre>
-                                            <p className="mt-2 text-xs text-text-light whitespace-pre-line">
-                                                {language === 'vi'
-                                                    ? '• text: Văn bản cần đọc (bắt buộc)\n• aiConfigId: ID cấu hình AI để lấy cài đặt giọng nói từ trang cấu hình\n• Phản hồi: Dữ liệu âm thanh Base64 và thông tin định dạng âm thanh'
-                                                    : '• text: Text content to read (required)\n• aiConfigId: AI config ID to auto-load its voice settings\n• Response: Base64 audio content and format details'}
-                                            </p>
+                                                        </pre>
+                                                        <p className="mt-2 text-xs text-text-light whitespace-pre-line">
+                                                            {language === 'vi'
+                                                                ? '• text: Văn bản cần đọc (bắt buộc)\n• aiConfigId: ID cấu hình AI để lấy cài đặt giọng nói từ trang cấu hình\n• Phản hồi: Dữ liệu âm thanh Base64 và thông tin định dạng âm thanh'
+                                                                : '• text: Text content to read (required)\n• aiConfigId: AI config ID to auto-load its voice settings\n• Response: Base64 audio content and format details'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 3. Public AI List API */}
+                                        <div className="border border-border-color rounded-xl overflow-hidden shadow-sm bg-background-panel transition-all hover:shadow-md">
+                                            <div 
+                                                onClick={() => toggleApiCollapse('publicList')}
+                                                className="flex justify-between items-center px-5 py-4 bg-background-light cursor-pointer hover:bg-gray-200/55 select-none transition-colors border-b border-border-color"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-600 text-white font-mono">GET</span>
+                                                    <h3 className="text-base font-semibold text-text-main">
+                                                        {language === 'vi' ? '3. Danh sách AI Công khai API' : '3. Public AI List API'}
+                                                    </h3>
+                                                </div>
+                                                <ChevronDownIcon className={`w-5 h-5 text-text-light transition-transform duration-300 ${openApis.publicList ? 'rotate-180' : ''}`} />
+                                            </div>
+                                            {openApis.publicList && (
+                                                <div className="p-5 space-y-4 bg-background-panel animate-fade-in">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                                        <div className="mt-1 flex rounded-md shadow-sm">
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/public-ais`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/public-ais`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {`GET /api/v1/public-ais
+Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
+                                                        </pre>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response - Array các cấu hình AI)' : 'Response - Array of AI Configurations'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {`[
+  {
+    "id": ${selectedAi.id},
+    "spaceId": ${selectedAi.spaceId || 'null'},
+    "name": "${selectedAi.name}",
+    "nameEn": "${selectedAi.nameEn || ''}",
+    "description": "${selectedAi.description || ''}",
+    "descriptionEn": "${selectedAi.descriptionEn || ''}",
+    "avatarUrl": "${selectedAi.avatarUrl || ''}",
+    "tags": ${JSON.stringify(selectedAi.tags || [])},
+    "modelType": "${selectedAi.modelType}",
+    "modelName": "${selectedAi.modelName || ''}",
+    "baseDailyLimit": ${selectedAi.baseDailyLimit || 0},
+    "createdAt": "2026-06-24T02:00:00.000Z",
+    "updatedAt": "2026-06-24T02:00:00.000Z"
+  }
+]`}
+                                                        </pre>
+                                                        <p className="mt-2 text-xs text-text-light whitespace-pre-line">
+                                                            {language === 'vi'
+                                                                ? '• Danh sách trả về toàn bộ AI được cấu hình Công khai (is_public = true) trên hệ thống.\n• Các trường nhạy cảm như system prompt (nội dung huấn luyện) được lọc bỏ để bảo mật.'
+                                                                : '• Returns a list of all AI models configured as Public (is_public = true) on the system.\n• Sensitive fields like the system prompt / training content are excluded for security.'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
 
-                        </div>
 
                         <div className="flex-shrink-0 p-4 border-t border-border-color bg-background-content space-y-4">
                             <div className="flex flex-col lg:flex-row gap-6">
