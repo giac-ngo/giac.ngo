@@ -2,6 +2,48 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-06-26
+
+### 🔐 Thêm SSO Login API (`POST /api/v1/login`) cho tích hợp hệ thống ngoài (n8n, v.v.)
+
+**Vấn đề / Nhu cầu**: Ông lão (hệ thống n8n bên ngoài) cần đăng nhập người dùng vào một Space cụ thể bằng email/password để lấy JWT Token, từ đó gọi các API Chat/TTS mà không qua trình duyệt (SSO không dùng cookie session).
+
+**Giải pháp & Chi tiết thay đổi**:
+
+1. **Backend (`server/routes/v1Routes.ts`)**:
+   - Thêm endpoint `POST /api/v1/login` — **không cần** header `Authorization` trước khi đăng nhập.
+   - Nhận body: `{ email, password, spaceId }`.
+   - Logic xác thực 3 bước:
+     1. Tìm user theo `email`, kiểm tra `isActive`.
+     2. Verify `password` bằng bcrypt (`verifyPassword`).
+     3. Kiểm tra `spaceId` — user phải là **Owner** hoặc **Member** của Space đó (dùng `spaceModel.findById` + `spaceMemberModel.isMember`).
+   - Tự động tạo `apiToken` (static DB token) nếu user chưa có, với null-guard an toàn.
+   - Trả về:
+     ```json
+     {
+       "id": 123, "name": "...", "email": "...",
+       "apiToken": "eyJ... (JWT 7 ngày)",
+       "refreshToken": "abc... (Static token lâu dài)",
+       "space": { "id": 1, "name": "Giác Ngộ", "slug": "giacngo" }
+     }
+     ```
+   - Dùng `apiToken` cho header `Authorization: Bearer` với các API Chat/TTS.
+   - Dùng `refreshToken` + `POST /api/auth/refresh` để làm mới JWT khi hết hạn.
+   - Fix lỗi TypeScript `ts(18047)`: `user is possibly null` tại Ln 106, Ln 116 — thêm null-guard sau `userModel.regenerateApiToken()`.
+
+2. **Frontend UI (`client/src/components/admin/AiManagement.tsx`)**:
+   - Thêm `login: false` vào state `openApis`.
+   - Thêm translation keys `loginApiTitle`, `loginApiDesc`, `loginApiNotes` cho cả vi/en.
+   - Thêm **Block số 4 — SSO Login API** (collapsible/accordion) trong tab ENDPOINT, hiển thị:
+     - URL endpoint với nút Copy.
+     - Code mẫu Request (có `spaceId` tự điền từ AI đang chọn).
+     - Code mẫu Response (JSON với token + thông tin space).
+     - Ghi chú hướng dẫn sử dụng song ngữ.
+
+**File thay đổi**:
+- `server/routes/v1Routes.ts`
+- `client/src/components/admin/AiManagement.tsx`
+
 ## 2026-06-24
 
 ### ➕ Thêm API lấy danh sách AI Công khai & Thiết kế giao diện API Collapsible (Accordion)

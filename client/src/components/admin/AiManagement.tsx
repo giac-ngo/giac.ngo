@@ -194,6 +194,9 @@ const translations = {
         embeddingModel: 'Model Embedding',
         embeddingProviderNone: '(Dùng chung với provider chat)',
         embeddingInfoBanner: 'Provider và Model này dùng riêng để vectorize dữ liệu huấn luyện và tìm kiếm RAG. Nếu AI dùng Groq/Grok (không có embedding), phải chọn Gemini hoặc GPT ở đây.',
+        loginApiTitle: '4. SSO Login API (Đăng nhập từ hệ thống ngoài)',
+        loginApiDesc: 'Dùng endpoint này từ ứng dụng bên ngoài (ví dụ n8n) để xác thực người dùng và lấy JWT token. Yêu cầu spaceId để kiểm tra tư cách thành viên.',
+        loginApiNotes: '• Không cần header Authorization trước khi đăng nhập\n• spaceId bắt buộc – người dùng phải là Owner hoặc Member của không gian đó\n• Trả về apiToken (JWT 7 ngày) và refreshToken (lâu dài) để dùng cho các API khác\n• Dùng /api/auth/refresh với refreshToken để làm mới accessToken khi hết hạn',
     },
     en: {
         aiList: 'AI List',
@@ -369,6 +372,9 @@ const translations = {
         embeddingModel: 'Embedding Model',
         embeddingProviderNone: '(Same as chat provider)',
         embeddingInfoBanner: 'This provider & model are used exclusively for vectorizing training data and RAG search. If the AI uses Groq/Grok (no embedding API), you must select Gemini or GPT here.',
+        loginApiTitle: '4. SSO Login API (Login from External System)',
+        loginApiDesc: 'Use this endpoint from an external application (e.g. n8n) to authenticate users and obtain a JWT token. Requires spaceId to check membership.',
+        loginApiNotes: '• No Authorization header is needed before login\n• spaceId is required – the user must be an Owner or Member of that space\n• Returns apiToken (7-day JWT) and refreshToken (long-lived) to use with other APIs\n• Use /api/auth/refresh with refreshToken to renew the access token when it expires',
     }
 };
 
@@ -721,7 +727,8 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const [openApis, setOpenApis] = useState<Record<string, boolean>>({
         chat: false,
         tts: false,
-        publicList: false
+        publicList: false,
+        login: false
     });
     const toggleApiCollapse = (key: string) => {
         setOpenApis(prev => ({ ...prev, [key]: !prev[key] }));
@@ -2683,6 +2690,71 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                                 </div>
                                             )}
                                             </div>
+                                        </div>
+
+                                        {/* 4. SSO Login API */}
+                                        <div className="border border-border-color rounded-xl overflow-hidden shadow-sm bg-background-panel transition-all hover:shadow-md">
+                                            <div
+                                                onClick={() => toggleApiCollapse('login')}
+                                                className="flex justify-between items-center px-5 py-4 bg-background-light cursor-pointer hover:bg-gray-200/55 select-none transition-colors border-b border-border-color"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-green-600 text-white font-mono">POST</span>
+                                                    <h3 className="text-base font-semibold text-text-main">{t.loginApiTitle}</h3>
+                                                </div>
+                                                <ChevronDownIcon className={`w-5 h-5 text-text-light transition-transform duration-300 ${openApis.login ? 'rotate-180' : ''}`} />
+                                            </div>
+                                            {openApis.login && (
+                                                <div className="p-5 space-y-4 bg-background-panel animate-fade-in">
+                                                    <p className="text-xs text-text-light">{t.loginApiDesc}</p>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
+                                                        <div className="mt-1 flex rounded-md shadow-sm">
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/login`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/login`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {language === 'vi' ? `POST /api/v1/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "mat_khau_cua_ban",
+  "spaceId": ${selectedAi.spaceId || 1}
+}` : `POST /api/v1/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "your_password",
+  "spaceId": ${selectedAi.spaceId || 1}
+}`}
+                                                        </pre>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Phản hồi (Response)' : 'Response'}</label>
+                                                        <pre className="p-3 bg-gray-900 text-green-400 rounded-md text-xs overflow-x-auto font-mono">
+                                                            {`{
+  "id": 123,
+  "name": "Nguyễn Văn A",
+  "email": "user@example.com",
+  "avatarUrl": "https://...",
+  "apiToken": "eyJhbGciOiJIUzI1Ni...",
+  "refreshToken": "abc123_long_lived_token",
+  "space": {
+    "id": ${selectedAi.spaceId || 1},
+    "name": "Giác Ngộ",
+    "slug": "giacngo"
+  }
+}`}
+                                                        </pre>
+                                                        <p className="mt-2 text-xs text-text-light whitespace-pre-line">{t.loginApiNotes}</p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
