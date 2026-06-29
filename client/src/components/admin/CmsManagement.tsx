@@ -1090,7 +1090,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                         albumMap[page.platform] = editArticle.fbAlbumId;
                       }
 
-                      const currentAlbumValue = albumMap[page.platform] || 'direct';
+                      const currentAlbumValue = albumMap[page.platform] !== undefined ? albumMap[page.platform] : 'direct';
                       const isAlbumMode = currentAlbumValue !== 'direct';
 
                       return (
