@@ -102,6 +102,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `GET /api/library/documents`: Lấy danh sách tài liệu công khai trong Thư viện Space.
   - `GET /api/library/topics`, `GET /api/library/filters`: Lấy hệ thống phân loại tài liệu (Tag, Topic, Author).
 * **Tài liệu (Documents)**:
+  - `GET /api/v1/documents`: Lấy danh sách tài liệu/bài viết trong thư viện thuộc Space ID truyền vào (yêu cầu xác thực Bearer token & check quyền thành viên/admin).
   - `GET /api/documents`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý tài liệu RAG.
   - `GET /api/documents/recommended`: Gợi ý tài liệu.
   - `POST /api/documents/:id/like`: Thả tim tài liệu.

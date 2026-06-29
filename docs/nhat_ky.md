@@ -2,6 +2,34 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-06-29
+
+### ➕ Thêm API lấy bài viết trong thư viện theo Space ID & Lọc thư viện theo Space ID
+
+**Vấn đề / Nhu cầu**: AI cần lấy các bài viết trong thư viện thuộc Space ID truyền vào (ví dụ cho các ứng dụng bên ngoài như n8n hoặc phục vụ RAG). Đồng thời, khi chọn bài viết từ thư viện để huấn luyện AI trên giao diện quản trị, hệ thống cần tự động lọc để chỉ hiển thị các bài viết thuộc Không gian của AI đó, tránh hiển thị chéo dữ liệu của Không gian khác.
+
+**Giải pháp & Chi tiết thay đổi**:
+
+1. **Backend (`server/routes/v1Routes.ts`)**:
+   - Thêm endpoint `GET /api/v1/documents` — yêu cầu xác thực qua token Bearer.
+   - Nhận query parameters: `spaceId` (bắt buộc), `page`, `limit`, `title`.
+   - Kiểm tra Space ID hợp lệ và tồn tại.
+   - Kiểm tra quyền truy cập (RBAC): Chỉ cho phép Global Admin, hoặc Owner của Space, hoặc Thành viên (Member) của Space đó truy vấn.
+   - Trả về danh sách bài viết/tài liệu thuộc Space tương ứng dạng phân trang thông qua `documentModel.find`.
+
+2. **Frontend UI (`client/src/components/admin/AiManagement.tsx` & `client/src/components/ConversationSidebar.tsx`)**:
+   - Cấu hình `SelectDocumentModal` để nhận thêm prop `spaceId`.
+   - Cập nhật hàm gọi API trong modal thành `apiService.getDocuments({ spaceId })` để lọc thư viện ngay từ đầu theo đúng Không gian của AI đang cấu hình.
+   - Bổ sung **Block số 5 — Library Documents API** (collapsible/accordion) trong tab ENDPOINT để tài liệu hóa API mới này cho cả tiếng Việt và tiếng Anh.
+   - Fix lỗi cảnh báo TypeScript biến unused `isSpaceOwner` trong `ConversationSidebar.tsx`.
+
+**File thay đổi**:
+- `server/routes/v1Routes.ts`
+- `client/src/components/admin/AiManagement.tsx`
+- `client/src/components/ConversationSidebar.tsx`
+- `docs/cau_truc.md`
+- `docs/nhat_ky.md`
+
 ## 2026-06-26
 
 ### 🔐 Thêm SSO Login API (`POST /api/v1/login`) cho tích hợp hệ thống ngoài (n8n, v.v.)

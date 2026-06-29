@@ -10,6 +10,7 @@ import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { verifyPassword } from '../db.js';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
+import { documentModel } from '../models/document.model.js';
 
 const router = Router();
 
@@ -153,4 +154,50 @@ router.get('/public-ais', isAuthenticated, async (req: Request, res: Response, n
     }
 });
 
+// GET /api/v1/documents
+// Get list of documents/articles in the library belonging to the specified spaceId
+router.get('/documents', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
+    const { spaceId, page = '1', limit = '10', title } = req.query;
+    try {
+        if (!spaceId) {
+            return res.status(400).json({ error: 'spaceId is required' });
+        }
+
+        const parsedSpaceId = parseInt(String(spaceId), 10);
+        if (isNaN(parsedSpaceId)) {
+            return res.status(400).json({ error: 'spaceId must be a valid number' });
+        }
+
+        // Check if space exists
+        const space = await spaceModel.findById(parsedSpaceId);
+        if (!space) {
+            return res.status(404).json({ error: `Space with ID ${parsedSpaceId} not found` });
+        }
+
+        // Verify membership or admin
+        const isOwner = space.userId === req.user?.id;
+        const isMember = await spaceMemberModel.isMember(space.id, req.user?.id || 0);
+        const isGlobalAdmin = !!req.user?.isGlobalAdmin;
+
+        if (!isOwner && !isMember && !isGlobalAdmin) {
+            return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
+        }
+
+        const pageNum = parseInt(String(page), 10) || 1;
+        const limitNum = parseInt(String(limit), 10) || 10;
+
+        const result = await documentModel.find({
+            spaceId: parsedSpaceId,
+            limit: limitNum,
+            offset: (pageNum - 1) * limitNum,
+            title: title ? String(title) : undefined
+        });
+
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;
+
