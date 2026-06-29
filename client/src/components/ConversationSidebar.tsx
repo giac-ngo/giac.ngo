@@ -136,7 +136,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
         }
     }, [currentSpace]);
 
-    const isSpaceOwner = currentSpace?.userId === user?.id;
+
 
     const [colorMode, setColorMode] = useState<'light' | 'dark'>(() => {
         const saved = localStorage.getItem('spaceColorMode_v3') as 'light' | 'dark';

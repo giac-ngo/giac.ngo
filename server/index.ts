@@ -17,7 +17,7 @@ import rateLimit from 'express-rate-limit';
 
 logger.info(`JWT_SECRET is ${process.env.JWT_SECRET ? 'SET (starts with ' + process.env.JWT_SECRET.substring(0, 5) + '...)' : 'NOT SET'}`);
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
     process.env.NODE_ENV = 'development';
 }
 
@@ -190,6 +190,10 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
 
-httpServer.listen(port, () => {
-    logger.info(`Server running on http://localhost:${port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    httpServer.listen(port, () => {
+        logger.info(`Server running on http://localhost:${port}`);
+    });
+}
+
+export { app, httpServer };

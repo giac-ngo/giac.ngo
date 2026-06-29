@@ -70,7 +70,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
         const stripHtml = (html: string) => {
             if (!html) return '';
             const formattedHtml = html
-                .replace(/<br\s*[\/]?>/gi, '\n')
+                .replace(/<br\s*[/]?>/gi, '\n')
                 .replace(/<\/p>/gi, '\n\n')
                 .replace(/<\/h[1-6]>/gi, '\n\n')
                 .replace(/<\/div>/gi, '\n');

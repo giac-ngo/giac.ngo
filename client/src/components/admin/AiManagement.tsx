@@ -124,7 +124,7 @@ const translations = {
         syncComplete: 'Đồng bộ hoàn tất!',
         nothingToSync: 'Không có dữ liệu mới để đồng bộ.',
         submitToKoii: 'Gửi đến Weaviate Huấn luyện',
-        koiiStatus: 'Trạng thái tác vụ Koii',
+        koiiStatus: 'Trạng thái Huấn luyện',
         koiiStatusIdle: 'Chưa có tác vụ nào',
         koiiStatusPending: 'Đang chờ xử lý',
         koiiStatusProcessing: 'Đang xử lý',
@@ -305,7 +305,7 @@ const translations = {
         syncComplete: 'Sync complete!',
         nothingToSync: 'No new data to sync.',
         submitToKoii: 'Submit to Weaviate for Training',
-        koiiStatus: 'Koii Task Status',
+        koiiStatus: 'Training Status',
         koiiStatusIdle: 'No tasks yet',
         koiiStatusPending: 'Pending',
         koiiStatusProcessing: 'Processing',
@@ -346,7 +346,7 @@ const translations = {
         maxOutputTokensLabel: 'Max Output Tokens',
         maxOutputTokensDesc: 'Limit the maximum number of tokens for the response to avoid rate limit errors.',
         thinkingBudgetLabel: 'Thinking Budget',
-        thinkingBudgetDesc: 'Number of tokens for Gemini to \"think\". Required if Max Tokens is set.',
+        thinkingBudgetDesc: 'Number of tokens for Gemini to "think". Required if Max Tokens is set.',
         baseDailyLimitLabel: 'Daily Chat Limit (free)',
         baseDailyLimitDesc: 'Messages/day users can use for free with this AI. 0 = unlimited.',
         selectFromLibrary: 'Select from Library',
@@ -358,7 +358,7 @@ const translations = {
             description: 'Choose documents you want to link to this AI. Summarized documents will provide the best context.',
             addSelected: 'Add Selected Documents',
             adding: 'Adding...',
-            noDocsAvailable: 'No documents available to link. Please upload documents in the \"Files & Documents\" section first.',
+            noDocsAvailable: 'No documents available to link. Please upload documents in the "Files & Documents" section first.',
             searchPlaceholder: 'Search documents...',
             cancel: 'Cancel',
         },
@@ -2820,7 +2820,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                             )}
 
 
-                            <div className="flex flex-col lg:flex-row gap-6">
+                            <div className="flex flex-col lg:flex-row gap-6 mt-6">
                                 <div className="lg:w-1/2 space-y-2">
                                     <KoiiTaskStatusDisplay status={koiiTaskStatus} language={language} />
                                     {(() => {

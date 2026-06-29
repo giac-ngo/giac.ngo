@@ -58,7 +58,6 @@ function Calendar({
         IconRight: (props: React.HTMLAttributes<SVGElement>) => (
           <ChevronRight className={cn("h-4 w-4", props.className)} />
         ),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any}
       {...props}
     />

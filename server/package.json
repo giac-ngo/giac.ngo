@@ -8,6 +8,7 @@
     "start": "node --import tsx/esm index.ts",
     "dev": "nodemon --exec \"node --import tsx/esm\" index.ts",
     "build": "tsc --noEmit",
+    "test": "vitest run",
     "db:init": "node --import tsx/esm initDb.ts"
   },
   "dependencies": {
@@ -44,8 +45,11 @@
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
     "nodemon": "^3.1.0",
-    "tsx": "^4.21.0"
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.9"
   },
   "author": "",
   "license": "ISC"

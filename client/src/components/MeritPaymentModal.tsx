@@ -164,8 +164,6 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
         }
     }, [suggestedAmount]);
 
-    if (!isOpen && !embedded) return null;
-
     const handleSelectOption = (option: 'custom' | 'incense' | 'book') => {
         setSelection(option);
         if (option === 'incense') {
@@ -552,6 +550,8 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
             </div>
         </div>
     );
+    if (!isOpen && !embedded) return null;
+
     if (embedded) {
         return content;
     }

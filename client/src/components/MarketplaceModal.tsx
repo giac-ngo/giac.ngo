@@ -123,7 +123,7 @@ function AgentPurchaseCard({ ai, user, onPurchase, isPurchasing, language }: Age
             {button}
         </div>
     );
-};
+}
 
 interface MarketplaceModalProps {
     isOpen: boolean;
