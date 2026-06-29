@@ -2,6 +2,35 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-06-30
+
+### 🛠️ Sửa lỗi chọn Album CMS, Ghi đè Kết nối Facebook Page, Tìm kiếm Thư viện Toàn cầu & Ẩn viền ô Tìm kiếm
+
+**Giải pháp & Chi tiết thay đổi**:
+
+1. **Sửa lỗi không chọn được Facebook Album khi viết bài (`client/src/components/admin/CmsManagement.tsx`)**:
+   - Khắc phục lỗi logic so sánh falsy `|| 'direct'` tại giao diện biên tập bài viết CMS. Thay thế bằng kiểm tra nghiêm ngặt `!== undefined` để tránh trường hợp chuỗi rỗng `""` (khi người dùng click chọn chế độ đăng Album) bị ghi đè ngược về giá trị mặc định `'direct'`.
+   - Kết quả: Nút Radio "Đăng vào Album" hoạt động chính xác, hiển thị đầy đủ danh sách Album động và nút thêm Album mới `+`.
+
+2. **Ghi đè kết nối gốc khi chọn Facebook Page (`server/controllers/cmsController.ts`)**:
+   - Cập nhật hàm `updateFacebookConnection` tại backend. Khi người dùng lưu kết nối cho một Facebook Page cụ thể (`platform` dạng `facebook_<pageId>`), hệ thống sẽ tự động tìm và xóa kết nối OAuth gốc (`platform = 'facebook'`) khỏi database.
+   - Kết quả: Loại bỏ hoàn toàn tình trạng trùng lặp/hiển thị hai thẻ kết nối cùng lúc trên giao diện.
+
+3. **Hỗ trợ Tìm kiếm toàn bộ Thư viện (`client/src/components/LibraryView.tsx`)**:
+   - Thêm hộp chọn (checkbox) *"Tìm kiếm toàn bộ thư viện (không giới hạn theo Chủ đề/Tác giả)"* hiển thị động bên dưới ô tìm kiếm khi có từ khóa.
+   - Mặc định checkbox được tích chọn sẵn để cho phép tìm kiếm toàn bộ tài liệu trong Space. Khi người dùng bỏ tích, hệ thống sẽ giới hạn phạm vi tìm kiếm theo đúng bộ lọc của sidebar (Topic/Author/Type).
+
+4. **Ẩn viền ô tìm kiếm Thư viện & Cache Busting (`client/public/themes/giacngo/Library.css` & `client/index.html`)**:
+   - Xóa bỏ border mặc định và hiệu ứng viền hồng/đỏ cùng shadow phát sáng khi ô tìm kiếm được focus trong stylesheet của theme `giacngo`.
+   - Nâng phiên bản tham chiếu `Library.css` trong `client/index.html` lên `?v=6` để ép trình duyệt người dùng xóa cache và hiển thị giao diện không viền (borderless) mới ngay lập tức.
+
+**File thay đổi**:
+- `client/src/components/admin/CmsManagement.tsx`
+- `server/controllers/cmsController.ts`
+- `client/src/components/LibraryView.tsx`
+- `client/public/themes/giacngo/Library.css`
+- `client/index.html`
+
 ## 2026-06-29
 
 ### ➕ Thêm API lấy bài viết trong thư viện theo Space ID & Lọc thư viện theo Space ID
