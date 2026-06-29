@@ -11,8 +11,8 @@ html[data-theme="giacngo"] .library-view-container {
 }
 html[data-theme="giacngo"] .library-search-bar { position: relative; margin-bottom: 1.5rem; }
 html[data-theme="giacngo"] .library-search-bar .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 1.25rem; height: 1.25rem; color: var(--color-text-light); }
-html[data-theme="giacngo"] .library-search-bar input { width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; border-radius: 0.5rem; border: 1px solid var(--color-border-color); background-color: var(--color-background-panel); font-size: 1rem; }
-html[data-theme="giacngo"] .library-search-bar input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-light); }
+html[data-theme="giacngo"] .library-search-bar input { width: 100%; padding: 0.75rem 1rem 0.75rem 3rem; border-radius: 0.5rem; border: none; background-color: var(--color-background-panel); font-size: 1rem; }
+html[data-theme="giacngo"] .library-search-bar input:focus { outline: none; box-shadow: none; }
 html[data-theme="giacngo"] .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; }
 
 html[data-theme="giacngo"] .doc-card { 
