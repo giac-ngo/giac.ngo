@@ -60,6 +60,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
+    const [isGlobalSearch, setIsGlobalSearch] = useState(true);
     const debounceTimeoutRef = useRef<number | null>(null);
 
     const handleShareClick = async (e: React.MouseEvent, doc: Document) => {
@@ -144,7 +145,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
         if (typeof spaceId === 'number' || spaceSlug) {
             setDocuments([]);
             setHasMore(true);
-            fetchDocuments(1, filters, spaceId, spaceSlug, controller.signal);
+            const finalFilters = (isGlobalSearch && filters.search?.trim())
+                ? { search: filters.search }
+                : filters;
+            fetchDocuments(1, finalFilters, spaceId, spaceSlug, controller.signal);
         } else {
             // If spaceId is null and no spaceSlug, show empty state
             setDocuments([]);
@@ -153,12 +157,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
         }
 
         return () => controller.abort();
-    }, [filters, spaceId, spaceSlug, fetchDocuments]);
+    }, [filters, spaceId, spaceSlug, fetchDocuments, isGlobalSearch]);
 
     const handleLoadMore = () => {
         if (!isLoading && !isLoadingMore && hasMore) {
             const controller = new AbortController();
-            fetchDocuments(page + 1, filters, spaceId, spaceSlug, controller.signal);
+            const finalFilters = (isGlobalSearch && filters.search?.trim())
+                ? { search: filters.search }
+                : filters;
+            fetchDocuments(page + 1, finalFilters, spaceId, spaceSlug, controller.signal);
         }
     };
 
@@ -187,7 +194,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
 
     return (
         <div className="library-view-container">
-            <div className="library-search-bar">
+            <div className="library-search-bar" style={{ marginBottom: searchTerm.trim() !== '' ? '8px' : '24px' }}>
                 <SearchIcon className="search-icon" />
                 <input
                     type="text"
@@ -196,6 +203,24 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
                     onChange={handleSearchChange}
                 />
             </div>
+
+            {searchTerm.trim() !== '' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 4px', marginBottom: '24px', fontSize: '12px', userSelect: 'none' }}>
+                    <input
+                        type="checkbox"
+                        id="global-search"
+                        checked={isGlobalSearch}
+                        onChange={e => setIsGlobalSearch(e.target.checked)}
+                        className="cursor-pointer"
+                        style={{ accentColor: 'var(--color-primary)', width: '14px', height: '14px', margin: 0 }}
+                    />
+                    <label htmlFor="global-search" className="cursor-pointer" style={{ cursor: 'pointer', color: 'var(--color-text-light)' }}>
+                        {language === 'vi' 
+                            ? 'Tìm kiếm toàn bộ thư viện (không giới hạn theo Chủ đề/Tác giả)' 
+                            : 'Search entire library (no Topic/Author limits)'}
+                    </label>
+                </div>
+            )}
 
             <div className="library-grid">
                 {isLoading ? (
