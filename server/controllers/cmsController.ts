@@ -603,6 +603,16 @@ export const cmsController = {
             }
 
             const finalPlatform = platform || (pageId ? `facebook_${pageId}` : 'facebook');
+
+            // If we are connecting a Facebook Page (finalPlatform starts with facebook_), 
+            // delete the root 'facebook' connection to overwrite it directly as requested by the user.
+            if (finalPlatform.startsWith('facebook_')) {
+                await pool.query(
+                    `DELETE FROM cms_social_connections WHERE space_id = $1 AND platform = 'facebook'`,
+                    [spaceId]
+                );
+            }
+
             const updatedConn = await cmsSocialConnectionModel.upsert({
                 spaceId,
                 platform: finalPlatform,
