@@ -937,8 +937,9 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                       {/* Social Platforms Status */}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {PLATFORMS.map(p => {
-                          const log = a.publishLogs?.find((l: any) => l.platform === p);
-                          if (!a.targetPlatforms?.includes(p) && !log) return null;
+                          const isTargeted = a.targetPlatforms?.some(tp => tp === p || (p === 'facebook' && tp.startsWith('facebook_')));
+                          const log = a.publishLogs?.find((l: any) => l.platform === p || (p === 'facebook' && l.platform.startsWith('facebook_')));
+                          if (!isTargeted && !log) return null;
                           return (
                             <div key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-background-light border border-border-color text-xs">
                               <span className="text-base">{PLATFORM_ICONS[p]}</span>

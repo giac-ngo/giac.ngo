@@ -303,6 +303,12 @@ export const cmsController = {
             };
 
             for (const pl of platformsPayload) {
+                // Delete previous logs for this specific platform or parent generic platform to clear old status/errors
+                await pool.query(
+                    `DELETE FROM cms_publish_logs 
+                     WHERE article_id = $1 AND (platform = $2 OR (platform = 'facebook' AND $2 LIKE 'facebook_%'))`,
+                    [article.id, pl.platform]
+                );
                 await cmsPublishLogModel.create({ articleId: article.id, platform: pl.platform, status: 'pending' });
             }
 

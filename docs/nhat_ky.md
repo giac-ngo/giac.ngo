@@ -85,6 +85,17 @@
   - Tích hợp thêm thẻ `<select>` cho phép chọn hiển thị **10, 15, 50, hoặc 100** dòng ở thanh phân trang dưới cùng.
   - Cập nhật hàm `handlePublishMass` để nếu nền tảng là `facebook`, nó sẽ tìm các kết nối active có platform bắt đầu bằng `"facebook_"` để lấy danh sách Page cụ thể và gọi API đăng bài thay vì tìm kiếm platform tên `"facebook"` gốc.
 
+---
+
+### 🔄 Dọn dẹp lỗi cũ (Clear Failed Logs) khi đăng lại & Sửa lỗi hiển thị trạng thái Facebook Page
+**Vấn đề**:
+1. Khi một bài viết bị đăng thất bại (`failed` kèm thông báo lỗi) và người dùng bấm Đăng lại hoặc chọn nhiều bài để Đăng lại, hệ thống vẫn hiển thị trạng thái lỗi cũ màu đỏ `failed ⚠️ Lỗi` song song với dòng chữ trạng thái `Đang gửi đăng` màu xanh. Điều này là do backend chỉ insert thêm một log dòng mới `pending` mà không xóa hay cập nhật log lỗi cũ của platform đó.
+2. Trên Frontend, hàm kiểm tra status log chỉ so sánh `l.platform === p` (với `p === 'facebook'`), dẫn đến việc nó bỏ qua log mới có platform là `facebook_735328316336956` và tìm thấy log cũ `"facebook"` của kết nối gốc bị lỗi từ trước, hiển thị trạng thái cũ bị sai lệch.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`cmsController.ts`)**: Trong API `publishArticle`, trước khi thêm log mới có trạng thái `'pending'`, hệ thống sẽ chạy một câu lệnh `DELETE` để xóa sạch toàn bộ log cũ của bài viết đó đối với platform được chọn (nếu là facebook page, sẽ xóa cả log page cụ thể và log generic `"facebook"` cũ). Điều này giúp dọn dẹp cơ sở dữ liệu và xóa bỏ trạng thái lỗi cũ ngay lập tức khi đăng lại.
+- **Frontend (`CmsManagement.tsx`)**: Sửa lại hàm tìm kiếm log và trạng thái targeted trong card bài viết. Thay vì so sánh chính xác tên nền tảng `l.platform === p` (bị lệch giữa generic và page specific), hệ thống sẽ gộp chung các connection và log dạng `"facebook_..."` vào platform chính `"facebook"` để hiển thị chính xác trạng thái hoạt động của Page đó (Pending, Success hay Failed).
+
 ## 2026-06-29
 
 ### ➕ Thêm API lấy bài viết trong thư viện theo Space ID & Lọc thư viện theo Space ID
