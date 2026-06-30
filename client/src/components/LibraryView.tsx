@@ -62,6 +62,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [isGlobalSearch, setIsGlobalSearch] = useState(true);
     const debounceTimeoutRef = useRef<number | null>(null);
+    const [suggestions, setSuggestions] = useState<Document[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [focusedIndex, setFocusedIndex] = useState(-1);
+    const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+    const suggestionsTimeoutRef = useRef<number | null>(null);
 
     const handleShareClick = async (e: React.MouseEvent, doc: Document) => {
         e.preventDefault();
@@ -173,12 +179,91 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
         setSearchTerm(filters.search || '');
     }, [filters.search]);
 
+    const fetchSuggestions = useCallback(async (q: string) => {
+        if (!q.trim() || !(typeof spaceId === 'number' || spaceSlug)) {
+            setSuggestions([]);
+            return;
+        }
+        setIsFetchingSuggestions(true);
+        try {
+            const { data } = await apiService.getLibraryDocuments({
+                search: q,
+                spaceId: typeof spaceId === 'number' ? spaceId : undefined,
+                spaceSlug: spaceSlug || undefined,
+                page: 1,
+                limit: 5,
+            });
+            setSuggestions(data || []);
+        } catch (e) {
+            console.error('Failed to fetch suggestions', e);
+        } finally {
+            setIsFetchingSuggestions(false);
+        }
+    }, [spaceId, spaceSlug]);
+
+    const selectSuggestion = (doc: Document) => {
+        const title = language === 'en' && doc.titleEn ? doc.titleEn : doc.title;
+        setSearchTerm(title);
+        setShowSuggestions(false);
+        setSuggestions([]);
+        if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+        if (suggestionsTimeoutRef.current) clearTimeout(suggestionsTimeoutRef.current);
+        onFiltersChange({ ...filters, search: title });
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!showSuggestions || suggestions.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setFocusedIndex(prev => (prev + 1) % suggestions.length);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setFocusedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        } else if (e.key === 'Enter') {
+            if (focusedIndex >= 0 && focusedIndex < suggestions.length) {
+                e.preventDefault();
+                selectSuggestion(suggestions[focusedIndex]);
+            } else {
+                setShowSuggestions(false);
+            }
+        } else if (e.key === 'Escape') {
+            setShowSuggestions(false);
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newSearchTerm = e.target.value;
         setSearchTerm(newSearchTerm);
 
         if (debounceTimeoutRef.current) {
             clearTimeout(debounceTimeoutRef.current);
+        }
+        if (suggestionsTimeoutRef.current) {
+            clearTimeout(suggestionsTimeoutRef.current);
+        }
+
+        if (newSearchTerm.trim().length >= 2) {
+            setShowSuggestions(true);
+            setFocusedIndex(-1);
+            suggestionsTimeoutRef.current = window.setTimeout(() => {
+                fetchSuggestions(newSearchTerm);
+            }, 250);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
         }
 
         debounceTimeoutRef.current = window.setTimeout(() => {
@@ -189,19 +274,86 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
     useEffect(() => {
         return () => {
             if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+            if (suggestionsTimeoutRef.current) clearTimeout(suggestionsTimeoutRef.current);
         };
     }, []);
 
     return (
         <div className="library-view-container">
-            <div className="library-search-bar" style={{ marginBottom: searchTerm.trim() !== '' ? '8px' : '24px' }}>
+            <div className="library-search-bar" style={{ marginBottom: searchTerm.trim() !== '' ? '8px' : '24px', position: 'relative' }} ref={suggestionsRef}>
                 <SearchIcon className="search-icon" />
                 <input
                     type="text"
                     placeholder={t.searchPlaceholder}
                     value={searchTerm}
                     onChange={handleSearchChange}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => {
+                        if (searchTerm.trim().length >= 2) {
+                            setShowSuggestions(true);
+                            if (suggestions.length === 0) fetchSuggestions(searchTerm);
+                        }
+                    }}
                 />
+
+                {/* Suggestions Dropdown */}
+                {showSuggestions && (suggestions.length > 0 || isFetchingSuggestions) && (
+                    <div 
+                        style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            zIndex: 100,
+                            backgroundColor: 'var(--color-background-panel, #ffffff)',
+                            border: '1px solid var(--color-border-color, #e2e8f0)',
+                            borderRadius: '8px',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                            maxHeight: '260px',
+                            overflowY: 'auto',
+                            marginTop: '4px',
+                        }}
+                    >
+                        {isFetchingSuggestions && suggestions.length === 0 ? (
+                            <div className="px-4 py-3 text-xs text-text-light italic flex items-center gap-2" style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--color-text-light)' }}>
+                                <span className="inline-block w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" style={{ display: 'inline-block', width: '1rem', height: '1rem', borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--color-primary)', animation: 'spin 1s linear infinite' }} />
+                                {language === 'vi' ? 'Đang tìm gợi ý...' : 'Finding suggestions...'}
+                            </div>
+                        ) : (
+                            suggestions.map((doc, idx) => {
+                                const docTitle = language === 'en' && doc.titleEn ? doc.titleEn : doc.title;
+                                const docType = language === 'en' && doc.typeEn ? doc.typeEn : doc.type;
+                                const docAuthor = language === 'en' && doc.authorEn ? doc.authorEn : doc.author;
+                                const isFocused = idx === focusedIndex;
+                                return (
+                                    <div
+                                        key={doc.id}
+                                        onClick={() => selectSuggestion(doc)}
+                                        onMouseEnter={() => setFocusedIndex(idx)}
+                                        style={{
+                                            padding: '0.75rem 1rem',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s',
+                                            backgroundColor: isFocused ? 'var(--color-primary-light, #fcf8ef)' : 'transparent',
+                                            borderBottom: '1px solid var(--color-border-color, rgba(0, 0, 0, 0.05))',
+                                            textAlign: 'left'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {docTitle}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--color-text-light)', marginTop: '0.15rem' }}>
+                                            <span style={{ padding: '0.1rem 0.35rem', borderRadius: '0.25rem', backgroundColor: 'var(--color-background-light, #f8fafc)', fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                                {docType}
+                                            </span>
+                                            {docAuthor && <span>{t.by} {docAuthor}</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                )}
             </div>
 
             {searchTerm.trim() !== '' && (

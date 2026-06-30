@@ -4,6 +4,19 @@
 
 ## 2026-06-30
 
+### 🔍 Autocomplete Gợi ý Tìm kiếm Thư viện (Tìm kiếm giống Google)
+**Vấn đề / Nhu cầu**: Người dùng muốn khi gõ từ khóa vào ô tìm kiếm ở trang Thư viện (`https://giac.ngo/giac-ngo/library`), hệ thống sẽ hiển thị một dropdown chứa các gợi ý tự động (autocomplete suggestions) giống như Google, hiển thị nhanh các tiêu đề kinh sách, kệ pháp hoặc câu chuyện khớp với từ khóa, và hỗ trợ điều hướng bằng bàn phím (phím mũi tên lên/xuống, Enter để chọn).
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`client/src/components/LibraryView.tsx`)**:
+  - Bổ sung state `suggestions` (mảng lưu các tài liệu gợi ý), `showSuggestions` (ẩn/hiện dropdown), `focusedIndex` (dòng đang chọn khi dùng bàn phím) và `isFetchingSuggestions` (trạng thái đang tải gợi ý).
+  - Tích hợp một `fetchSuggestions` hook với cơ chế debounce 250ms riêng biệt so với 500ms của bộ lọc tìm kiếm chính. Tự động gọi API `getLibraryDocuments` lấy tối đa 5 kết quả khớp nhất với từ khóa trong Không gian hiện tại.
+  - Viết trình xử lý sự kiện `onKeyDown` cho ô input hỗ trợ di chuyển phím `ArrowDown` (xuống), `ArrowUp` (lên), chọn bằng phím `Enter`, và đóng bằng phím `Escape` / click ra ngoài vùng dropdown.
+  - Render khung dropdown tuyệt đẹp, có bo góc, đổ bóng nổi bật, tự động hiển thị kiểu tài liệu (Kệ, Câu chuyện...) và tên tác giả bên dưới mỗi tiêu đề gợi ý.
+  - Sử dụng CSS inline để định hình giao diện giúp tránh tình trạng bị lưu cache stylesheet cũ trên trình duyệt khách.
+
+---
+
 ### 🛠️ Sửa lỗi chọn Album CMS, Ghi đè Kết nối Facebook Page, Tìm kiếm Thư viện Toàn cầu & Ẩn viền ô Tìm kiếm
 
 **Giải pháp & Chi tiết thay đổi**:
