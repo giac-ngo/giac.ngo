@@ -18,6 +18,14 @@ const STATUS_LABELS_EN: Record<string, string> = {
   pending_approval: 'Pending Approval', rejected: 'Rejected', publishing: 'Publishing'
 };
 
+const toLocalISOString = (dateOrStr?: Date | string | null) => {
+  if (!dateOrStr) return '';
+  const date = typeof dateOrStr === 'string' ? new Date(dateOrStr) : dateOrStr;
+  if (isNaN(date.getTime())) return '';
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+};
+
 const FbIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>;
 const IgIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm3.98-10.98a1.44 1.44 0 100-2.881 1.44 1.44 0 000 2.881z"/></svg>;
 const ThIcon = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M14.502 10.364c-.815-.316-1.785-.458-3.08-.458-1.558 0-2.906.27-3.957.65-1.1.4-1.92.893-2.32 1.343l.034-.055c.783-1.218 2.378-2.072 4.417-2.316.59-.071 1.23-.087 1.954-.047 1.84.102 3.68.795 4.887 1.637l.08.058c.954.72 1.572 1.644 1.776 2.585.122.56.136 1.144.037 1.764a5.534 5.534 0 01-2.052 3.42 5.163 5.163 0 01-3.155 1.055c-.562 0-1.1-.093-1.602-.278-1.792-.663-2.73-2.585-2.28-4.63.157-.714.514-1.378.966-1.93.072-.088.16-.188.267-.3a16.892 16.892 0 012.39-2.007c.882-.62 2.357-1.42 3.753-1.85a18.237 18.237 0 012.283-.548c.15-.028.32-.054.512-.08v-.004c.156-.02.32-.04.5-.057-.59-.286-1.36-.453-2.348-.523zm-2.032 7.744a3.172 3.172 0 001.916-.62c.76-.583 1.258-1.464 1.385-2.428.1-.758-.094-1.474-.526-2.046a3.86 3.86 0 00-1.298-1.04l-.066-.03c-.2-.08-.413-.146-.636-.2a13.333 13.333 0 00-3.32.96 15.651 15.651 0 00-1.97 1.008c-.705.418-1.31.848-1.767 1.25-.337.297-.61.614-.794.94.1.283.334.614.735.918.49.37 1.13.613 1.874.7 1.056.124 2.105-.187 2.47-.406z M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>;
@@ -46,6 +54,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
   const [articles, setArticles] = useState<CmsArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(15);
   const [filterMain, setFilterMain] = useState(activeTab === 'cms_write' ? 'draft' : (canApprove ? 'pending_approval' : 'draft'));
   const [filterSub, setFilterSub] = useState('all');
   const [search, setSearch] = useState('');
@@ -113,7 +122,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
       }
       const res = await apiService.getCmsArticles(spaceId, { 
         page, 
-        limit: 15, 
+        limit, 
         search, 
         status, 
         platform, 
@@ -124,7 +133,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
       if (res.counts) setCounts(res.counts);
     } catch (e: any) { showToast(e.message); }
     setLoading(false);
-  }, [spaceId, page, filterMain, filterSub, search]);
+  }, [spaceId, page, limit, filterMain, filterSub, search]);
 
   const loadConnections = useCallback(async () => {
     if (!spaceId) return;
@@ -158,6 +167,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
       setAlbumsCache(prev => ({ ...prev, [pagePlatform]: res || [] }));
     } catch (e: any) {
       console.error('Error fetching albums for page', e);
+      setAlbumsCache(prev => ({ ...prev, [pagePlatform]: [] }));
     } finally {
       setLoadingAlbums(prev => ({ ...prev, [pagePlatform]: false }));
     }
@@ -277,7 +287,8 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
   };
 
   const openNewArticle = () => {
-    setEditArticle({ id: 'new', spaceId: spaceId as number, title: '', content: '', imageUrls: [], status: 'draft', targetPlatforms: [], tags: [], createdAt: '' });
+    const defaultScheduled = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    setEditArticle({ id: 'new', spaceId: spaceId as number, title: '', content: '', imageUrls: [], status: 'draft', targetPlatforms: [], tags: [], createdAt: '', scheduledAt: defaultScheduled });
     setShowEditor(true);
   };
 
@@ -373,8 +384,23 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
 
   const handlePublishMass = async (platform: string) => {
     if (!spaceId || selectedIds.length === 0) return;
-    const conn = connections.find(c => c.platform === platform && c.isActive);
-    if (!conn) { showToast(t(`Chưa kết nối ${platform}`, `Not connected to ${platform}`)); return; }
+    
+    let targetPlatforms: string[] = [];
+    if (platform === 'facebook') {
+      const fbConns = connections.filter(c => c.platform.startsWith('facebook_') && c.isActive);
+      if (fbConns.length === 0) {
+        showToast(t(`Chưa kết nối ${platform}`, `Not connected to ${platform}`));
+        return;
+      }
+      targetPlatforms = fbConns.map(c => c.platform);
+    } else {
+      const conn = connections.find(c => c.platform === platform && c.isActive);
+      if (!conn) {
+        showToast(t(`Chưa kết nối ${platform}`, `Not connected to ${platform}`));
+        return;
+      }
+      targetPlatforms = [platform];
+    }
     
     setConfirmDialog({
       message: t(`Gửi đăng ${selectedIds.length} bài viết lên ${platform}?`, `Publish ${selectedIds.length} articles to ${platform}?`),
@@ -383,7 +409,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
         let successCount = 0;
         for (const id of selectedIds) {
           try {
-            await apiService.publishCmsArticle(spaceId, id, [platform]);
+            await apiService.publishCmsArticle(spaceId, id, targetPlatforms);
             successCount++;
           } catch (e: any) { console.error(e); }
         }
@@ -623,7 +649,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
   if (!spaceId) return <div className="p-8 text-center text-text-light">{t('Đang tải...', 'Loading...')}</div>;
 
   const sLabel = language === 'vi' ? STATUS_LABELS_VI : STATUS_LABELS_EN;
-  const totalPages = Math.ceil(total / 15);
+  const totalPages = Math.ceil(total / limit);
 
   
   // ── Styles (Tailwind mapping) ──
@@ -718,7 +744,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                     
                     <div className="space-y-1 mb-4 text-xs text-text-light">
                       {isFbPage && <p className="truncate"><strong>Page ID:</strong> {conn.platform.replace('facebook_', '')}</p>}
-                      <p className="truncate" title={conn.accessToken}><strong>Token:</strong> {conn.accessToken}</p>
+                      <p className="break-all"><strong>Token:</strong> <span className="select-all font-mono bg-background-light/50 px-1 py-0.5 rounded border border-border-color">{conn.accessToken}</span></p>
                     </div>
 
                     <div className="flex gap-2">
@@ -965,21 +991,39 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                 </div>
               ))}
               {/* Pagination */}
-              {totalPages > 1 && (
+              {total > 0 && (
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-border-color">
-                  <span className="text-xs text-text-light">{t(`Tổng: ${total} bài`, `Total: ${total} articles`)}</span>
-                  <div className="flex gap-1">
-                    <button disabled={page <= 1} onClick={() => setPage(page - 1)} className={btnOutlineClass + " !px-3 !py-1 !text-xs"}>&laquo;</button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-                      .map((p, idx, arr) => (
-                        <React.Fragment key={p}>
-                          {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-1 text-text-light self-center">…</span>}
-                          <button onClick={() => setPage(p)} className={(page === p ? btnPrimaryClass : btnOutlineClass) + " !px-3 !py-1 !text-xs"}>{p}</button>
-                        </React.Fragment>
-                      ))}
-                    <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className={btnOutlineClass + " !px-3 !py-1 !text-xs"}>&raquo;</button>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-text-light">{t(`Tổng: ${total} bài`, `Total: ${total} articles`)}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-text-light">
+                      <span>{t('Hiển thị:', 'Show:')}</span>
+                      <select 
+                        value={limit} 
+                        onChange={e => { setLimit(Number(e.target.value)); setPage(1); }} 
+                        className="bg-background-panel border border-border-color rounded px-1.5 py-0.5 text-xs text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                      <span>{t('dòng', 'rows')}</span>
+                    </div>
                   </div>
+                  {totalPages > 1 && (
+                    <div className="flex gap-1">
+                      <button disabled={page <= 1} onClick={() => setPage(page - 1)} className={btnOutlineClass + " !px-3 !py-1 !text-xs"}>&laquo;</button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                        .map((p, idx, arr) => (
+                          <React.Fragment key={p}>
+                            {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-1 text-text-light self-center">…</span>}
+                            <button onClick={() => setPage(p)} className={(page === p ? btnPrimaryClass : btnOutlineClass) + " !px-3 !py-1 !text-xs"}>{p}</button>
+                          </React.Fragment>
+                        ))}
+                      <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className={btnOutlineClass + " !px-3 !py-1 !text-xs"}>&raquo;</button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1156,7 +1200,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
                                     >
                                       <option value="">-- {t('Chọn Album', 'Select Album')} --</option>
                                       {(albumsCache[page.platform] || []).map(album => (
-                                        <option key={album.id} value={album.album_id}>{album.name}</option>
+                                        <option key={album.id} value={album.album_id}>{album.name} ({album.album_id})</option>
                                       ))}
                                     </select>
                                   )}
@@ -1181,7 +1225,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">{t('Lên lịch đăng', 'Schedule')}</label>
-                <input type="datetime-local" value={editArticle.scheduledAt?.slice(0, 16) || ''} onChange={e => setEditArticle({ ...editArticle, scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className={inputClass} />
+                <input type="datetime-local" value={toLocalISOString(editArticle.scheduledAt)} onChange={e => setEditArticle({ ...editArticle, scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className={inputClass} />
               </div>
             </div>
             </div><div className="px-6 py-4 border-t border-border-color flex gap-3 justify-end flex-shrink-0 bg-background-light">

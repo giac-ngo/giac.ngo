@@ -239,7 +239,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
                                 <span className="doc-card-type">{language === 'en' && doc.typeEn ? doc.typeEn : doc.type}</span>
                                 <h3 className="doc-card-title">{language === 'en' && doc.titleEn ? doc.titleEn : doc.title}</h3>
                                 <p className="doc-card-summary">
-                                    {language === 'en' && doc.summaryEn ? doc.summaryEn : (doc.summary || '')}
+                                    {(() => {
+                                        const summary = language === 'en' && doc.summaryEn ? doc.summaryEn : doc.summary;
+                                        if (summary && summary.trim() !== '') {
+                                            return summary;
+                                        }
+                                        const content = language === 'en' && doc.contentEn ? doc.contentEn : doc.content;
+                                        if (!content) return '';
+                                        // Strip HTML tags and replace multiple whitespace characters
+                                        const cleanText = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                                        return cleanText.length > 150 ? cleanText.substring(0, 150) + '...' : cleanText;
+                                    })()}
                                 </p>
                                 <i><p className="doc-card-author">{t.by} {language === 'en' && doc.authorEn ? doc.authorEn : doc.author}</p></i>
                                 <div className="doc-card-stats">

@@ -415,7 +415,26 @@ export const cmsController = {
                 return res.status(400).json({ message: 'articleId, platform, and status are required.' });
             }
 
-            let updateResult = await cmsPublishLogModel.updateByArticleAndPlatform(articleId, platform, {
+            let finalPlatform = platform;
+            if (platform === 'facebook') {
+                // Find a pending log starting with 'facebook_' first
+                let checkRes = await pool.query(
+                    `SELECT platform FROM cms_publish_logs WHERE article_id = $1 AND platform LIKE 'facebook_%' AND status = 'pending' LIMIT 1`,
+                    [articleId]
+                );
+                if (checkRes.rows.length === 0) {
+                    // If no pending, find any log starting with 'facebook_'
+                    checkRes = await pool.query(
+                        `SELECT platform FROM cms_publish_logs WHERE article_id = $1 AND platform LIKE 'facebook_%' LIMIT 1`,
+                        [articleId]
+                    );
+                }
+                if (checkRes.rows.length > 0) {
+                    finalPlatform = checkRes.rows[0].platform;
+                }
+            }
+
+            let updateResult = await cmsPublishLogModel.updateByArticleAndPlatform(articleId, finalPlatform, {
                 status, externalPostId, externalUrl, errorMessage,
                 publishedAt: status === 'success' ? new Date().toISOString() : undefined,
                 n8nExecutionId
@@ -423,10 +442,10 @@ export const cmsController = {
 
             // If no existing log was found, create one (e.g. article published directly via n8n pull)
             if (!updateResult) {
-                logger.warn(`CMS webhook: no existing log for article ${articleId} / ${platform}, creating new one`);
-                updateResult = await cmsPublishLogModel.create({ articleId, platform, status });
+                logger.warn(`CMS webhook: no existing log for article ${articleId} / ${finalPlatform}, creating new one`);
+                updateResult = await cmsPublishLogModel.create({ articleId, platform: finalPlatform, status });
                 // Update the newly created log with extra fields
-                await cmsPublishLogModel.updateByArticleAndPlatform(articleId, platform, {
+                await cmsPublishLogModel.updateByArticleAndPlatform(articleId, finalPlatform, {
                     status, externalPostId, externalUrl, errorMessage,
                     publishedAt: status === 'success' ? new Date().toISOString() : undefined,
                     n8nExecutionId
@@ -498,6 +517,31 @@ export const cmsController = {
             // Build payload for n8n
             const payload = articles.map(article => {
                 const articleConns = connections.filter(c => c.spaceId === article.spaceId && article.targetPlatforms?.includes(c.platform));
+                
+                // Extract top-level fbAlbumId if it's a JSON string
+                let resolvedFbAlbumId = article.fbAlbumId || null;
+                if (resolvedFbAlbumId && resolvedFbAlbumId.startsWith('{')) {
+                    try {
+                        const albumMap = JSON.parse(resolvedFbAlbumId);
+                        // Find the first platform in targetPlatforms that is present in the albumMap
+                        const targetPlatform = article.targetPlatforms?.find((p: string) => albumMap[p]);
+                        if (targetPlatform) {
+                            resolvedFbAlbumId = albumMap[targetPlatform] || null;
+                        } else {
+                            // Fallback: take the first key in the map
+                            const keys = Object.keys(albumMap);
+                            if (keys.length > 0) {
+                                resolvedFbAlbumId = albumMap[keys[0]] || null;
+                            }
+                        }
+                        if (resolvedFbAlbumId === 'direct') {
+                            resolvedFbAlbumId = null;
+                        }
+                    } catch (e) {
+                        resolvedFbAlbumId = null;
+                    }
+                }
+
                 return {
                     articleId: article.id,
                     spaceId: article.spaceId,
@@ -505,16 +549,31 @@ export const cmsController = {
                     content: article.content,
                     author: article.author,
                     imageUrls: article.imageUrls,
-                    fbAlbumId: article.fbAlbumId || null,
+                    fbAlbumId: resolvedFbAlbumId,
                     platforms: article.targetPlatforms,
                     callbackUrl: `${req.protocol}://${req.get('host')}/api/cms/${slug}/webhook/publish-result`,
                     callbackSecret: CMS_CALLBACK_SECRET,
-                    connections: articleConns.map(c => ({
-                        platform: c.platform,
-                        accessToken: c.accessToken,
-                        pageId: c.pageId,
-                        pageName: c.pageName
-                    }))
+                    connections: articleConns.map(c => {
+                        let pageAlbumId = null;
+                        if (article.fbAlbumId) {
+                            if (article.fbAlbumId.startsWith('{')) {
+                                try {
+                                    const albumMap = JSON.parse(article.fbAlbumId);
+                                    pageAlbumId = albumMap[c.platform] || null;
+                                    if (pageAlbumId === 'direct') pageAlbumId = null;
+                                } catch (e) {}
+                            } else if (c.platform.startsWith('facebook')) {
+                                pageAlbumId = article.fbAlbumId;
+                            }
+                        }
+                        return {
+                            platform: c.platform,
+                            accessToken: c.accessToken,
+                            pageId: c.pageId,
+                            pageName: c.pageName,
+                            fbAlbumId: pageAlbumId
+                        };
+                    })
                 };
             });
 
@@ -538,7 +597,7 @@ export const cmsController = {
             const connections = await cmsSocialConnectionModel.findBySpaceId(spaceId);
             const safe = connections.map((c: any) => ({
                 ...c,
-                accessToken: c.accessToken ? '••••••' + c.accessToken.slice(-8) : null
+                accessToken: c.accessToken
             }));
             res.json({
                 connections: safe,

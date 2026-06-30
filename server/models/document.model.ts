@@ -86,7 +86,11 @@ export const documentModel = {
 
         // Removed hardcoded type filter to allow all document types in library view
         // if (isLibrary) { whereClauses.push(`dt.name IN ('Kệ', 'Câu Chuyện')`); }
-        if (title) { whereClauses.push(`(d.title ILIKE $${paramIndex} OR d.title_en ILIKE $${paramIndex})`); params.push(`%${title}%`); paramIndex++; }
+        if (title) {
+            whereClauses.push(`(d.title ILIKE $${paramIndex} OR d.title_en ILIKE $${paramIndex} OR d.content ILIKE $${paramIndex} OR d.content_en ILIKE $${paramIndex} OR d.summary ILIKE $${paramIndex} OR d.summary_en ILIKE $${paramIndex})`);
+            params.push(`%${title}%`);
+            paramIndex++;
+        }
         if (authorId) { whereClauses.push(`d.author_id = $${paramIndex++}`); params.push(authorId); }
         if (typeId) { whereClauses.push(`d.type_id = $${paramIndex++}`); params.push(typeId); }
         if (topicId) { whereClauses.push(`d.topic_id = $${paramIndex++}`); params.push(topicId); }

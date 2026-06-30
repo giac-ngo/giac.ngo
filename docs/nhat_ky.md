@@ -31,6 +31,60 @@
 - `client/public/themes/giacngo/Library.css`
 - `client/index.html`
 
+### 📚 Tóm tắt bài viết thư viện & Mở rộng tìm kiếm tài liệu
+**Vấn đề**:
+1. Thư viện bài viết cần hiển thị tóm tắt bài viết trong danh sách.
+2. Khi tìm kiếm tài liệu, cần tìm kiếm cả trong nội dung (content) và tiêu đề (title).
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`document.model.ts`)**: Mở rộng câu lệnh `WHERE` trong hàm `find` của `documentModel` để tìm kiếm từ khóa không phân biệt hoa thường (`ILIKE`) trên cả các trường `title`, `title_en`, `content`, `content_en`, `summary`, `summary_en`.
+- **Frontend (`LibraryView.tsx`)**: Hiển thị tóm tắt bài viết trong danh sách thẻ tài liệu. Nếu trường tóm tắt (`summary` / `summaryEn`) trống trong cơ sở dữ liệu, frontend tự động bóc tách thẻ HTML từ nội dung bài viết (`content` / `contentEn`), chuẩn hóa khoảng trắng và cắt ngắn tối đa 150 ký tự làm tóm tắt.
+
+---
+
+### 🔑 Hiển thị Access Token đầy đủ & Định dạng Copy trong CMS Social Connections
+**Vấn đề**: Người dùng cần kiểm tra và sao chép đầy đủ Access Token của các kết nối mạng xã hội, tuy nhiên giao diện trước đây đã che bớt/cắt ngắn token.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`cmsController.ts`)**: Loại bỏ logic che giấu/mã hóa token ở hàm `getConnections`, trả về nguyên bản `accessToken`.
+- **Frontend (`CmsManagement.tsx`)**: Loại bỏ class `truncate` trên thẻ paragraph của token, thay bằng class `break-all` để tự động xuống dòng và bọc token trong thẻ `<span>` có class `select-all font-mono` giúp người dùng dễ dàng nhấp đúp chuột để bôi đen/copy toàn bộ token.
+
+---
+
+### 🐛 Giải mã fbAlbumId & Khắc phục lỗi kẹt trạng thái "Đang đăng" khi gọi Callback
+**Vấn đề**: 
+1. `fbAlbumId` lưu trong DB dưới dạng JSON map tương thích với các Page khác nhau, nhưng webhook PULL của n8n cần Album ID dạng số trực tiếp.
+2. Khi n8n hoàn thành đăng bài và gọi callback webhook của server báo kết quả, nó gửi tên nền tảng chung là `"facebook"` thay vì tên page cụ thể dạng `"facebook_..."`. Khiến server tạo một log mới tên `"facebook"`, bỏ quên log Page thực tế ở trạng thái `pending`, làm bài viết bị kẹt trạng thái "Đang gửi đăng" (publishing).
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`cmsController.ts`)**:
+  - Tại API lấy danh sách bài viết chờ duyệt cho n8n (`getPendingArticlesForN8n`): Giải mã chuỗi JSON `fbAlbumId` để lấy ra chính xác mã album dạng số tương ứng với Page đích chuẩn bị đăng.
+  - Tại webhook nhận kết quả đăng bài (`webhookPublishResult`): Bổ sung logic tự động map nền tảng chung `"facebook"` về đúng mã connection Page cụ thể (dạng `"facebook_..."`) trong DB để cập nhật trạng thái log chính xác.
+  - Chạy script migration dọn dẹp các bài viết cũ bị kẹt trạng thái sang "Đã đăng" (published) và "Thất bại" (failed).
+
+---
+
+### 📅 Đặt lịch đăng mặc định (+5 phút) & Đồng bộ múi giờ cục bộ
+**Vấn đề**: Ô nhập ngày giờ lên lịch đăng không tự động điền giá trị gợi ý và hiển thị sai lệch múi giờ (UTC so với giờ Việt Nam GMT+7).
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`CmsManagement.tsx`)**:
+  - Khi tạo bài viết mới (`openNewArticle`), tự động gán mặc định thời gian `scheduledAt` là thời điểm hiện tại cộng thêm 5 phút (`new Date(Date.now() + 5 * 60 * 1000).toISOString()`).
+  - Viết helper `toLocalISOString` để quy đổi ngày giờ dạng UTC từ DB thành giờ local tương ứng của trình duyệt để hiển thị chính xác trên thẻ `<input type="datetime-local" />`.
+
+---
+
+### 📊 Thêm Combobox số lượng dòng & Sửa lỗi đăng hàng loạt (Mass Publish)
+**Vấn đề**:
+1. Danh sách bài viết CMS chưa có tùy chọn số lượng dòng hiển thị trên mỗi trang (10, 50, 100).
+2. Khi chọn nhiều bài viết và nhấn nút đăng hàng loạt `FB` trên thanh công cụ, hệ thống báo lỗi "Chưa kết nối fb" mặc dù các Page đã kết nối hoạt động tốt.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`CmsManagement.tsx`)**:
+  - Thêm state `limit` (mặc định 15) và cập nhật API tải danh sách bài viết theo limit được chọn.
+  - Tích hợp thêm thẻ `<select>` cho phép chọn hiển thị **10, 15, 50, hoặc 100** dòng ở thanh phân trang dưới cùng.
+  - Cập nhật hàm `handlePublishMass` để nếu nền tảng là `facebook`, nó sẽ tìm các kết nối active có platform bắt đầu bằng `"facebook_"` để lấy danh sách Page cụ thể và gọi API đăng bài thay vì tìm kiếm platform tên `"facebook"` gốc.
+
 ## 2026-06-29
 
 ### ➕ Thêm API lấy bài viết trong thư viện theo Space ID & Lọc thư viện theo Space ID

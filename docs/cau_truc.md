@@ -102,7 +102,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `GET /api/library/documents`: Lấy danh sách tài liệu công khai trong Thư viện Space.
   - `GET /api/library/topics`, `GET /api/library/filters`: Lấy hệ thống phân loại tài liệu (Tag, Topic, Author).
 * **Tài liệu (Documents)**:
-  - `GET /api/v1/documents`: Lấy danh sách tài liệu/bài viết trong thư viện thuộc Space ID truyền vào (yêu cầu xác thực Bearer token & check quyền thành viên/admin).
+  - `GET /api/v1/documents`: Lấy danh sách tài liệu/bài viết trong thư viện thuộc Space ID truyền vào (yêu cầu xác thực Bearer token & check quyền thành viên/admin, hỗ trợ tìm kiếm không phân biệt hoa thường ILIKE trên cả tiêu đề, nội dung và tóm tắt).
   - `GET /api/documents`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý tài liệu RAG.
   - `GET /api/documents/recommended`: Gợi ý tài liệu.
   - `POST /api/documents/:id/like`: Thả tim tài liệu.
@@ -169,6 +169,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `GET /api/cms/:spaceId/articles`, `GET /:id`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý bài đăng đa kênh.
   - `DELETE /api/cms/:spaceId/articles/:id/permanent`: Xoá vĩnh viễn (Hard delete).
   - `POST /api/cms/:spaceId/articles/:id/publish`: Endpoint kích hoạt Webhook N8N đăng lên nền tảng chỉ định.
+  - `POST /api/cms/:slug/webhook/publish-result`: Webhook callback từ n8n để báo cáo kết quả đăng bài. Hệ thống tự động phân tích và ánh xạ nền tảng chung `"facebook"` về connection Page cụ thể (`facebook_...`) để tránh lỗi kẹt trạng thái "Đang gửi đăng" (publishing).
   - `POST /api/cms/:spaceId/articles/import-document`: Import bài từ Kho Văn Bản sang bài đăng CMS.
   - `POST /api/cms/:spaceId/articles/:id/share-to-feed`: Share bài viết CMS vào Bảng tin Cộng Đồng nội bộ của Space.
 * **Social Connections**:
@@ -176,7 +177,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `GET /api/cms/:spaceId/oauth/:platform/url`: Nhận URL uỷ quyền (OAuth) — Trả về URL tới `facebook-connect.phoai.vn` kèm `state=space_{spaceId}_{platform}` và `redirect_uri=https://{currentHost}/api/cms/oauth/callback`. **Quan trọng**: `redirect_uri` được tạo ĐỘNG từ `req.get('host')` — KHÔNG được hardcode — để hỗ trợ multi-tenant (mỗi Space trên custom domain khác nhau tự tạo callback URL của mình).
   - `GET /api/cms/oauth/callback`: Endpoint nhận lại từ `facebook-connect.phoai.vn` sau khi user uỷ quyền. Lưu token vào DB, sau đó **redirect về `/{slug}/admin/cms_approve?oauth=success&platform={platform}`** (KHÔNG phải `/admin/cms`).
   - `GET /api/cms/:spaceId/connections/facebook/pages` & `PUT /.../facebook`: Swap Page Access Token của Fanpage hoặc Profile Cá Nhân.
-  - Cấu hình quản lý `fb-albums`.
+  - Cấu hình quản lý `fb-albums` (trả về danh sách album Facebook của Page chỉ định, tự động hiển thị Album ID bên cạnh tên album trên giao diện).
 * **Tab MXH (Kết Nối Mạng Xã Hội) trong CMS**:
   - Giao diện có nút `+` để thêm mới kết nối MXH (Facebook, Instagram, Threads, LinkedIn).
   - Mỗi kết nối hiện ra như 1 card với icon, tên, nút Cấu hình và Ngắt kết nối.
