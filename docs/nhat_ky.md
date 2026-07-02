@@ -51,6 +51,17 @@ Khi người dùng xem trang chi tiết tài liệu thư viện (`DocumentDetail
 - **Backend (`geminiService.ts` & `gptService.ts`)**:
   - Cập nhật prompt dịch thuật để AI hiểu rằng bắt buộc phải **giữ nguyên cấu trúc HTML, thẻ định dạng và các ký tự định dạng Markdown (như `**`, `*`, `\n`)** trong chuỗi kết quả dịch.
 
+### 🅰️ Bổ sung tùy chọn Cỡ chữ (Font Size) vào thanh công cụ của Trình soạn thảo văn bản
+**Vấn đề / Nhu cầu**:
+Người dùng muốn có khả năng thay đổi kích thước chữ (Font Size) của văn bản trong ô Nội dung và ô Diễn giải của tài liệu thông qua một tùy chọn trên thanh công cụ soạn thảo trực quan.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`TextEditor` component trong `FilesAndDocuments.tsx`)**:
+  - Cập nhật hàm `execCmd` nhận thêm tham số `value` (mặc định là `undefined`) để hỗ trợ chuyển đổi lệnh có đối số ví dụ như cỡ chữ: `document.execCommand('fontSize', false, value)`.
+  - Tích hợp một dropdown `<select>` chọn kích thước cỡ chữ với các tùy chọn tương ứng từ 12px đến 48px trên thanh công cụ.
+  - Tự động reset giá trị của ô chọn sau khi lệnh được thực hiện để người dùng có thể chọn lại dễ dàng.
+  - Đóng gói ứng dụng thành công cho môi trường production.
+
 ---
 
 ## 2026-06-30

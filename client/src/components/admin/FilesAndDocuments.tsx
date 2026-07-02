@@ -334,9 +334,9 @@ const TextEditor: React.FC<{
         onContentChange(e.currentTarget.innerHTML);
     };
 
-    const execCmd = (command: string) => {
+    const execCmd = (command: string, value: any = undefined) => {
         if (disabled) return;
-        document.execCommand(command, false, undefined);
+        document.execCommand(command, false, value);
         editorRef.current?.focus();
     };
 
@@ -370,10 +370,33 @@ const TextEditor: React.FC<{
 
             {viewMode === 'rich' ? (
                 <>
-                    <div className="flex items-center gap-1 p-2 border-b border-border-color bg-background-light flex-wrap">
+                    <div className="flex items-center gap-1 p-2 border-b border-border-color bg-background-light flex-wrap text-sm">
                         <button type="button" onClick={() => execCmd('bold')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><BoldIcon className="w-4 h-4" /></button>
                         <button type="button" onClick={() => execCmd('italic')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ItalicIcon className="w-4 h-4" /></button>
                         <button type="button" onClick={() => execCmd('underline')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><UnderlineIcon className="w-4 h-4" /></button>
+                        
+                        <select
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    execCmd('fontSize', e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                            className="p-1 border border-gray-300 rounded text-xs bg-white text-gray-700 h-7 focus:outline-none"
+                            disabled={disabled || isExtracting}
+                        >
+                            <option value="">{language === 'en' ? 'Font Size' : 'Cỡ chữ'}</option>
+                            <option value="1">12px</option>
+                            <option value="2">13px</option>
+                            <option value="3">16px</option>
+                            <option value="4">18px</option>
+                            <option value="5">24px</option>
+                            <option value="6">32px</option>
+                            <option value="7">48px</option>
+                        </select>
+
+                        <span className="w-px h-4 bg-gray-300 mx-1"></span>
+
                         <button type="button" onClick={() => execCmd('insertOrderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListOrderedIcon className="w-4 h-4" /></button>
                         <button type="button" onClick={() => execCmd('insertUnorderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListIcon className="w-4 h-4" /></button>
                         <button type="button" onClick={() => execCmd('justifyLeft')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignLeftIcon className="w-4 h-4" /></button>
