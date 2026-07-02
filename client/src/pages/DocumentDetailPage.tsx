@@ -1,7 +1,6 @@
 // client/src/pages/DocumentDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
 import { apiService } from '../services/apiService';
 import { Document, User } from '../types';
 import { useToast } from '../components/ToastProvider';
@@ -229,11 +228,7 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ user }) => {
                     {(language === 'en' ? document.explanationEn : document.explanation) && (
                         <div className="document-explanation">
                             <h3>{language === 'en' ? 'Explanation' : 'Diễn giải'}</h3>
-                            <div className="document-explanation-content prose max-w-none">
-                                <ReactMarkdown>
-                                    {language === 'en' ? document.explanationEn : document.explanation}
-                                </ReactMarkdown>
-                            </div>
+                            <div className="document-explanation-content prose max-w-none" dangerouslySetInnerHTML={{ __html: (language === 'en' ? document.explanationEn : document.explanation) || '' }} />
                         </div>
                     )}
                 </article>
