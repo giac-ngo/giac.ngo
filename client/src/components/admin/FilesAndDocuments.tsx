@@ -1,7 +1,7 @@
 
 // client/src/components/admin/FilesAndDocuments.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { PencilIcon, TrashIcon, EyeIcon, PlusIcon, GenerateIcon, SpinnerIcon, BoldIcon, ItalicIcon, UnderlineIcon, ListOrderedIcon, ListIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, PaperclipIcon, SoundWaveIcon, SettingsIcon, ThumbsUpIcon, BookOpenIcon, EraserIcon } from '../Icons';
+import { PencilIcon, TrashIcon, EyeIcon, PlusIcon, GenerateIcon, SpinnerIcon, BoldIcon, ItalicIcon, UnderlineIcon, ListOrderedIcon, ListIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, PaperclipIcon, SoundWaveIcon, SettingsIcon, ThumbsUpIcon, BookOpenIcon, EraserIcon, LanguageIcon, SparkleIcon, RepeatIcon } from '../Icons';
 import { useToast } from '../ToastProvider';
 import { apiService } from '../../services/apiService';
 import { Document, DocumentAuthor, DocumentType, DocumentTopic, Tag, User, ModelType, DocumentConfig, Space } from '../../types';
@@ -109,6 +109,13 @@ const translations = {
         modelLoading: 'Đang tải model...',
         rating: 'Đánh giá',
         uploading: 'Đang tải lên...',
+        explanationLabel: 'Diễn giải',
+        explanationPlaceholder: 'Nhập lời diễn giải ý nghĩa của bài kinh/kệ...',
+        explainBtn: 'Diễn giải AI',
+        explaining: 'Đang diễn giải...',
+        translateAll: 'Dịch toàn bộ (VI - EN)',
+        systemPromptLabel: 'System Prompt Dịch thuật',
+        systemPromptPlaceholder: 'Ví dụ: Dịch với văn phong giác ngộ, sử dụng ngôn từ Phật giáo trang trọng...',
     },
     en: {
         title: 'Files & Documents',
@@ -208,6 +215,13 @@ const translations = {
         modelLoading: 'Loading models...',
         rating: 'Rating',
         uploading: 'Uploading...',
+        explanationLabel: 'Explanation',
+        explanationPlaceholder: 'Enter explanation or commentary for this scripture/verse...',
+        explainBtn: 'AI Explain',
+        explaining: 'Explaining...',
+        translateAll: 'Translate All (VI - EN)',
+        systemPromptLabel: 'Translation System Prompt',
+        systemPromptPlaceholder: 'e.g. Translate with an enlightened, formal Buddhist style...',
     }
 };
 
@@ -290,61 +304,111 @@ const TextEditor: React.FC<{
     initialHtml: string;
     onContentChange: (html: string) => void;
     placeholder: string;
-    onFileExtract: (file: File) => void;
-    isExtracting: boolean;
+    onFileExtract?: (file: File) => void;
+    isExtracting?: boolean;
     language: 'vi' | 'en';
-}> = ({ initialHtml, onContentChange, placeholder, onFileExtract, isExtracting, language }) => {
+    disabled?: boolean;
+    heightClass?: string;
+}> = ({
+    initialHtml,
+    onContentChange,
+    placeholder,
+    onFileExtract,
+    isExtracting = false,
+    language,
+    disabled = false,
+    heightClass = 'min-h-[250px] h-[250px]'
+}) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [viewMode, setViewMode] = useState<'rich' | 'html'>('rich');
     const t = translations[language];
 
     useEffect(() => {
-        if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
+        if (viewMode === 'rich' && editorRef.current && editorRef.current.innerHTML !== initialHtml) {
             editorRef.current.innerHTML = initialHtml;
         }
-    }, [initialHtml]);
+    }, [initialHtml, viewMode]);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         onContentChange(e.currentTarget.innerHTML);
     };
 
     const execCmd = (command: string) => {
+        if (disabled) return;
         document.execCommand(command, false, undefined);
         editorRef.current?.focus();
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
+        if (e.target.files && e.target.files[0] && onFileExtract) {
             onFileExtract(e.target.files[0]);
         }
     };
 
     return (
-        <div className="border border-border-color rounded-md">
-            <div className="flex items-center gap-1 p-2 border-b border-border-color bg-background-light flex-wrap">
-                <button type="button" onClick={() => execCmd('bold')} className="p-1.5 rounded hover:bg-gray-200"><BoldIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('italic')} className="p-1.5 rounded hover:bg-gray-200"><ItalicIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('underline')} className="p-1.5 rounded hover:bg-gray-200"><UnderlineIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('insertOrderedList')} className="p-1.5 rounded hover:bg-gray-200"><ListOrderedIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-1.5 rounded hover:bg-gray-200"><ListIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('justifyLeft')} className="p-1.5 rounded hover:bg-gray-200"><AlignLeftIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('justifyCenter')} className="p-1.5 rounded hover:bg-gray-200"><AlignCenterIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('justifyRight')} className="p-1.5 rounded hover:bg-gray-200"><AlignRightIcon className="w-4 h-4" /></button>
-                <button type="button" onClick={() => execCmd('removeFormat')} className="p-1.5 rounded hover:bg-gray-200" title={t.removeFormat}><EraserIcon className="w-4 h-4" /></button>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isExtracting} className="ml-auto flex items-center gap-1 text-sm p-1.5 rounded hover:bg-gray-200 disabled:opacity-50">
-                    {isExtracting ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <PaperclipIcon className="w-4 h-4" />}
-                    {isExtracting ? t.extracting : t.attachFile}
-                </button>
+        <div className="border border-border-color rounded-md overflow-hidden bg-white">
+            {/* View Mode Tabs */}
+            <div className="flex border-b border-border-color bg-gray-50 text-xs px-2 py-1 gap-2 items-center justify-between">
+                <div className="flex gap-1">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('rich')}
+                        className={`px-3 py-1 rounded transition-all ${viewMode === 'rich' ? 'bg-white border font-bold text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        {language === 'en' ? 'Visual' : 'Trực quan'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('html')}
+                        className={`px-3 py-1 rounded transition-all ${viewMode === 'html' ? 'bg-white border font-bold text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        {language === 'en' ? 'HTML' : 'Mã HTML'}
+                    </button>
+                </div>
             </div>
-            <div
-                ref={editorRef}
-                contentEditable={!isExtracting}
-                onInput={handleInput}
-                className="p-3 min-h-[200px] prose max-w-none focus:outline-none"
-                dangerouslySetInnerHTML={{ __html: initialHtml }}
-                data-placeholder={placeholder}
-            />
+
+            {viewMode === 'rich' ? (
+                <>
+                    <div className="flex items-center gap-1 p-2 border-b border-border-color bg-background-light flex-wrap">
+                        <button type="button" onClick={() => execCmd('bold')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><BoldIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('italic')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ItalicIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('underline')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><UnderlineIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('insertOrderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListOrderedIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('insertUnorderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyLeft')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignLeftIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyCenter')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignCenterIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyRight')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignRightIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('removeFormat')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title={t.removeFormat}><EraserIcon className="w-4 h-4" /></button>
+                        
+                        {onFileExtract && (
+                            <>
+                                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled || isExtracting} className="ml-auto flex items-center gap-1 text-sm p-1.5 rounded hover:bg-gray-200 disabled:opacity-50">
+                                    {isExtracting ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : <PaperclipIcon className="w-4 h-4" />}
+                                    {isExtracting ? t.extracting : t.attachFile}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                    <div
+                        ref={editorRef}
+                        contentEditable={!disabled && !isExtracting}
+                        onInput={handleInput}
+                        className={`p-3 prose max-w-none focus:outline-none overflow-y-auto ${heightClass} ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                        dangerouslySetInnerHTML={{ __html: initialHtml }}
+                        data-placeholder={placeholder}
+                    />
+                </>
+            ) : (
+                <textarea
+                    value={initialHtml}
+                    onChange={e => onContentChange(e.target.value)}
+                    disabled={disabled}
+                    placeholder={placeholder}
+                    className={`w-full p-3 font-mono text-sm focus:outline-none resize-none overflow-y-auto ${heightClass} ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                />
+            )}
         </div>
     );
 };
@@ -457,6 +521,16 @@ const DocumentConfigModal: React.FC<DocumentConfigModalProps> = ({ isOpen, onClo
                                         {translationModels.map(m => <option key={m} value={m}>{m}</option>)}
                                     </select>}
                             </div>
+                        </div>
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium">{t.systemPromptLabel}</label>
+                            <textarea
+                                value={config.systemPrompt || ''}
+                                onChange={e => handleConfigChange('systemPrompt', e.target.value)}
+                                placeholder={t.systemPromptPlaceholder}
+                                rows={3}
+                                className="mt-1 w-full p-2 border rounded-md text-sm"
+                            />
                         </div>
                     </div>
                     <div className="space-y-4 p-4 border rounded-md">
@@ -819,10 +893,12 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
     const [isAudioPickerOpen, setIsAudioPickerOpen] = useState(false);
     const [isAudioEnPickerOpen, setIsAudioEnPickerOpen] = useState(false);
 
-    // State for translation and extraction
+        // State for translation and extraction
     const [translatingField, setTranslatingField] = useState<string | null>(null);
     const [extractingFor, setExtractingFor] = useState<'vi' | 'en' | null>(null);
     const [isGeneratingAudioFor, setIsGeneratingAudioFor] = useState<'vi' | 'en' | null>(null);
+    const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+    const [isExplaining, setIsExplaining] = useState(false);
 
     // Filter states
     const [filters, setFilters] = useState<Filters>({ title: '', authorId: '', typeId: '', topicId: '', tagId: '', spaceId: activeSpace ? activeSpace.id.toString() : '' });
@@ -1090,25 +1166,20 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
         }
     };
 
-    const handleTranslate = async (field: 'title' | 'summary' | 'content', sourceLang: 'vi' | 'en', targetLang: 'vi' | 'en') => {
+    const handleTranslate = async (field: 'title' | 'summary' | 'content' | 'explanation', sourceLang: 'vi' | 'en', targetLang: 'vi' | 'en') => {
         if (!editingDocument || !documentConfig) return;
 
         const sourceField = sourceLang === 'en' ? `${field}En` as keyof Document : field;
         const targetField = targetLang === 'en' ? `${field}En` as keyof Document : field;
 
         const sourceText = String(editingDocument[sourceField] || '').trim();
-        const targetText = String(editingDocument[targetField] || '').trim();
 
         if (!sourceText) {
             showToast(sourceLang === 'vi' ? 'Nội dung Tiếng Việt trống để dịch.' : 'English content is empty to translate from.', 'error');
             return;
         }
 
-        if (targetText && !window.confirm(targetLang === 'vi' ? 'Nội dung Tiếng Việt hiện tại sẽ bị ghi đè. Bạn có muốn tiếp tục?' : 'Current English content will be overwritten. Do you want to continue?')) {
-            return;
-        }
-
-        const contextPrompt = "Dịch với văn phong 'giác ngộ', sử dụng ngôn từ trang trọng, sâu sắc, phù hợp với các văn bản Phật giáo.";
+        const contextPrompt = documentConfig.systemPrompt || "Dịch với văn phong 'giác ngộ', sử dụng ngôn từ trang trọng, sâu sắc, phù hợp với các văn bản Phật giáo.";
 
         setTranslatingField(field);
         try {
@@ -1118,7 +1189,8 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 sourceText,
                 targetLang,
                 user.id as number,
-                contextPrompt
+                contextPrompt,
+                editingDocument.spaceId || activeSpace?.id || undefined
             );
             setEditingDocument(prev => prev ? { ...prev, [targetField]: translatedText } : null);
         } catch (error: any) {
@@ -1126,6 +1198,101 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
             console.error(error);
         } finally {
             setTranslatingField(null);
+        }
+    };
+
+    const handleTranslateAll = async (sourceLang: 'vi' | 'en', targetLang: 'vi' | 'en') => {
+        if (!editingDocument || !documentConfig || isTranslatingAll) return;
+
+        setIsTranslatingAll(true);
+        showToast(targetLang === 'vi' ? 'Đang dịch toàn bộ sang Tiếng Việt...' : 'Translating all to English...', 'info');
+
+        const contextPrompt = documentConfig.systemPrompt || "Dịch với văn phong 'giác ngộ', sử dụng ngôn từ trang trọng, sâu sắc, phù hợp với các văn bản Phật giáo.";
+
+        try {
+            const translateFieldHelper = async (field: 'title' | 'summary' | 'content' | 'explanation') => {
+                const sourceField = sourceLang === 'en' ? `${field}En` as keyof Document : field;
+                const sourceText = String(editingDocument[sourceField] || '').trim();
+                if (!sourceText) return '';
+
+                const { translatedText } = await apiService.translateText(
+                    documentConfig.translationProvider,
+                    documentConfig.translationModel,
+                    sourceText,
+                    targetLang,
+                    user.id as number,
+                    contextPrompt,
+                    editingDocument.spaceId || activeSpace?.id || undefined
+                );
+                return translatedText;
+            };
+
+            const [titleRes, summaryRes, contentRes, explanationRes] = await Promise.all([
+                translateFieldHelper('title'),
+                translateFieldHelper('summary'),
+                translateFieldHelper('content'),
+                translateFieldHelper('explanation'),
+            ]);
+
+            setEditingDocument(prev => {
+                if (!prev) return null;
+                const newDoc = { ...prev };
+                if (targetLang === 'vi') {
+                    if (titleRes) newDoc.title = titleRes;
+                    if (summaryRes) newDoc.summary = summaryRes;
+                    if (contentRes) newDoc.content = contentRes;
+                    if (explanationRes) newDoc.explanation = explanationRes;
+                } else {
+                    if (titleRes) newDoc.titleEn = titleRes;
+                    if (summaryRes) newDoc.summaryEn = summaryRes;
+                    if (contentRes) newDoc.contentEn = contentRes;
+                    if (explanationRes) newDoc.explanationEn = explanationRes;
+                }
+                return newDoc;
+            });
+
+            showToast(t.saveSuccess, 'success');
+        } catch (error: any) {
+            showToast('Lỗi dịch toàn bộ: ' + error.message, 'error');
+            console.error(error);
+        } finally {
+            setIsTranslatingAll(false);
+        }
+    };
+
+    const handleGenerateExplanation = async (lang: 'vi' | 'en') => {
+        if (!editingDocument || !documentConfig || isExplaining) return;
+
+        const contentField = lang === 'vi' ? 'content' : 'contentEn';
+        const rawContent = editingDocument[contentField] || '';
+        const plainText = stripHtml(rawContent).trim();
+
+        if (!plainText) {
+            showToast(lang === 'vi' ? 'Nội dung chi tiết trống để diễn giải.' : 'Content is empty to explain.', 'error');
+            return;
+        }
+
+        setIsExplaining(true);
+        showToast(lang === 'vi' ? 'Đang tạo diễn giải AI...' : 'Generating AI explanation...', 'info');
+
+        try {
+            const { explanation } = await apiService.explainContent(
+                plainText,
+                documentConfig.translationProvider,
+                documentConfig.translationModel,
+                lang,
+                user.id as number,
+                editingDocument.spaceId || activeSpace?.id || undefined
+            );
+
+            const explanationField = lang === 'vi' ? 'explanation' : 'explanationEn';
+            setEditingDocument(prev => prev ? { ...prev, [explanationField]: explanation } : null);
+            showToast(lang === 'vi' ? 'Tạo diễn giải thành công!' : 'Explanation generated successfully!', 'success');
+        } catch (error: any) {
+            showToast('Lỗi tạo diễn giải: ' + error.message, 'error');
+            console.error(error);
+        } finally {
+            setIsExplaining(false);
         }
     };
 
@@ -1349,8 +1516,124 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                             </div>
 
                             <div className="border-b border-gray-200"><nav className="-mb-px flex space-x-8" aria-label="Tabs"><button onClick={() => setActiveTab('vi')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'vi' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{t.tabVi}</button><button onClick={() => setActiveTab('en')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'en' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{t.tabEn}</button></nav></div>
-                            {activeTab === 'vi' && (<div className="space-y-4"><div><label className="block text-sm font-medium">{t.titleHeader}</label><div className="relative"><input ref={titleInputRef} type="text" value={editingDocument.title || ''} onChange={e => handleFormChange({ target: { name: 'title', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" /><button onClick={() => handleTranslate('title', 'en', 'vi')} disabled={translatingField === 'title'} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">{translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}</button></div></div><div><label className="block text-sm font-medium">{t.summary}</label><div className="relative"><textarea value={editingDocument.summary || ''} onChange={e => handleFormChange({ target: { name: 'summary', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md"></textarea><button onClick={() => handleTranslate('summary', 'en', 'vi')} disabled={translatingField === 'summary'} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">{translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}</button></div></div><div><label className="block text-sm font-medium mb-1">{t.dialogContentLabel}</label><TextEditor initialHtml={editingDocument.content || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'content', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'vi')} isExtracting={extractingFor === 'vi'} language={language} /></div><div className="pt-2"><label className="block text-sm font-medium mb-1">{t.uploadAudio}</label><div className="flex items-center gap-4"><button type="button" onClick={() => setIsAudioPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudio}</button>{editingDocument.audioUrl && <audio controls src={editingDocument.audioUrl} className="max-w-xs" />}<button onClick={() => handleGenerateAudio('vi')} disabled={isGeneratingAudioFor === 'vi' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">{isGeneratingAudioFor === 'vi' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}<span>{isGeneratingAudioFor === 'vi' ? t.generatingAudio : t.generateAudio}</span></button></div></div></div>)}
-                            {activeTab === 'en' && (<div className="space-y-4"><div><label className="block text-sm font-medium">{t.titleEn}</label><div className="relative"><input type="text" value={editingDocument.titleEn || ''} onChange={e => handleFormChange({ target: { name: 'titleEn', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" /><button onClick={() => handleTranslate('title', 'vi', 'en')} disabled={translatingField === 'title'} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">{translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}</button></div></div><div><label className="block text-sm font-medium">{t.summaryEn}</label><div className="relative"><textarea value={editingDocument.summaryEn || ''} onChange={e => handleFormChange({ target: { name: 'summaryEn', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md"></textarea><button onClick={() => handleTranslate('summary', 'vi', 'en')} disabled={translatingField === 'summary'} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">{translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}</button></div></div><div><label className="block text-sm font-medium mb-1">{t.dialogContentLabelEn}</label><TextEditor initialHtml={editingDocument.contentEn || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'contentEn', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'en')} isExtracting={extractingFor === 'en'} language={language} /></div><div className="pt-2"><label className="block text-sm font-medium mb-1">{t.uploadAudioEn}</label><div className="flex items-center gap-4"><button type="button" onClick={() => setIsAudioEnPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudioEn}</button>{editingDocument.audioUrlEn && <audio controls src={editingDocument.audioUrlEn} className="max-w-xs" />}<button onClick={() => handleGenerateAudio('en')} disabled={isGeneratingAudioFor === 'en' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">{isGeneratingAudioFor === 'en' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}<span>{isGeneratingAudioFor === 'en' ? t.generatingAudio : t.generateAudio}</span></button></div></div></div>)}
+                            {activeTab === 'vi' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-end">
+                                        <button type="button" onClick={() => handleTranslateAll('en', 'vi')} disabled={isTranslatingAll} className="flex items-center gap-1.5 text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 disabled:opacity-50 font-semibold shadow-sm transition-all">
+                                            {isTranslatingAll ? <SpinnerIcon className="w-4 h-4" /> : <RepeatIcon className="w-4 h-4" />}
+                                            <span>{t.translateAll} (EN {"->"} VI)</span>
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium">{t.titleHeader}</label>
+                                        <div className="relative">
+                                            <input ref={titleInputRef} type="text" value={editingDocument.title || ''} onChange={e => handleFormChange({ target: { name: 'title', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'title' || isTranslatingAll} />
+                                            <button onClick={() => handleTranslate('title', 'en', 'vi')} disabled={translatingField === 'title' || isTranslatingAll} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
+                                                {translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium">{t.summary}</label>
+                                        <div className="relative">
+                                            <textarea value={editingDocument.summary || ''} onChange={e => handleFormChange({ target: { name: 'summary', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'summary' || isTranslatingAll}></textarea>
+                                            <button onClick={() => handleTranslate('summary', 'en', 'vi')} disabled={translatingField === 'summary' || isTranslatingAll} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
+                                                {translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-medium">{t.dialogContentLabel}</label>
+                                            <button type="button" onClick={() => handleTranslate('content', 'en', 'vi')} disabled={translatingField === 'content' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all">
+                                                {translatingField === 'content' ? <SpinnerIcon className="w-3.5 h-3.5" /> : <LanguageIcon className="w-3.5 h-3.5" />}
+                                                <span>Dịch nội dung (EN {"->"} VI)</span>
+                                            </button>
+                                        </div>
+                                        <TextEditor initialHtml={editingDocument.content || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'content', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'vi')} isExtracting={extractingFor === 'vi'} language={language} disabled={translatingField === 'content' || isTranslatingAll} />
+                                    </div>
+                                    <div className="pt-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-medium">{t.explanationLabel}</label>
+                                            <button type="button" onClick={() => handleGenerateExplanation('vi')} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded hover:bg-purple-100 disabled:opacity-50 transition-all">
+                                                {isExplaining ? <SpinnerIcon className="w-3.5 h-3.5" /> : <SparkleIcon className="w-3.5 h-3.5" />}
+                                                <span>{t.explainBtn}</span>
+                                            </button>
+                                        </div>
+                                        <TextEditor initialHtml={editingDocument.explanation || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanation', value: html } } as any)} language={language} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} />
+                                    </div>
+                                    <div className="pt-2">
+                                        <label className="block text-sm font-medium mb-1">{t.uploadAudio}</label>
+                                        <div className="flex items-center gap-4">
+                                            <button type="button" onClick={() => setIsAudioPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudio}</button>
+                                            {editingDocument.audioUrl && <audio controls src={editingDocument.audioUrl} className="max-w-xs" />}
+                                            <button onClick={() => handleGenerateAudio('vi')} disabled={isGeneratingAudioFor === 'vi' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">
+                                                {isGeneratingAudioFor === 'vi' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}
+                                                <span>{isGeneratingAudioFor === 'vi' ? t.generatingAudio : t.generateAudio}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {activeTab === 'en' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-end">
+                                        <button type="button" onClick={() => handleTranslateAll('vi', 'en')} disabled={isTranslatingAll} className="flex items-center gap-1.5 text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 disabled:opacity-50 font-semibold shadow-sm transition-all">
+                                            {isTranslatingAll ? <SpinnerIcon className="w-4 h-4" /> : <RepeatIcon className="w-4 h-4" />}
+                                            <span>{t.translateAll} (VI {"->"} EN)</span>
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium">{t.titleEn}</label>
+                                        <div className="relative">
+                                            <input type="text" value={editingDocument.titleEn || ''} onChange={e => handleFormChange({ target: { name: 'titleEn', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'title' || isTranslatingAll} />
+                                            <button onClick={() => handleTranslate('title', 'vi', 'en')} disabled={translatingField === 'title' || isTranslatingAll} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
+                                                {translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium">{t.summaryEn}</label>
+                                        <div className="relative">
+                                            <textarea value={editingDocument.summaryEn || ''} onChange={e => handleFormChange({ target: { name: 'summaryEn', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'summary' || isTranslatingAll}></textarea>
+                                            <button onClick={() => handleTranslate('summary', 'vi', 'en')} disabled={translatingField === 'summary' || isTranslatingAll} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
+                                                {translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-medium">{t.dialogContentLabelEn}</label>
+                                            <button type="button" onClick={() => handleTranslate('content', 'vi', 'en')} disabled={translatingField === 'content' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all">
+                                                {translatingField === 'content' ? <SpinnerIcon className="w-3.5 h-3.5" /> : <LanguageIcon className="w-3.5 h-3.5" />}
+                                                <span>Dịch nội dung (VI {"->"} EN)</span>
+                                            </button>
+                                        </div>
+                                        <TextEditor initialHtml={editingDocument.contentEn || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'contentEn', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'en')} isExtracting={extractingFor === 'en'} language={language} disabled={translatingField === 'content' || isTranslatingAll} />
+                                    </div>
+                                    <div className="pt-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-medium">{t.explanationLabel}</label>
+                                            <button type="button" onClick={() => handleGenerateExplanation('en')} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded hover:bg-purple-100 disabled:opacity-50 transition-all">
+                                                {isExplaining ? <SpinnerIcon className="w-3.5 h-3.5" /> : <SparkleIcon className="w-3.5 h-3.5" />}
+                                                <span>{t.explainBtn}</span>
+                                            </button>
+                                        </div>
+                                        <TextEditor initialHtml={editingDocument.explanationEn || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanationEn', value: html } } as any)} language={language} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} />
+                                    </div>
+                                    <div className="pt-2">
+                                        <label className="block text-sm font-medium mb-1">{t.uploadAudioEn}</label>
+                                        <div className="flex items-center gap-4">
+                                            <button type="button" onClick={() => setIsAudioEnPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudioEn}</button>
+                                            {editingDocument.audioUrlEn && <audio controls src={editingDocument.audioUrlEn} className="max-w-xs" />}
+                                            <button onClick={() => handleGenerateAudio('en')} disabled={isGeneratingAudioFor === 'en' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">
+                                                {isGeneratingAudioFor === 'en' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}
+                                                <span>{isGeneratingAudioFor === 'en' ? t.generatingAudio : t.generateAudio}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                         </div>
                         <div className="p-4 border-t flex justify-end gap-2 flex-shrink-0">

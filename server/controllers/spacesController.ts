@@ -61,7 +61,7 @@ export const spacesController = {
                 return res.status(404).json({ message: 'Space not found.' });
             }
             // Only return full object (including keys) if superAdmin or space owner
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
                 return res.json(space);
             }
             res.json(mapAndSanitizeSpace(space));
@@ -78,7 +78,7 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
                 return res.json(space);
             }
             res.json(mapAndSanitizeSpace(space));
@@ -95,7 +95,7 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace((req.user as any).id, space.id as number))) {
+            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
                 return res.json(space);
             }
             res.json(mapAndSanitizeSpace(space));

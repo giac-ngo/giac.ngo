@@ -18,7 +18,7 @@ Hệ thống được thiết kế theo mô hình **Multi-Tenant**, trong đó m
 
 ### 2. Dữ liệu độc lập theo Space
 Hầu hết các tài nguyên trong hệ thống đều được gắn thẻ `space_id` để đảm bảo tính cô lập dữ liệu (Data Isolation):
-- **API Keys (AI Studio, ChatGPT)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI cần key, hệ thống tra theo thứ tự: `Space.apiKeys → Owner.apiKeys (fallback)`. Personal Access Token vẫn giữ ở user settings.
+- **API Keys (AI Studio, ChatGPT)**: Mỗi Space lưu trữ bộ API key riêng (`spaces.api_keys` JSONB). Khi AI thực hiện các tác vụ Chat, Dịch thuật hoặc Diễn giải AI trong thư viện, hệ thống sẽ sử dụng trực tiếp API key của Space tương ứng (`Space.apiKeys[provider]`). Riêng chức năng Dịch thuật và Diễn giải AI trong thư viện quản lý tài liệu bắt buộc phải dùng key của Space (bỏ hoàn toàn key hệ thống và key môi trường), nếu không có key sẽ báo lỗi chưa cấu hình. Personal Access Token vẫn giữ ở user settings.
 - **Cấu hình Mail (SMTP)**: SMTP Host, Port, User, Pass... được quản lý riêng theo từng Space tại trang Cài đặt (Settings), phục vụ cho việc gửi thông báo nội bộ và luồng email khôi phục mật khẩu.
 - **Cài đặt Khách**: Giới hạn chat hàng ngày cho khách (`guest_daily_limit`). Khi đạt giới hạn, người dùng bắt buộc phải đăng nhập để tiếp tục. Không còn dùng nấc gợi ý đăng nhập (nudge) trung gian.
 - **Kho Văn Bản (Documents)**: Tài liệu của Space nào chỉ phục vụ RAG cho AI của Space đó.
@@ -252,6 +252,8 @@ Hệ thống Frontend được xây dựng bằng **React + TypeScript + Vite**,
   - **Quy tắc truyền prop**: Tất cả component con (`SpaceManagement`, `RoleManagement`, `AiManagement`, `UserManagement`) nhận `isGlobalAdmin` và `currentSpace` từ `AdminPage`.
   - **SpaceManagement**: Non-admin chỉ thấy space mình thuộc về, sửa được nhưng không xóa. Tab "Cấu hình mở rộng" chỉ hiện cho Owner/SuperAdmin.
   - **AiManagement**: Non-admin chỉ thấy AI thuộc space, có thể sửa nếu có quyền `ai` (`isSpaceManager`).
+  - **FilesAndDocuments**: Quản trị tài liệu RAG. Tích hợp trình soạn thảo văn bản giàu định dạng `TextEditor` hỗ trợ chế độ xem Trực quan (Visual/WYSIWYG) và Mã HTML thô (HTML Code) giúp sửa đổi và xóa các HTML dư thừa. Ô Nội dung và Diễn giải có cùng chiều cao đồng bộ. Các ô nhập liệu tự động bị khóa (`disabled`) khi đang chạy các tiến trình dịch/diễn giải bằng AI.
+
 
 ### 3. Quản lý Trạng Thái & Giao diện (State & Theming)
 - **Theming (Giao diện động)**: Hệ thống sử dụng thuộc tính CSS `data-theme` được tiêm thẳng vào thẻ `<html>` thông qua `document.documentElement.setAttribute('data-theme', themeToApply)`. Việc này cho phép cấu hình màu sắc, Dark/Light mode khác nhau cho từng Space.

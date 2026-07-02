@@ -455,7 +455,12 @@ Summary:`;
         const data = { texts };
         const prompt = `
 ${contextPrompt ? `**CONTEXT FOR TRANSLATION STYLE:**\n${contextPrompt}\n\n` : ''}Translate each string in 'texts' into ${languageName}.
-Return valid JSON: {"translatedTexts": ["..."]}, same order as input.
+
+**CRITICAL INSTRUCTIONS:**
+- You MUST preserve all HTML tags, structure, and formatting. Do not delete, modify, or translate HTML tags.
+- If there are markdown formatting elements (like **, *, \n, list markers), preserve them exactly as they are while translating the text. Do not add or remove line breaks or styling.
+- Return valid JSON: {"translatedTexts": ["..."]}, same order as input.
+
 Input:
 ${JSON.stringify(data)}
 `;
@@ -487,5 +492,38 @@ ${JSON.stringify(data)}
             console.error("Gemini translation error:", err);
             throw new Error("Failed to translate with Gemini.");
         }
+    },
+
+    // ---------- Explanation (diễn giải) ----------
+    generateExplanation: async (text: string, apiKey: string, modelName: string, targetLanguage: string, systemPrompt?: string) => {
+        const ai = new GoogleGenAI({ apiKey });
+        const model = modelName || 'gemini-2.5-flash';
+        
+        let prompt = '';
+        if (targetLanguage === 'en') {
+            prompt = `You are a wise Zen Master. Please write a clear, deep, and meaningful explanation/commentary for the following text (which could be a poem, verse, or teaching). Focus on the spiritual, philosophical, and practical meaning, guiding the reader toward peace and mindfulness. Keep the output in clear paragraphs. Do not wrap in markdown code blocks.
+Text to explain:
+---
+${text}
+---
+Explanation:`;
+        } else {
+            prompt = `Bạn là một vị thiền sư uyên bác, giàu lòng từ bi. Hãy viết lời diễn giải/giảng giải chi tiết và sâu sắc về ý nghĩa của đoạn văn bản/bài kệ sau đây. Hãy giải thích các tầng nghĩa đen, nghĩa bóng, triết lý Phật giáo, và bài học thực hành thiền tập/tỉnh thức cuộc sống hằng ngày giúp người đọc dễ hiểu, an lạc. Hãy viết mạch lạc, chia thành các đoạn văn rõ ràng. Không bao bọc trong khối code markdown.
+Văn bản cần diễn giải:
+---
+${text}
+---
+Diễn giải:`;
+        }
+
+        const res = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+                systemInstruction: systemPrompt || undefined
+            }
+        });
+
+        return res.text?.trim() || "";
     }
 };

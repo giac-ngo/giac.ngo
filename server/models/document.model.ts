@@ -27,6 +27,7 @@ export interface DocumentConfig {
     id: number;
     translationProvider?: string;
     translationModel?: string;
+    systemPrompt?: string;
     ttsProvider?: string;
     ttsModel?: string;
     ttsVoice?: string;
@@ -197,7 +198,9 @@ export const documentModel = {
                 rating: 'rating',
                 duration: 'duration',
                 views: 'views',
-                likes: 'likes'
+                likes: 'likes',
+                explanation: 'explanation',
+                explanationEn: 'explanation_en'
             };
 
             for (const [key, value] of Object.entries(docData)) {
@@ -459,19 +462,20 @@ export const documentModel = {
     },
 
     async updateConfig(config: Partial<DocumentConfig>): Promise<DocumentConfig> {
-        const { translationProvider, translationModel, ttsProvider, ttsModel, ttsVoice } = config;
+        const { translationProvider, translationModel, systemPrompt, ttsProvider, ttsModel, ttsVoice } = config;
         const query = `
-            INSERT INTO document_config (id, translation_provider, translation_model, tts_provider, tts_model, tts_voice)
-            VALUES (1, $1, $2, $3, $4, $5)
+            INSERT INTO document_config (id, translation_provider, translation_model, system_prompt, tts_provider, tts_model, tts_voice)
+            VALUES (1, $1, $2, $3, $4, $5, $6)
             ON CONFLICT (id) DO UPDATE SET
                 translation_provider = EXCLUDED.translation_provider,
                 translation_model = EXCLUDED.translation_model,
+                system_prompt = EXCLUDED.system_prompt,
                 tts_provider = EXCLUDED.tts_provider,
                 tts_model = EXCLUDED.tts_model,
                 tts_voice = EXCLUDED.tts_voice
             RETURNING *;
         `;
-        const res = await pool.query(query, [translationProvider, translationModel, ttsProvider, ttsModel, ttsVoice]);
+        const res = await pool.query(query, [translationProvider, translationModel, systemPrompt || null, ttsProvider, ttsModel, ttsVoice]);
         return mapRowToCamelCase(res.rows[0]);
     }
 };

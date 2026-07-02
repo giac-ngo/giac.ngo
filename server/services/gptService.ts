@@ -1,4 +1,4 @@
-﻿// server/services/gptService.ts
+// server/services/gptService.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import fetch, { Response as FetchResponse } from 'node-fetch';
@@ -257,7 +257,12 @@ Keep it in the same language as the original text.
 
         const prompt = `
 Translate each string in the provided JSON array into ${languageName}.
-Return a valid JSON object with a single key "translatedTexts" which is an array of the translated strings, in the exact same order as the input.
+
+**CRITICAL INSTRUCTIONS:**
+- You MUST preserve all HTML tags, structure, and formatting. Do not delete, modify, or translate HTML tags.
+- If there are markdown formatting elements (like **, *, \n, list markers), preserve them exactly as they are while translating the text. Do not add or remove line breaks or styling.
+- Return a valid JSON object with a single key "translatedTexts" which is an array of the translated strings, in the exact same order as the input.
+
 Example Input: {"texts": ["hello world", "how are you?"]}
 Example Output for Vietnamese: {"translatedTexts": ["xin chào thế giới", "bạn khoẻ không?"]}
 
@@ -304,5 +309,38 @@ ${JSON.stringify({ texts })}
             logger.error("Error listing models:", e);
             throw e;
         }
+    },
+
+    // ---------- Explanation (diễn giải) ----------
+    generateExplanation: async (text: string, apiKey: string, modelName: string, targetLanguage: string, systemPrompt?: string): Promise<string> => {
+        const model = modelName || 'gpt-4o';
+        
+        let prompt = '';
+        if (targetLanguage === 'en') {
+            prompt = `You are a wise Zen Master. Please write a clear, deep, and meaningful explanation/commentary for the following text (which could be a poem, verse, or teaching). Focus on the spiritual, philosophical, and practical meaning, guiding the reader toward peace and mindfulness. Keep the output in clear paragraphs. Do not wrap in markdown code blocks.
+Text to explain:
+---
+${text}
+---
+Explanation:`;
+        } else {
+            prompt = `Bạn là một vị thiền sư uyên bác, giàu lòng từ bi. Hãy viết lời diễn giải/giảng giải chi tiết và sâu sắc về ý nghĩa của đoạn văn bản/bài kệ sau đây. Hãy giải thích các tầng nghĩa đen, nghĩa bóng, triết lý Phật giáo, và bài học thực hành thiền tập/tỉnh thức cuộc sống hằng ngày giúp người đọc dễ hiểu, an lạc. Hãy viết mạch lạc, chia thành các đoạn văn rõ ràng. Không bao bọc trong khối code markdown.
+Văn bản cần diễn giải:
+---
+${text}
+---
+Diễn giải:`;
+        }
+
+        const systemContent = systemPrompt || (targetLanguage === 'en' ? 'You are a helpful assistant.' : 'Bạn là trợ lý đắc lực.');
+
+        const messages: GptMessage[] = [
+            { role: 'system', content: systemContent },
+            { role: 'user', content: prompt }
+        ];
+
+        const response = await callOpenAI(messages, apiKey, model, false, undefined, 4096);
+        const json: any = await response.json();
+        return json.choices[0]?.message?.content?.trim() || '';
     }
 };

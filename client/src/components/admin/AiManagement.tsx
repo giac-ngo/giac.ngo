@@ -2530,6 +2530,7 @@ Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
 {
+  "spaceId": ${selectedAi.spaceId || 'YOUR_SPACE_ID'},
   "aiConfigId": ${selectedAi.id},
   "message": "Xin chào!",
   "language": "vi",
@@ -2545,6 +2546,7 @@ Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
 {
+  "spaceId": ${selectedAi.spaceId || 'YOUR_SPACE_ID'},
   "aiConfigId": ${selectedAi.id},
   "message": "Hello!",
   "language": "en",
@@ -2606,6 +2608,7 @@ Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
 {
+  "spaceId": ${selectedAi.spaceId || 'YOUR_SPACE_ID'},
   "aiConfigId": ${selectedAi.id},
   "text": "Nam Mô A Di Đà Phật!"
 }` : `POST /api/v1/tts
@@ -2613,6 +2616,7 @@ Content-Type: application/json
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
 
 {
+  "spaceId": ${selectedAi.spaceId || 'YOUR_SPACE_ID'},
   "aiConfigId": ${selectedAi.id},
   "text": "Welcome to Giac Ngo AI!"
 }`}
@@ -2657,14 +2661,14 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}
                                                     <div>
                                                         <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
                                                         <div className="mt-1 flex rounded-md shadow-sm">
-                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/public-ais`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
-                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/public-ais`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/public-ais?spaceId=${selectedAi.spaceId || ''}`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/public-ais?spaceId=${selectedAi.spaceId || ''}`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
                                                         </div>
                                                     </div>
                                                     <div>
                                                         <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
                                                         <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
-                                                            {`GET /api/v1/public-ais
+                                                            {`GET /api/v1/public-ais?spaceId=${selectedAi.spaceId || 'YOUR_SPACE_ID'}
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                                         </pre>
                                                     </div>

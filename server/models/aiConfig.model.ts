@@ -20,7 +20,7 @@ const AI_CONFIG_DETAILS_QUERY = `
 `;
 
 export const aiConfigModel = {
-    async findVisibleForUser(user?: User | null): Promise<AIConfig[]> {
+    async findVisibleForUser(user?: User | null, spaceId?: number | string | null): Promise<AIConfig[]> {
         let query = AI_CONFIG_DETAILS_QUERY;
         const params = [];
         let whereClauses = [];
@@ -41,6 +41,11 @@ export const aiConfigModel = {
         } else {
             // Guests only see public AIs. The card on the frontend will show the price.
             whereClauses.push("ac.is_public = true");
+        }
+
+        if (spaceId !== undefined && spaceId !== null) {
+            whereClauses.push(`ac.space_id = $${params.length + 1}`);
+            params.push(spaceId);
         }
 
         if (whereClauses.length > 0) {

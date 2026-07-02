@@ -2,10 +2,12 @@
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger.js';
 import { systemModel } from '../models/system.model.js';
+import { spaceModel } from '../models/space.model.js';
 import { gptService } from '../services/gptService.js';
 import { geminiService } from '../services/geminiService.js';
 import { userModel } from '../models/user.model.js';
 import { aiConfigModel } from '../models/aiConfig.model.js';
+import { documentModel } from '../models/document.model.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -375,15 +377,20 @@ export const systemController = {
     },
 
     async translateText(req: Request, res: Response) {
-        const { provider, model, text, targetLanguage, userId, contextPrompt } = req.body;
+        const { provider, model, text, targetLanguage, userId, contextPrompt, spaceId } = req.body;
         if (!provider || !model || !text || !targetLanguage || !userId) {
             return res.status(400).json({ message: 'Missing required fields for translation.' });
         }
 
         try {
             const user = await userModel.findById(userId);
-            const systemConfig = await systemModel.getConfig();
-            const apiKey = systemConfig?.systemKeys?.[provider] || process.env[`${provider.toUpperCase()}_API_KEY`] || process.env[`VITE_${provider.toUpperCase()}_API_KEY`];
+            let apiKey = '';
+            if (spaceId) {
+                const space = await spaceModel.findById(spaceId);
+                if (space?.apiKeys?.[provider]) {
+                    apiKey = space.apiKeys[provider] || '';
+                }
+            }
 
             if (!apiKey) {
                 return res.status(400).json({ message: `API Key for ${provider} not configured.` });
@@ -396,11 +403,50 @@ export const systemController = {
                 return res.status(400).json({ message: `Unsupported translation provider: ${provider}` });
             }
 
-            translatedText = await service.translateText(text, targetLanguage, apiKey, model, contextPrompt);
+            const docConfig = await documentModel.getConfig();
+            const finalContextPrompt = contextPrompt || docConfig?.systemPrompt || '';
+
+            translatedText = await service.translateText(text, targetLanguage, apiKey, model, finalContextPrompt);
 
             res.json({ translatedText });
         } catch (error: any) {
             res.status(500).json({ message: `Translation failed: ${error.message || String(error)}` });
+        }
+    },
+
+    async explainContent(req: Request, res: Response) {
+        const { provider, model, text, targetLanguage, userId, spaceId } = req.body;
+        if (!provider || !model || !text || !targetLanguage || !userId) {
+            return res.status(400).json({ message: 'Missing required fields for explanation.' });
+        }
+
+        try {
+            let apiKey = '';
+            if (spaceId) {
+                const space = await spaceModel.findById(spaceId);
+                if (space?.apiKeys?.[provider]) {
+                    apiKey = space.apiKeys[provider] || '';
+                }
+            }
+
+            if (!apiKey) {
+                return res.status(400).json({ message: `API Key for ${provider} not configured.` });
+            }
+
+            const service = provider === 'gemini' ? geminiService : gptService;
+
+            if (!service || typeof (service as any).generateExplanation !== 'function') {
+                return res.status(400).json({ message: `Unsupported explanation provider: ${provider}` });
+            }
+
+            const docConfig = await documentModel.getConfig();
+            const systemPrompt = docConfig?.systemPrompt || '';
+
+            const explanation = await (service as any).generateExplanation(text, apiKey, model, targetLanguage, systemPrompt);
+
+            res.json({ explanation });
+        } catch (error: any) {
+            res.status(500).json({ message: `Explanation generation failed: ${error.message || String(error)}` });
         }
     },
 };

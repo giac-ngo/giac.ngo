@@ -29,6 +29,9 @@ router.post('/tts/generate', isAuthenticated, systemController.generateTtsAudio)
 // A new translation route for document AI features
 router.post('/translate', isAuthenticated, systemController.translateText);
 
+// A new explanation route for document AI features
+router.post('/explain-content', isAuthenticated, systemController.explainContent);
+
 // Tags - alias for /api/documents/tags (documentController.getAllTags)
 router.get('/tags', documentController.getAllTags);
 

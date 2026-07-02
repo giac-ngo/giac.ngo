@@ -575,10 +575,17 @@ export const apiService = {
         }).then(handleResponse);
     },
 
-    translateText: (text: string, provider: string, model: string, targetLanguage: string, userId: number, contextPrompt?: string) => {
+    translateText: (provider: string, model: string, text: string, targetLanguage: string, userId: number, contextPrompt?: string, spaceId?: number) => {
         return authedFetch('/api/system/translate', {
             method: 'POST',
-            body: JSON.stringify({ text, provider, model, targetLanguage, userId, contextPrompt }),
+            body: JSON.stringify({ provider, model, text, targetLanguage, userId, contextPrompt, spaceId }),
+        }).then(handleResponse);
+    },
+
+    explainContent: (text: string, provider: string, model: string, targetLanguage: string, userId: number, spaceId?: number) => {
+        return authedFetch('/api/system/explain-content', {
+            method: 'POST',
+            body: JSON.stringify({ text, provider, model, targetLanguage, userId, spaceId }),
         }).then(handleResponse);
     },
 

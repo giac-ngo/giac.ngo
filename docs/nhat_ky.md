@@ -2,6 +2,57 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-07-02
+
+### ⚙️ Sử dụng API Key của Space cho Dịch thuật & Diễn giải AI Thư viện & Loại bỏ xác nhận ghi đè
+**Vấn đề**:
+1. Khi Space Admin sửa bài trong thư viện và nhấn nút Dịch thuật hoặc Diễn giải AI, hệ thống gặp lỗi xác thực 401 (UNAUTHENTICATED) do sử dụng sai cấu hình key hệ thống. Ngoài ra, người dùng không muốn dùng chung Key hệ thống hoặc key môi trường, mà chỉ cho phép dùng duy nhất API Key đã cấu hình trong Không gian (Space) đang quản trị tài liệu.
+2. Hộp thoại xác nhận ghi đè nội dung (`window.confirm`) khi Dịch và Dịch toàn bộ gây gián đoạn và phiền hà cho người dùng.
+3. Lỗi logic mới trong `spacesController.ts` truyền nhầm `user.id` (số) thay vì đối tượng `user` cho hàm `canAccessSpace`, dẫn đến việc Space Admin bị che khuất và không thể tải (load) API Keys trong Cấu hình mở rộng Không gian.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`spacesController.ts`)**: Sửa lỗi truyền tham số cho hàm `canAccessSpace` tại `getSpaceById`, `getSpaceByDomain` và `getSpaceBySlug` thành `req.user as any` thay vì `(req.user as any).id`.
+- **Backend (`systemController.ts`)**: Cập nhật hàm `translateText` và `explainContent` để đọc `spaceId` từ req.body, gọi `spaceModel.findById(spaceId)` để lấy API key của Space tương ứng. Bỏ hoàn toàn logic fallback sang `SystemConfig.systemKeys` và `process.env`. Nếu Space chưa được cấu hình key, trả về ngay lập tức lỗi 400 "API Key not configured".
+- **Frontend (`apiService.ts`)**: Cập nhật hàm `translateText` và `explainContent` để truyền kèm `spaceId` lên backend. Sửa lỗi lệch thứ tự tham số của hàm `apiService.translateText` ở frontend để payload được đóng gói chính xác.
+- **Frontend (`FilesAndDocuments.tsx`)**: 
+  - Truyền `editingDocument.spaceId || activeSpace?.id || undefined` khi gọi API dịch thuật/diễn giải.
+  - Xóa bỏ hoàn toàn các hộp thoại `window.confirm` cảnh báo ghi đè khi Dịch và Dịch toàn bộ.
+  - Đảm bảo các nút bấm dịch/diễn giải hiển thị vòng xoay loading spinner khi đang xử lý dữ liệu.
+
+### 🎨 Hiển thị định dạng Markdown cho phần Diễn giải AI của tài liệu
+**Vấn đề**:
+Khi người dùng xem trang chi tiết tài liệu thư viện (`DocumentDetailPage.tsx`), phần nội dung diễn giải AI (`explanation` / `explanationEn`) hiển thị dưới dạng văn bản thô (plain text) dính liền một cục, không có ngắt dòng (newline), không có tiêu đề in đậm hay danh sách có thứ tự mặc dù dữ liệu gốc chứa định dạng Markdown.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`DocumentDetailPage.tsx`)**:
+  - Nhập và tích hợp thư viện `ReactMarkdown` để phân tích cú pháp Markdown cho nội dung Diễn giải.
+  - Bọc phần nội dung Diễn giải bằng `<ReactMarkdown>` thay vì render trực tiếp dưới dạng chuỗi thô.
+  - Thêm các class CSS `prose max-w-none` để căn chỉnh khoảng cách, cỡ chữ, định dạng in đậm, danh sách có thứ tự (ordered list) tương ứng với văn phong bài viết.
+  - Biên dịch và build lại ứng dụng thành công cho môi trường production.
+
+### 📝 Nâng cấp Trình soạn thảo HTML, tích hợp tab Trực quan/HTML & Khóa ô nhập liệu khi xử lý AI
+**Vấn đề / Nhu cầu**:
+1. Người dùng muốn phần Diễn giải (Explanation) trong quản lý thư viện tài liệu cũng có các thanh công cụ định dạng (in đậm, in nghiêng, danh sách...) giống như ô Nội dung.
+2. Trình soạn thảo văn bản cần có chế độ xem/sửa mã nguồn HTML trực quan để dễ dàng làm sạch hoặc xóa bỏ các thẻ HTML rác không cần thiết.
+3. Khi thực hiện dịch hoặc diễn giải bằng AI, các ô nhập liệu tương ứng cần được tạm thời khóa lại (`disabled`) để tránh người dùng thay đổi dữ liệu trong lúc chờ kết quả, và mở khóa lại sau khi hoàn thành.
+4. Khi dịch thuật, hệ thống phải bảo toàn nguyên vẹn các thẻ HTML và định dạng Markdown nguyên bản.
+5. Chiều cao của hai khung soạn thảo Nội dung và Diễn giải phải bằng nhau.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`TextEditor` component trong `FilesAndDocuments.tsx`)**:
+  - Thêm state `viewMode` cho phép chuyển đổi mượt mà giữa chế độ **Trực quan (Visual)** và **Mã HTML**.
+  - Thiết kế tab chọn chế độ xem ở đầu mỗi editor. Khi ở chế độ HTML, hiển thị một `<textarea>` hiển thị mã HTML thô.
+  - Hỗ trợ prop `disabled` để khóa các nút bấm của toolbar cũng như tắt thuộc tính `contentEditable` của trình soạn thảo hoặc khóa `<textarea>`.
+  - Hỗ trợ prop `heightClass` để đồng bộ chiều cao và mặc định chiều cao cho cả 2 editor là `h-[250px] overflow-y-auto`.
+  - Cho phép nút đính kèm/trích xuất tệp trở thành tùy chọn (ẩn đi ở trình Diễn giải).
+- **Frontend (`FilesAndDocuments.tsx`)**:
+  - Thay thế các trường `textarea` Diễn giải ở cả tab Tiếng Việt và English bằng component `<TextEditor>` mới được nâng cấp.
+  - Truyền prop `disabled` tương ứng dựa trên trạng thái dịch thuật/diễn giải (`translatingField`, `isExplaining`, `isTranslatingAll`) vào các input Tiêu đề, textarea Tóm tắt và component `TextEditor` của Nội dung & Diễn giải.
+- **Backend (`geminiService.ts` & `gptService.ts`)**:
+  - Cập nhật prompt dịch thuật để AI hiểu rằng bắt buộc phải **giữ nguyên cấu trúc HTML, thẻ định dạng và các ký tự định dạng Markdown (như `**`, `*`, `\n`)** trong chuỗi kết quả dịch.
+
+---
+
 ## 2026-06-30
 
 ### 🔍 Autocomplete Gợi ý Tìm kiếm Thư viện (Tìm kiếm giống Google)

@@ -307,12 +307,15 @@ export interface Document {
   nextTitle?: string | null;
   prevTitleEn?: string | null;
   nextTitleEn?: string | null;
+  explanation?: string;
+  explanationEn?: string;
 }
 
 export interface DocumentConfig {
     id: number;
     translationProvider: ModelType;
     translationModel: string;
+    systemPrompt?: string;
     ttsProvider: ModelType;
     ttsModel: string;
     ttsVoice: string;

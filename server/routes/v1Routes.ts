@@ -14,10 +14,50 @@ import { documentModel } from '../models/document.model.js';
 
 const router = Router();
 
+// Helper to check if a user has access to a specific space
+const checkSpaceAccess = async (spaceId: number, userId: number, isGlobalAdmin: boolean): Promise<boolean> => {
+    if (isGlobalAdmin) return true;
+    const space = await spaceModel.findById(spaceId);
+    if (!space) return false;
+    if (space.userId === userId) return true;
+    return await spaceMemberModel.isMember(spaceId, userId);
+};
+
 // POST /api/v1/chat
 // Supports both stream and non-stream formats based on req.body.stream
 router.post('/chat', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
+    const spaceId = req.body.spaceId || req.body.SpaceID;
+    if (!spaceId) {
+        return res.status(400).json({ error: 'spaceId is required' });
+    }
+    const parsedSpaceId = parseInt(String(spaceId), 10);
+    if (isNaN(parsedSpaceId)) {
+        return res.status(400).json({ error: 'spaceId must be a valid number' });
+    }
+
     try {
+        const hasAccess = await checkSpaceAccess(parsedSpaceId, req.user?.id || 0, !!req.user?.isGlobalAdmin);
+        if (!hasAccess) {
+            return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
+        }
+
+        const { aiConfigId } = req.body;
+        if (!aiConfigId) {
+            return res.status(400).json({ error: 'aiConfigId is required' });
+        }
+        const parsedAiConfigId = parseInt(String(aiConfigId), 10);
+        if (isNaN(parsedAiConfigId)) {
+            return res.status(400).json({ error: 'aiConfigId must be a valid number' });
+        }
+
+        const aiConfig = await aiConfigModel.findById(parsedAiConfigId);
+        if (!aiConfig) {
+            return res.status(404).json({ error: 'AI Config not found' });
+        }
+        if (aiConfig.spaceId !== parsedSpaceId) {
+            return res.status(400).json({ error: 'AI Config does not belong to the specified space' });
+        }
+
         const { stream } = req.body;
         if (stream === true || stream === 'true') {
             await chatController.sendMessageStream(req, res);
@@ -32,22 +72,44 @@ router.post('/chat', isAuthenticated, async (req: Request, res: Response, next: 
 // POST /api/v1/tts
 // Converts text to speech using configured model settings from the specified aiConfigId
 router.post('/tts', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
-    const { aiConfigId, text } = req.body;
-    if (!aiConfigId) {
-        return res.status(400).json({ error: 'aiConfigId is required' });
+    const spaceId = req.body.spaceId || req.body.SpaceID;
+    if (!spaceId) {
+        return res.status(400).json({ error: 'spaceId is required' });
     }
-    if (!text || typeof text !== 'string') {
-        return res.status(400).json({ error: 'text (string) is required' });
+    const parsedSpaceId = parseInt(String(spaceId), 10);
+    if (isNaN(parsedSpaceId)) {
+        return res.status(400).json({ error: 'spaceId must be a valid number' });
     }
 
     try {
-        const aiConfig = await aiConfigModel.findById(aiConfigId);
+        const hasAccess = await checkSpaceAccess(parsedSpaceId, req.user?.id || 0, !!req.user?.isGlobalAdmin);
+        if (!hasAccess) {
+            return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
+        }
+
+        const { aiConfigId, text } = req.body;
+        if (!aiConfigId) {
+            return res.status(400).json({ error: 'aiConfigId is required' });
+        }
+        if (!text || typeof text !== 'string') {
+            return res.status(400).json({ error: 'text (string) is required' });
+        }
+
+        const parsedAiConfigId = parseInt(String(aiConfigId), 10);
+        if (isNaN(parsedAiConfigId)) {
+            return res.status(400).json({ error: 'aiConfigId must be a valid number' });
+        }
+
+        const aiConfig = await aiConfigModel.findById(parsedAiConfigId);
         if (!aiConfig) {
             return res.status(404).json({ error: 'AI Config not found' });
         }
+        if (aiConfig.spaceId !== parsedSpaceId) {
+            return res.status(400).json({ error: 'AI Config does not belong to the specified space' });
+        }
 
         // Map requirements to systemController.generateTtsAudio format
-        req.body.aiId = aiConfigId;
+        req.body.aiId = parsedAiConfigId;
         req.body.userId = req.user?.id;
         req.body.provider = aiConfig.ttsProvider || 'gemini';
         req.body.model = aiConfig.ttsModel || 'gemini-2.5-flash';
@@ -130,8 +192,22 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 // GET /api/v1/public-ais
 // Get list of public AIs (sanitized configs)
 router.get('/public-ais', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
+    const spaceId = req.query.spaceId || req.query.SpaceID;
+    if (!spaceId) {
+        return res.status(400).json({ error: 'spaceId is required' });
+    }
+    const parsedSpaceId = parseInt(String(spaceId), 10);
+    if (isNaN(parsedSpaceId)) {
+        return res.status(400).json({ error: 'spaceId must be a valid number' });
+    }
+
     try {
-        const publicAis = await aiConfigModel.findVisibleForUser(null);
+        const hasAccess = await checkSpaceAccess(parsedSpaceId, req.user?.id || 0, !!req.user?.isGlobalAdmin);
+        if (!hasAccess) {
+            return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
+        }
+
+        const publicAis = await aiConfigModel.findVisibleForUser(null, parsedSpaceId);
         // Map to return only safe details to avoid exposing system prompt or internal credentials
         const sanitized = publicAis.map(ai => ({
             id: ai.id,
@@ -179,7 +255,7 @@ router.get('/documents', isAuthenticated, async (req: Request, res: Response, ne
         const isMember = await spaceMemberModel.isMember(space.id, req.user?.id || 0);
         const isGlobalAdmin = !!req.user?.isGlobalAdmin;
 
-        if (!isOwner && !isMember && !isGlobalAdmin) {
+        if (!isOwner && isMember && !isGlobalAdmin) {
             return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
         }
 
@@ -200,4 +276,3 @@ router.get('/documents', isAuthenticated, async (req: Request, res: Response, ne
 });
 
 export default router;
-

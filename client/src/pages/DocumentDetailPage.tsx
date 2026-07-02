@@ -1,6 +1,7 @@
 // client/src/pages/DocumentDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import { apiService } from '../services/apiService';
 import { Document, User } from '../types';
 import { useToast } from '../components/ToastProvider';
@@ -116,13 +117,17 @@ const CustomAudioPlayer: React.FC<{ audioUrl: string }> = ({ audioUrl }) => {
                 {isPlaying ? <PauseIcon className="w-6 h-6 text-primary" /> : <PlayIcon className="w-6 h-6 text-primary" />}
             </button>
             <div className="progress-container flex-1 mx-2">
-                <div className="progress-bar-bg h-2 bg-gray-300 rounded-full cursor-pointer relative overflow-hidden" onClick={handleSeek}>
+                <div className="progress-bar-bg h-2 bg-gray-300 rounded-full cursor-pointer relative" onClick={handleSeek}>
                     <div
-                        className="progress-bar-fill h-full bg-primary absolute top-0 left-0 transition-all duration-100"
+                        className="progress-bar-fill h-full bg-primary rounded-full absolute top-0 left-0 transition-all duration-100"
                         style={{ width: `${progress}%` }}
                     />
+                    <div
+                        className="progress-bar-thumb"
+                        style={{ left: `${progress}%` }}
+                    />
                 </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-1 font-medium">
+                <div className="progress-time-info flex justify-between text-xs text-gray-500 mt-1 font-medium">
                     <span>{formatTime(currentTime)}</span>
                     <span>{formatTime(duration)}</span>
                 </div>
@@ -214,12 +219,23 @@ const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({ user }) => {
                     </div>
 
                     {audioUrl && (
-                        <div className="document-audio-player-container">
+                        <div className="document-audio-player-container w-full max-w-[600px]">
                             <CustomAudioPlayer audioUrl={audioUrl} />
                         </div>
                     )}
 
                     <div className="document-body prose" dangerouslySetInnerHTML={{ __html: content || '' }} />
+
+                    {(language === 'en' ? document.explanationEn : document.explanation) && (
+                        <div className="document-explanation">
+                            <h3>{language === 'en' ? 'Explanation' : 'Diễn giải'}</h3>
+                            <div className="document-explanation-content prose max-w-none">
+                                <ReactMarkdown>
+                                    {language === 'en' ? document.explanationEn : document.explanation}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
                 </article>
 
                 {(document.prevId || document.nextId) && (
