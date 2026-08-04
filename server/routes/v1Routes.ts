@@ -231,7 +231,7 @@ router.get('/public-ais', isAuthenticated, async (req: Request, res: Response, n
 });
 
 // GET /api/v1/documents
-// Get list of documents/articles in the library belonging to the specified spaceId
+// Get list of documents/articles in the library belonging to the specified spaceId with pagination
 router.get('/documents', isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
     const { spaceId, page = '1', limit = '10', title } = req.query;
     try {
@@ -244,23 +244,13 @@ router.get('/documents', isAuthenticated, async (req: Request, res: Response, ne
             return res.status(400).json({ error: 'spaceId must be a valid number' });
         }
 
-        // Check if space exists
-        const space = await spaceModel.findById(parsedSpaceId);
-        if (!space) {
-            return res.status(404).json({ error: `Space with ID ${parsedSpaceId} not found` });
-        }
-
-        // Verify membership or admin
-        const isOwner = space.userId === req.user?.id;
-        const isMember = await spaceMemberModel.isMember(space.id, req.user?.id || 0);
-        const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-
-        if (!isOwner && isMember && !isGlobalAdmin) {
+        const hasAccess = await checkSpaceAccess(parsedSpaceId, req.user?.id || 0, !!req.user?.isGlobalAdmin);
+        if (!hasAccess) {
             return res.status(403).json({ error: 'Forbidden: You do not have access to this space' });
         }
 
-        const pageNum = parseInt(String(page), 10) || 1;
-        const limitNum = parseInt(String(limit), 10) || 10;
+        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitNum = Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10));
 
         const result = await documentModel.find({
             spaceId: parsedSpaceId,
@@ -269,10 +259,19 @@ router.get('/documents', isAuthenticated, async (req: Request, res: Response, ne
             title: title ? String(title) : undefined
         });
 
-        res.json(result);
+        const totalPages = Math.ceil(result.total / limitNum);
+
+        res.json({
+            data: result.data,
+            total: result.total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages
+        });
     } catch (error) {
         next(error);
     }
 });
 
 export default router;
+

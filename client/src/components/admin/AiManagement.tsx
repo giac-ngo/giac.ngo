@@ -198,8 +198,8 @@ const translations = {
         loginApiDesc: 'Dùng endpoint này từ ứng dụng bên ngoài (ví dụ n8n) để xác thực người dùng và lấy JWT token. Yêu cầu spaceId để kiểm tra tư cách thành viên.',
         loginApiNotes: '• Không cần header Authorization trước khi đăng nhập\n• spaceId bắt buộc – người dùng phải là Owner hoặc Member của không gian đó\n• Trả về apiToken (JWT 7 ngày) và refreshToken (lâu dài) để dùng cho các API khác\n• Dùng /api/auth/refresh với refreshToken để làm mới accessToken khi hết hạn',
         documentsApiTitle: '5. Library Documents API (Lấy bài viết trong thư viện)',
-        documentsApiDesc: 'Dùng endpoint này để lấy danh sách các bài viết trong thư viện thuộc không gian (Space ID) truyền vào.',
-        documentsApiNotes: '• Yêu cầu header Authorization chứa Bearer Token\n• spaceId bắt buộc – phải truyền dưới dạng query parameter (ví dụ: ?spaceId=1)',
+        documentsApiDesc: 'Dùng endpoint này để lấy danh sách bài viết trong thư viện thuộc không gian (Space ID) truyền vào, có hỗ trợ phân trang & tìm kiếm.',
+        documentsApiNotes: '• Yêu cầu header Authorization chứa Bearer Token\n• spaceId (bắt buộc): truyền dưới dạng query parameter (ví dụ: ?spaceId=1)\n• Phân trang: truyền `page` (mặc định 1) và `limit` (mặc định 10, tối đa 100)\n• Tìm kiếm: truyền `title` (ví dụ: ?spaceId=1&title=kinh)\n• Trả về mảng `data`, tổng số bài `total`, trang hiện tại `page`, `limit` và tổng số trang `totalPages`.',
     },
     en: {
         aiList: 'AI List',
@@ -379,8 +379,8 @@ const translations = {
         loginApiDesc: 'Use this endpoint from an external application (e.g. n8n) to authenticate users and obtain a JWT token. Requires spaceId to check membership.',
         loginApiNotes: '• No Authorization header is needed before login\n• spaceId is required – the user must be an Owner or Member of that space\n• Returns apiToken (7-day JWT) and refreshToken (long-lived) to use with other APIs\n• Use /api/auth/refresh with refreshToken to renew the access token when it expires',
         documentsApiTitle: '5. Library Documents API (Get Library Articles)',
-        documentsApiDesc: 'Use this endpoint to retrieve the list of articles/documents in the library belonging to the passed space ID.',
-        documentsApiNotes: '• Requires Authorization header with Bearer Token\n• spaceId is required – must be passed as a query parameter (e.g., ?spaceId=1)',
+        documentsApiDesc: 'Use this endpoint to retrieve paginated articles/documents in the library belonging to the passed space ID.',
+        documentsApiNotes: '• Requires Authorization header with Bearer Token\n• spaceId (required): pass as query parameter (e.g., ?spaceId=1)\n• Pagination: pass `page` (default 1) and `limit` (default 10, max 100)\n• Search: pass `title` (e.g., ?spaceId=1&title=sutra)\n• Returns `data` array, `total` count, current `page`, `limit`, and `totalPages`.',
     }
 };
 
@@ -2787,14 +2787,14 @@ Content-Type: application/json
                                                     <div>
                                                         <label className="block text-sm font-medium text-text-main">{t.endpointUrl}</label>
                                                         <div className="mt-1 flex rounded-md shadow-sm">
-                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/documents?spaceId=${selectedAi.spaceId || 1}`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
-                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/documents?spaceId=${selectedAi.spaceId || 1}`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
+                                                            <input type="text" readOnly value={`${window.location.origin}/api/v1/documents?spaceId=${selectedAi.spaceId || 1}&page=1&limit=10`} className="flex-1 block w-full rounded-md px-3 py-2 bg-gray-100 border-border-color text-text-light" />
+                                                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/v1/documents?spaceId=${selectedAi.spaceId || 1}&page=1&limit=10`); showToast(t.copied, 'success'); }} className="ml-2 px-4 py-2 border border-border-color rounded-md text-sm font-medium text-text-main bg-white hover:bg-gray-50">{t.copy}</button>
                                                         </div>
                                                     </div>
                                                     <div>
                                                         <label className="block text-sm font-medium text-text-main mb-2">{language === 'vi' ? 'Yêu cầu (Request)' : 'Request'}</label>
                                                         <pre className="p-3 bg-gray-900 text-gray-100 rounded-md text-xs overflow-x-auto font-mono">
-                                                            {`GET /api/v1/documents?spaceId=${selectedAi.spaceId || 1}
+                                                            {`GET /api/v1/documents?spaceId=${selectedAi.spaceId || 1}&page=1&limit=10&title=
 Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                                         </pre>
                                                     </div>
@@ -2812,7 +2812,10 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
       "createdAt": "2026-06-29T00:00:00.000Z"
     }
   ],
-  "total": 1
+  "total": 100,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 10
 }`}
                                                         </pre>
                                                         <p className="mt-2 text-xs text-text-light whitespace-pre-line">{(t as any).documentsApiNotes}</p>

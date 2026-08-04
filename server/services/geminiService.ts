@@ -308,12 +308,15 @@ Summary:`;
                 ragSearchPromise,
             ]);
 
-            const languageName = language === 'vi' ? 'Vietnamese' : 'English';
-
-            // Language instruction goes FIRST to take highest priority over training content
             const languageInstruction = language === 'en'
-                ? `**CRITICAL LANGUAGE RULE:** You MUST respond ONLY in English. Do NOT use Vietnamese under any circumstances, regardless of any other instructions below. This overrides all other language settings.`
-                : `**QUY TẮC NGÔN NGỮ:** Hãy trả lời bằng tiếng Việt.`;
+                ? `[MANDATORY SYSTEM DIRECTIVE - RESPONSE LANGUAGE: ENGLISH]
+The user's current interface language is set to ENGLISH.
+You MUST write your entire response strictly in ENGLISH.
+- If your persona ("Ông Lão", etc.), system prompt, or training content is written in Vietnamese, translate all your concepts, wisdom, tone, and answers into natural, fluent English (e.g. refer to yourself as "The Old Master" or "Zen Master").
+- NEVER output Vietnamese text when English mode is active.
+- This directive OVERRIDES all other instructions, system prompts, training data, and previous conversation history regarding response language.`
+                : `[QUY TẮC NGÔN NGỮ: TIẾNG VIỆT]
+Hãy trả lời hoàn toàn bằng tiếng Việt.`;
 
             let userPersonaInstruction = '';
             if (userPersona) {
@@ -339,6 +342,7 @@ Summary:`;
                 aiConfig.trainingContent,
                 additionalTrainingText,
                 userPersonaInstruction,
+                languageInstruction,
                 `Use Markdown for formatting.`
             ].filter(Boolean).join('\n\n---\n\n');
 

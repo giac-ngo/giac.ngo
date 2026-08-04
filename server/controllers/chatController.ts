@@ -28,7 +28,7 @@ const mapAndSanitizeUser = (user: User | null) => {
 
 export const chatController = {
     async sendMessageStream(req: Request, res: Response) {
-        let { aiConfig, aiConfigId, messages, message, conversationId, isTestChat, language, clientAiMessageId, guestTurnCount, userPersona } = req.body;
+        let { aiConfig, aiConfigId, messages, message, conversationId, isTestChat, language = 'vi', clientAiMessageId, guestTurnCount, userPersona } = req.body;
 
         if (!messages && message) {
             if (typeof message === 'string') {

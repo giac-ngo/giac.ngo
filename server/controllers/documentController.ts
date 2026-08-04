@@ -182,7 +182,14 @@ export const documentController = {
                 limit: limitNum,
                 offset: (pageNum - 1) * limitNum,
             };
-            res.json(await documentModel.find(filters));
+            const result = await documentModel.find(filters);
+            res.json({
+                data: result.data,
+                total: result.total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(result.total / limitNum)
+            });
         } catch (error: unknown) {
             res.status(500).json({ message: 'Failed to fetch documents.' });
         }

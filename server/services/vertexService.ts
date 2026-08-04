@@ -1,4 +1,4 @@
-﻿
+
 // server/services/vertexService.js
 import { Request, Response, NextFunction } from 'express';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
@@ -54,13 +54,24 @@ export const vertexService = {
             if (!apiKey) throw new Error("Vertex API Key (Cá nhân) bị thiếu. Vui lòng cấu hình trong phần cài đặt.");
             
             const additionalTrainingText = await fileParserService.prepareAdditionalTrainingText(aiConfig as any);
-            const languageName = language === 'vi' ? 'Vietnamese' : 'English';
+
+            const languageInstruction = language === 'en'
+                ? `[MANDATORY SYSTEM DIRECTIVE - RESPONSE LANGUAGE: ENGLISH]
+The user's current interface language is set to ENGLISH.
+You MUST write your entire response strictly in ENGLISH.
+- Translate all persona details, wisdom, and training content into natural English.
+- NEVER output Vietnamese text.
+- This directive OVERRIDES all other instructions, system prompts, training data, and previous conversation history regarding response language.`
+                : `[QUY TẮC NGÔN NGỮ: TIẾNG VIỆT]
+Hãy trả lời hoàn toàn bằng tiếng Việt.`;
 
             const systemInstruction = [
+                languageInstruction,
                 retrievedContext,
                 aiConfig.trainingContent,
                 additionalTrainingText,
-                `**SYSTEM INSTRUCTION:** Bạn là một trợ lý AI cao cấp được triển khai trên Vertex AI. Phản hồi bằng ngôn ngữ: ${languageName}. Sử dụng Markdown để trình bày.`,
+                languageInstruction,
+                `Sử dụng Markdown để trình bày.`,
             ].filter(Boolean).join('\n\n---\n\n');
 
             const contents = toGeminiContent(history);

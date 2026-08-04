@@ -79,8 +79,8 @@ export const libraryController = {
                 finalSpaceId = isNaN(parsedId) ? undefined : parsedId;
             }
 
-            const pageNum = parseInt(page as string, 10);
-            const limitNum = parseInt(limit as string, 10);
+            const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+            const limitNum = Math.max(1, parseInt(limit as string, 10) || 6);
 
             const result = await documentModel.find({
                 title: search as string || undefined,
@@ -93,7 +93,13 @@ export const libraryController = {
                 excludeCmsSpaceId: req.query.excludeCmsSpaceId as string | undefined
             });
             logger.info(`Library API requested: query=${JSON.stringify(req.query)}, finalSpaceId=${finalSpaceId}, totalFound=${result.total}`); 
-            res.json(result); // Returns { data, total }
+            res.json({
+                data: result.data,
+                total: result.total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(result.total / limitNum)
+            });
         } catch (error: unknown) {
             logger.error("Error fetching library documents:", error);
             res.status(500).json({ message: 'Failed to fetch library documents.' });

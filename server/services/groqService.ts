@@ -50,13 +50,24 @@ export const groqService = {
             }
 
             const additionalTrainingText = await fileParserService.prepareAdditionalTrainingText(aiConfig);
-            const languageName = language === 'vi' ? 'Vietnamese' : 'English';
+
+            const languageInstruction = language === 'en'
+                ? `[MANDATORY SYSTEM DIRECTIVE - RESPONSE LANGUAGE: ENGLISH]
+The user's current interface language is set to ENGLISH.
+You MUST write your entire response strictly in ENGLISH.
+- Translate all persona details, wisdom, and training content into natural English.
+- NEVER output Vietnamese text.
+- This directive OVERRIDES all other instructions, system prompts, training data, and previous conversation history regarding response language.`
+                : `[QUY TẮC NGÔN NGỮ: TIẾNG VIỆT]
+Hãy trả lời hoàn toàn bằng tiếng Việt.`;
 
             const systemPrompt = [
+                languageInstruction,
                 retrievedContext,
                 aiConfig.trainingContent,
                 additionalTrainingText,
-                `**SYSTEM INSTRUCTION:** You are a helpful AI assistant. Respond in ${languageName}. Use Markdown for formatting.`
+                languageInstruction,
+                `Use Markdown for formatting.`
             ].filter(Boolean).join('\n\n---\n\n');
 
             const messages = toGroqMessages(history, systemPrompt);
