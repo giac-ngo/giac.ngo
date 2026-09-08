@@ -2950,7 +2950,9 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                 {selectedAi && typeof selectedAi.id === 'number' && canEdit && (() => {
                                     // Use embeddingProvider (if set) to match how weaviateService indexes data.
                                     // Before this fix: modelType='groq' but indexed under 'gemini' → always showed unsynced.
-                                    const provider = (selectedAi.embeddingProvider as string) || selectedAi.modelType;
+                                    const provider = selectedAi.vectorBackend === 'pgvector'
+                                        ? 'pgvector'
+                                        : (selectedAi.embeddingProvider as string) || selectedAi.modelType;
                                     const unsyncedCount = trainingData.filter(d =>
                                         (d.type === 'qa' || d.type === 'file') &&
                                         !d.indexedProviders?.includes(provider)
