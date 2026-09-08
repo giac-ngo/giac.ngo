@@ -326,6 +326,10 @@ export const pgVectorService = {
             let sourceFailed = false;
             for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
                 const chunkContent = chunks[chunkIdx];
+                // Log progress mỗi 5 chunks để dễ theo dõi trên VPS
+                if (chunkIdx === 0 || (chunkIdx + 1) % 5 === 0 || chunkIdx === chunks.length - 1) {
+                    console.log(`[PGVECTOR INDEX] Source ${source.id}: embedding chunk ${chunkIdx + 1}/${chunks.length}...`);
+                }
                 try {
                     const vector = await generateGeminiEmbedding(chunkContent, apiKey);
                     const vectorStr = `[${vector.join(',')}]`;
@@ -335,8 +339,13 @@ export const pgVectorService = {
                          VALUES ($1, $2, $3, $4, $5, $6::vector)`,
                         [aiConfigId, source.id, source.type, chunkContent, chunkIdx, vectorStr]
                     );
+
+                    // Pause 500ms mỗi 5 chunks để tránh rate limit Gemini
+                    if ((chunkIdx + 1) % 5 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
                 } catch (embedErr: any) {
-                    console.error(`[PGVECTOR INDEX] Embedding failed for source ${source.id} chunk ${chunkIdx}:`, embedErr.message);
+                    console.error(`[PGVECTOR INDEX] Embedding failed for source ${source.id} chunk ${chunkIdx}/${chunks.length}:`, embedErr.message);
                     sourceFailed = true;
                     break;
                 }
@@ -345,8 +354,10 @@ export const pgVectorService = {
             if (!sourceFailed) {
                 await trainingDataModel.addIndexedProvider(source.id, providerTag);
                 updateFileProgress(aiConfigId, source.id, 'completed');
+                console.log(`[PGVECTOR INDEX] ✓ Source ${source.id} fully indexed: ${chunks.length} chunks saved to vector_embeddings.`);
             } else {
                 updateFileProgress(aiConfigId, source.id, 'failed');
+                console.error(`[PGVECTOR INDEX] ✗ Source ${source.id} indexing FAILED. Chunks processed before failure: ${chunks.length}.`);
             }
         }
     },
