@@ -13,6 +13,7 @@ import { groqService } from '../services/groqService.js';
 import { ollamaService } from '../services/ollamaService.js';
 import { fileParserService } from '../services/fileParserService.js';
 import weaviateService from '../services/weaviateService.js';
+import { pgVectorService } from '../services/pgVectorService.js';
 import { vertexService } from '../services/vertexService.js';
 import { AIConfig, User } from '../types/index.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
@@ -23,6 +24,19 @@ const mapAndSanitizeUser = (user: User | null) => {
     const { password, ...sanitizedUser } = user;
     return sanitizedUser;
 };
+
+async function performVectorSearch(aiConfig: AIConfig, queryText: string, apiKey: string) {
+    const vectorBackend = aiConfig.vectorBackend || 'weaviate';
+    if (vectorBackend === 'pgvector') {
+        return await pgVectorService.search(aiConfig.id, queryText, apiKey);
+    } else {
+        const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
+        const searchApiKey = searchProvider !== aiConfig.modelType
+            ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
+            : apiKey;
+        return await weaviateService.search(searchProvider, aiConfig.id, queryText, searchApiKey);
+    }
+}
 
 // Helper function getApiKeyForAi removed (now imported from utils)
 
@@ -170,16 +184,12 @@ export const chatController = {
             const lastUserMessage = finalMessages.slice().reverse().find(m => m.sender === 'user');
             if (lastUserMessage?.text && apiKey) {
                 try {
-                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
-                    const searchApiKey = searchProvider !== aiConfig.modelType
-                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
-                        : apiKey;
-                    const results = await weaviateService.search(searchProvider, aiConfig.id, lastUserMessage.text, searchApiKey);
+                    const results = await performVectorSearch(aiConfig, lastUserMessage.text, apiKey);
                     if (results?.length > 0) {
                         retrievedContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
                     }
                 } catch (e: any) {
-                    logger.warn("Weaviate search failed during stream chat:", e.message || String(e));
+                    logger.warn("Vector search failed during stream chat:", e.message || String(e));
                 }
             }
 
@@ -255,15 +265,11 @@ export const chatController = {
             let ragContext = '';
             if (apiKey && userMessage) {
                 try {
-                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
-                    const searchApiKey = searchProvider !== aiConfig.modelType
-                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
-                        : apiKey;
-                    const results = await weaviateService.search(searchProvider, aiConfig.id, userMessage, searchApiKey);
+                    const results = await performVectorSearch(aiConfig, userMessage, apiKey);
                     if (results?.length > 0) {
                         ragContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
                     }
-                } catch (e: any) { logger.warn("Weaviate search failed during estimation:", e.message || String(e)); }
+                } catch (e: any) { logger.warn("Vector search failed during estimation:", e.message || String(e)); }
             }
 
             const systemPrompt = aiConfig.trainingContent || '';
@@ -315,16 +321,12 @@ export const chatController = {
             const lastUserMessage = finalMessages.slice().reverse().find(m => m.sender === 'user');
             if (lastUserMessage?.text && apiKey) {
                 try {
-                    const searchProvider = (aiConfig.embeddingProvider as string) || aiConfig.modelType;
-                    const searchApiKey = searchProvider !== aiConfig.modelType
-                        ? await getApiKeyForAi(aiConfig, searchProvider).catch(() => apiKey)
-                        : apiKey;
-                    const results = await weaviateService.search(searchProvider, aiConfig.id, lastUserMessage.text, searchApiKey);
+                    const results = await performVectorSearch(aiConfig, lastUserMessage.text, apiKey);
                     if (results?.length > 0) {
                         retrievedContext = "--- Relevant Information ---\n" + results.map((r: any) => r.content).join('\n\n') + "\n--- End of Information ---\n\n";
                     }
                 } catch (e: any) {
-                    logger.warn("Weaviate search failed:", e.message || String(e));
+                    logger.warn("Vector search failed:", e.message || String(e));
                 }
             }
 

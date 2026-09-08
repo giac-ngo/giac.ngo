@@ -88,20 +88,23 @@ export const trainingDataController = {
                     const safeSpaceId = aiConfig.spaceId
                         ? String(aiConfig.spaceId).replace(/[^a-zA-Z0-9_-]/g, '_')
                         : 'global';
-                    // Flat space directory � no training subfolder
+                    // Save to training/ subfolder to keep training files separate from other media
                     const spaceDir = safeSpaceId === 'global'
-                        ? path.join(uploadsDir, 'global')
-                        : path.join(uploadsDir, `space-${safeSpaceId}`);
+                        ? path.join(uploadsDir, 'global', 'training')
+                        : path.join(uploadsDir, `space-${safeSpaceId}`, 'training');
                     await fs.mkdir(spaceDir, { recursive: true });
 
                     const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
                     const safeName = path.basename(utf8Name).replace(/[^\w\s.\-\p{L}]/gu, '_');
-                    const destPath = path.join(spaceDir, safeName);
+                    // Timestamp + random prefix to avoid name collisions on re-upload
+                    const uniquePrefix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000_000)}`;
+                    const finalName = `${uniquePrefix}-${safeName}`;
+                    const destPath = path.join(spaceDir, finalName);
                     await fs.writeFile(destPath, req.file.buffer);
                     uploadedFilePath = destPath;
 
                     // @ts-ignore
-                    newSourceData.fileUrl = `/uploads/space-${safeSpaceId}/${safeName}`;
+                    newSourceData.fileUrl = `/uploads/space-${safeSpaceId}/training/${finalName}`;
                     // @ts-ignore
                     newSourceData.fileName = utf8Name;
                 }

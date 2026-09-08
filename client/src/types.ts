@@ -39,6 +39,7 @@ export interface AIConfig {
   modelName: string;
   embeddingProvider?: ModelType | string; // Provider dùng để vectorize (gemini | gpt)
   embeddingModel?: string;                // Model embedding cụ thể
+  vectorBackend?: string;                 // Backend lưu trữ vector ('weaviate' | 'pgvector')
   trainingContent: string;
   suggestedQuestions: string[];
   suggestedQuestionsEn?: string[];

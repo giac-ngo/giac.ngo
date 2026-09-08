@@ -123,7 +123,7 @@ const translations = {
         syncQueued: 'Đã đưa vào hàng đợi đồng bộ.',
         syncComplete: 'Đồng bộ hoàn tất!',
         nothingToSync: 'Không có dữ liệu mới để đồng bộ.',
-        submitToKoii: 'Gửi đến Weaviate Huấn luyện',
+        submitToKoii: 'Gửi Huấn luyện',
         koiiStatus: 'Trạng thái Huấn luyện',
         koiiStatusIdle: 'Chưa có tác vụ nào',
         koiiStatusPending: 'Đang chờ xử lý',
@@ -193,6 +193,9 @@ const translations = {
         embeddingProvider: 'Nhà cung cấp Embedding',
         embeddingModel: 'Model Embedding',
         embeddingProviderNone: '(Dùng chung với provider chat)',
+        vectorBackend: 'Cơ sở dữ liệu Vector',
+        vectorBackendWeaviate: 'Weaviate Cloud',
+        vectorBackendPgvector: 'PostgreSQL (pgvector)',
         embeddingInfoBanner: 'Provider và Model này dùng riêng để vectorize dữ liệu huấn luyện và tìm kiếm RAG. Nếu AI dùng Groq/Grok (không có embedding), phải chọn Gemini hoặc GPT ở đây.',
         loginApiTitle: '4. SSO Login API (Đăng nhập từ hệ thống ngoài)',
         loginApiDesc: 'Dùng endpoint này từ ứng dụng bên ngoài (ví dụ n8n) để xác thực người dùng và lấy JWT token. Yêu cầu spaceId để kiểm tra tư cách thành viên.',
@@ -304,7 +307,7 @@ const translations = {
         syncQueued: 'Sync has been queued.',
         syncComplete: 'Sync complete!',
         nothingToSync: 'No new data to sync.',
-        submitToKoii: 'Submit to Weaviate for Training',
+        submitToKoii: 'Submit for Training',
         koiiStatus: 'Training Status',
         koiiStatusIdle: 'No tasks yet',
         koiiStatusPending: 'Pending',
@@ -374,6 +377,9 @@ const translations = {
         embeddingProvider: 'Embedding Provider',
         embeddingModel: 'Embedding Model',
         embeddingProviderNone: '(Same as chat provider)',
+        vectorBackend: 'Vector Store Backend',
+        vectorBackendWeaviate: 'Weaviate Cloud',
+        vectorBackendPgvector: 'PostgreSQL (pgvector)',
         embeddingInfoBanner: 'This provider & model are used exclusively for vectorizing training data and RAG search. If the AI uses Groq/Grok (no embedding API), you must select Gemini or GPT here.',
         loginApiTitle: '4. SSO Login API (Login from External System)',
         loginApiDesc: 'Use this endpoint from an external application (e.g. n8n) to authenticate users and obtain a JWT token. Requires spaceId to check membership.',
@@ -2317,8 +2323,20 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                             {activeTab === 'training' && (
                                 <div className="space-y-3">
 
-                                    {/* ── Embedding Provider/Model selector ── */}
-                                    <div className="grid grid-cols-2 gap-3 mb-1">
+                                    {/* ── Embedding Provider/Model & Vector Backend selector ── */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-1">
+                                        <div>
+                                            <label className="block text-xs font-medium text-text-main mb-1">{t.vectorBackend}</label>
+                                            <select
+                                                value={selectedAi.vectorBackend || 'weaviate'}
+                                                onChange={e => handleInputChange({ target: { name: 'vectorBackend', value: e.target.value } } as any)}
+                                                disabled={isFormDisabled}
+                                                className={inputClasses}
+                                            >
+                                                <option value="weaviate">{t.vectorBackendWeaviate}</option>
+                                                <option value="pgvector">{t.vectorBackendPgvector}</option>
+                                            </select>
+                                        </div>
                                         <div>
                                             <label className="block text-xs font-medium text-text-main mb-1">{t.embeddingProvider}</label>
                                             <select
@@ -2881,9 +2899,9 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                 </div>
                                 <div className="flex items-center space-x-3">
                                     <button onClick={handleSubmitToKoii} disabled={isSubmittingToKoii || ['pending', 'processing'].includes(koiiTaskStatus?.status || '') || isFormDisabled || isFormDirty()}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md disabled:opacity-50"
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-md shadow-sm disabled:opacity-50 transition-colors"
                                         title={isFormDirty() ? t.unsavedChangesBody : undefined}>
-                                        <KoiiIcon className="w-5 h-5" />
+                                        <KoiiIcon className="w-5 h-5 text-white" />
                                         {isSubmittingToKoii ? t.syncing : t.submitToKoii}
                                     </button>
                                     {canEdit && typeof selectedAi.id === 'number' && (

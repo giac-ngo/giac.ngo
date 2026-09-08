@@ -1,4 +1,4 @@
-﻿// server/services/fileParserService.ts
+// server/services/fileParserService.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import fs from 'fs/promises';
@@ -24,6 +24,23 @@ export const invalidateTrainingTextCache = (aiConfigId: number) => {
     trainingTextCache.delete(aiConfigId);
 };
 
+async function findFileInUploads(fileName: string, baseDir?: string): Promise<string | null> {
+    const targetDir = baseDir || path.join(projectRoot, 'uploads');
+    try {
+        const entries = await fs.readdir(targetDir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(targetDir, entry.name);
+            if (entry.isDirectory()) {
+                const found = await findFileInUploads(fileName, fullPath);
+                if (found) return found;
+            } else if (entry.isFile() && entry.name === fileName) {
+                return fullPath;
+            }
+        }
+    } catch (_) { }
+    return null;
+}
+
 export const fileParserService = {
     async extractText(fileUrl: string, originalFileName: string): Promise<string> {
         // fileUrl is typically /uploads/filename.pdf
@@ -34,7 +51,23 @@ export const fileParserService = {
         const extension = path.extname(originalFileName).toLowerCase();
 
         try {
-            const dataBuffer = await fs.readFile(filePath);
+            let dataBuffer: Buffer;
+            try {
+                dataBuffer = await fs.readFile(filePath);
+            } catch (readErr: any) {
+                if (readErr.code === 'ENOENT') {
+                    const targetFileName = path.basename(cleanUrl);
+                    const fallbackPath = await findFileInUploads(targetFileName);
+                    if (fallbackPath) {
+                        logger.info(`[FileParser] File ${cleanUrl} not found at exact path, located fallback at ${fallbackPath}`);
+                        dataBuffer = await fs.readFile(fallbackPath);
+                    } else {
+                        throw readErr;
+                    }
+                } else {
+                    throw readErr;
+                }
+            }
 
             if (extension === '.pdf') {
                 const data = await pdf(dataBuffer);

@@ -1,9 +1,12 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 // server/controllers/koiiController.js
 import { koiiModel } from '../models/koii.model.js';
+import { aiConfigModel } from '../models/aiConfig.model.js';
 import weaviateService from '../services/weaviateService.js';
+import { pgVectorService } from '../services/pgVectorService.js';
 import { getSyncProgress } from '../services/syncProgressStore.js';
+
 export const koiiController = {
     async submitTask(req: Request, res: Response) {
         const { aiConfigId } = req.body;
@@ -16,8 +19,16 @@ export const koiiController = {
                 return res.status(409).json({ message: 'A task for this AI is already in progress.' });
             }
             await koiiModel.create(aiConfigId);
+
+            const aiConfig = await aiConfigModel.findById(aiConfigId);
+            const vectorBackend = aiConfig?.vectorBackend || 'weaviate';
+
             // Asynchronously trigger the sync without awaiting
-            weaviateService.syncAllDataForAI(aiConfigId)
+            const syncPromise = vectorBackend === 'pgvector'
+                ? pgVectorService.syncAllDataForAI(aiConfigId)
+                : weaviateService.syncAllDataForAI(aiConfigId);
+
+            syncPromise
                 .then(() => koiiModel.updateStatusByAiId(aiConfigId, 'completed'))
                 .catch((err) => {
                     logger.error(`Koii task failed for AI ${aiConfigId}:`, err);
@@ -32,7 +43,7 @@ export const koiiController = {
         try {
             const task = await koiiModel.findLatest((req.params.aiConfigId as string));
             if (!task) {
-                return res.status(404).json(null);
+                return res.json(null);
             }
             res.json(task);
         } catch (error: unknown) {
