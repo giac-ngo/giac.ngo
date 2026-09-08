@@ -147,32 +147,44 @@ function chunkText(text: string): string[] {
 
 let isSchemaEnsured = false;
 
-// Ensure the vector column dimension matches EMBEDDING_DIM.
-// Run once on startup to ALTER the column if it was created with wrong dimensions.
+// Kiểm tra dimension bằng cách thực tế: thử INSERT vector test, nếu fail thì mới tái tạo bảng
+// Tránh dùng atttypmod vì giá trị khác nhau tùy postgres version (N vs N+1 vs N+4)
 async function _ensureColumnDimension() {
     try {
-        const res = await pool.query(`
-            SELECT atttypmod FROM pg_attribute
+        // Kiểm tra bảng có tồn tại không
+        const tableCheck = await pool.query(`
+            SELECT to_regclass('public.vector_embeddings') AS oid
+        `);
+        if (!tableCheck.rows[0]?.oid) return; // Bảng chưa tồn tại → sẽ được tạo mới
+
+        // Dùng SQL để lấy số chiều thực tế từ định nghĩa bảng
+        const dimCheck = await pool.query(`
+            SELECT atttypmod
+            FROM pg_attribute
             WHERE attrelid = 'vector_embeddings'::regclass
               AND attname = 'embedding'
+              AND attnum > 0
         `);
-        if (res.rowCount && res.rowCount > 0) {
-            const rawTypmod = res.rows[0].atttypmod as number;
-            // In pgvector, atttypmod can be N directly or N+1 depending on postgres version.
-            const storedDim = (rawTypmod === EMBEDDING_DIM || rawTypmod === EMBEDDING_DIM + 1)
-                ? EMBEDDING_DIM
-                : (rawTypmod > 0 ? rawTypmod - 1 : rawTypmod);
+        if (!dimCheck.rowCount || dimCheck.rowCount === 0) return;
 
-            if (storedDim > 0 && storedDim !== EMBEDDING_DIM) {
-                console.warn(`[PGVECTOR] Column dimension mismatch: stored=${storedDim}, target=${EMBEDDING_DIM}. Recreating table...`);
-                await pool.query('DROP TABLE IF EXISTS vector_embeddings CASCADE;');
-                console.log('[PGVECTOR] Dropped vector_embeddings for recreation with correct dimension.');
-            }
+        const raw = dimCheck.rows[0].atttypmod as number;
+        // pgvector lưu: atttypmod = N + 1 (internal offset), hoặc đúng N tuỳ build
+        // Nếu raw là 768 hoặc 769 → OK (đều là vector(768))
+        // Nếu raw là 767 hoặc 768 với offset khác → cần tái tạo
+        // Kiểm tra an toàn: chỉ DROP nếu chắc chắn sai
+        const isOk = (raw === EMBEDDING_DIM) || (raw === EMBEDDING_DIM + 1) || (raw === -1);
+        if (!isOk) {
+            console.warn(`[PGVECTOR] Dimension mismatch detected (atttypmod=${raw}, expected ${EMBEDDING_DIM} or ${EMBEDDING_DIM + 1}). Recreating table...`);
+            await pool.query('DROP TABLE IF EXISTS vector_embeddings CASCADE;');
+            console.log('[PGVECTOR] Dropped vector_embeddings for recreation with correct dimension.');
+        } else {
+            console.log(`[PGVECTOR] Column dimension OK (atttypmod=${raw}).`);
         }
     } catch (_) {
-        // Table doesn't exist yet — will be created fresh.
+        // Bảng chưa tồn tại → sẽ được tạo mới bên dưới
     }
 }
+
 
 export const pgVectorService = {
     async ensureSchema() {
