@@ -9,6 +9,7 @@ import { fileParserService } from '../services/fileParserService.js';
 import { geminiService } from '../services/geminiService.js';
 import { gptService } from '../services/gptService.js';
 import weaviateService from '../services/weaviateService.js';
+import { pgVectorService } from '../services/pgVectorService.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -210,7 +211,9 @@ export const trainingDataController = {
 
             if (!sourceToDelete) return res.status(404).json({ message: 'Training data source not found.' });
 
-            // Clean up Weaviate for ALL providers that have indexed this file
+            // Clean up vector embeddings (Weaviate & pgvector)
+            await pgVectorService.deleteEmbeddingsForSource(sourceToDelete.id).catch(err => logger.error(`pgvector cleanup failed for source ${sourceToDelete.id}:`, err.message));
+
             const aiConfig = await aiConfigModel.findById(sourceToDelete.aiConfigId);
             if (aiConfig) {
                 const owner = aiConfig.ownerId ? await userModel.findById(aiConfig.ownerId) : null;

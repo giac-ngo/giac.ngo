@@ -40,7 +40,7 @@ export const trainingDataModel = {
                 'document' AS type,
                 NULL AS question, NULL AS answer, NULL as thought, NULL as file_url, NULL as file_name,
                 d.summary,
-                ARRAY['gpt', 'gemini'] AS indexed_providers, -- Assuming documents are conceptually indexed for all for UI simplicity, or handle separately
+                ARRAY['gpt', 'gemini', 'pgvector'] AS indexed_providers,
                 d.created_at,
                 NULL as last_exported_at,
                 d.id AS document_id,

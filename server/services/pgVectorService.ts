@@ -300,9 +300,8 @@ export const pgVectorService = {
             if (source.type === 'qa' && source.question && source.answer) {
                 chunks = [`Question: ${source.question}\nAnswer: ${source.answer}`];
             } else if (source.type === 'file' && source.fileUrl && source.fileName) {
-                // pgVector chỉ index docx và excel — bỏ qua các định dạng khác (pdf, txt, v.v.)
                 const ext = path.extname(source.fileName).toLowerCase();
-                const SUPPORTED_EXTENSIONS = ['.docx', '.xlsx', '.xls', '.csv'];
+                const SUPPORTED_EXTENSIONS = ['.docx', '.xlsx', '.xls', '.csv', '.pdf', '.txt', '.json', '.md'];
                 if (!SUPPORTED_EXTENSIONS.includes(ext)) {
                     console.log(`[PGVECTOR INDEX] Skipping unsupported file type (${ext}) for source ${source.id}: ${source.fileName}`);
                     updateFileProgress(aiConfigId, source.id, 'skipped');
