@@ -157,8 +157,12 @@ async function _ensureColumnDimension() {
               AND attname = 'embedding'
         `);
         if (res.rowCount && res.rowCount > 0) {
-            // atttypmod for vector(N) is stored as N+1 internally
-            const storedDim = (res.rows[0].atttypmod as number) - 1;
+            const rawTypmod = res.rows[0].atttypmod as number;
+            // In pgvector, atttypmod can be N directly or N+1 depending on postgres version.
+            const storedDim = (rawTypmod === EMBEDDING_DIM || rawTypmod === EMBEDDING_DIM + 1)
+                ? EMBEDDING_DIM
+                : (rawTypmod > 0 ? rawTypmod - 1 : rawTypmod);
+
             if (storedDim > 0 && storedDim !== EMBEDDING_DIM) {
                 console.warn(`[PGVECTOR] Column dimension mismatch: stored=${storedDim}, target=${EMBEDDING_DIM}. Recreating table...`);
                 await pool.query('DROP TABLE IF EXISTS vector_embeddings CASCADE;');
