@@ -1920,7 +1920,9 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const getOwnerName = (ownerId?: number) => allUsers.find(u => u.id === ownerId)?.name || 'Không rõ';
 
     const getStatusIcon = (item: TrainingDataSource) => {
-        const currentProvider = (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
+        const currentProvider = selectedAi?.vectorBackend === 'pgvector'
+            ? 'pgvector'
+            : (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
         const isIndexedForProvider = currentProvider && item.indexedProviders?.includes(currentProvider);
 
         if (isIndexedForProvider) {
@@ -1934,7 +1936,9 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     const filteredTrainingData = useMemo(() => {
         const data = trainingData || [];
-        const currentProvider = selectedAi?.modelType;
+        const currentProvider = selectedAi?.vectorBackend === 'pgvector'
+            ? 'pgvector'
+            : (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
 
         switch (trainingFilter) {
             case 'indexed':
@@ -1945,7 +1949,7 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
             default:
                 return data;
         }
-    }, [trainingData, trainingFilter, selectedAi?.modelType]);
+    }, [trainingData, trainingFilter, selectedAi]);
 
     const qaTrainingData = useMemo(() => filteredTrainingData.filter(d => d.type === 'qa'), [filteredTrainingData]);
     const fileTrainingData = useMemo(() => filteredTrainingData.filter(d => d.type === 'file'), [filteredTrainingData]);
