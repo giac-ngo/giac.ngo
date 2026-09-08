@@ -1,5 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
-// server/services/syncProgressStore.js
+// server/services/syncProgressStore.ts
 // Isolated store to avoid circular imports between weaviateService and koiiController.
 
 const syncProgress = new Map();
@@ -15,7 +14,7 @@ export const initProgress = (aiConfigId: any, sources: any) => {
             id: s.id,
             name: s.fileName || (s.type === 'qa' ? `Q&A #${s.id}` : `Source #${s.id}`),
             type: s.type,
-            status: 'pending', // pending | indexing | done | failed | skipped
+            status: 'pending', // pending | indexing | completed | failed | skipped
         })),
     });
 };
@@ -26,7 +25,7 @@ export const updateFileProgress = (aiConfigId: any, sourceId: any, status: any) 
     const file = p.files.find((f: any) => f.id === sourceId);
     if (file) {
         file.status = status;
-        if (status === 'done') p.indexed++;
+        if (status === 'completed') p.indexed++;
         if (status === 'failed') p.failed++;
     }
 };
