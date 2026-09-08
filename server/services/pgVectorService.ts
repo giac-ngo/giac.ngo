@@ -288,7 +288,10 @@ export const pgVectorService = {
         initProgress(aiConfigId, toIndex);
 
         for (const source of dataSources) {
-            if (source.indexedProviders?.includes(providerTag)) continue;
+            // Log mỗi source để debug: có bị skip không?
+            const alreadyIndexed = source.indexedProviders?.includes(providerTag);
+            console.log(`[PGVECTOR INDEX] Source ${source.id} (${source.type}): indexedProviders=${JSON.stringify(source.indexedProviders)} → ${alreadyIndexed ? 'SKIP (already indexed)' : 'PROCESS'}`);
+            if (alreadyIndexed) continue;
 
             updateFileProgress(aiConfigId, source.id, 'indexing');
 

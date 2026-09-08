@@ -2418,19 +2418,27 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                                                                 <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate font-medium" title={item.fileName}>{item.fileName}</a>
                                                             </div>
                                                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                                {/* Per-file index progress badge */}
-                                                                {fileProgress && (
-                                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${fileProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                                {/* Per-file index progress badge (during active sync) */}
+                                                                {fileProgress ? (
+                                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                                                                        fileProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
                                                                         fileProgress.status === 'failed' ? 'bg-red-100 text-red-600' :
-                                                                            fileProgress.status === 'indexing' ? 'bg-blue-100 text-blue-600' :
-                                                                                fileProgress.status === 'skipped' ? 'bg-gray-100 text-gray-500' :
-                                                                                    'bg-yellow-100 text-yellow-600'
-                                                                        }`}>
+                                                                        fileProgress.status === 'indexing' ? 'bg-blue-100 text-blue-600 animate-pulse' :
+                                                                        fileProgress.status === 'skipped' ? 'bg-gray-100 text-gray-500' :
+                                                                        'bg-yellow-100 text-yellow-600'
+                                                                    }`}>
                                                                         {fileProgress.status === 'completed' ? '✓ indexed' :
-                                                                            fileProgress.status === 'failed' ? '✗ lỗi' :
-                                                                                fileProgress.status === 'indexing' ? '⏳ đang index...' :
-                                                                                    fileProgress.status === 'skipped' ? '— bỏ qua' :
-                                                                                        '⋯ chờ'}
+                                                                         fileProgress.status === 'failed' ? '✗ lỗi' :
+                                                                         fileProgress.status === 'indexing' ? '⏳ đang index...' :
+                                                                         fileProgress.status === 'skipped' ? '— bỏ qua' :
+                                                                         '⋯ chờ'}
+                                                                    </span>
+                                                                ) : (
+                                                                    /* Badge thường trực dựa trên indexedProviders trong DB */
+                                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                                                                        item.indexedProviders?.includes('pgvector') ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-600 border border-yellow-200'
+                                                                    }`}>
+                                                                        {item.indexedProviders?.includes('pgvector') ? '✓ indexed' : '○ chưa index'}
                                                                     </span>
                                                                 )}
                                                                 {!isFormDisabled && (
