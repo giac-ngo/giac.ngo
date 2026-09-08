@@ -285,6 +285,16 @@ export const pgVectorService = {
             if (source.type === 'qa' && source.question && source.answer) {
                 chunks = [`Question: ${source.question}\nAnswer: ${source.answer}`];
             } else if (source.type === 'file' && source.fileUrl && source.fileName) {
+                // pgVector chỉ index docx và excel — bỏ qua các định dạng khác (pdf, txt, v.v.)
+                const ext = path.extname(source.fileName).toLowerCase();
+                const SUPPORTED_EXTENSIONS = ['.docx', '.xlsx', '.xls', '.csv'];
+                if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+                    console.log(`[PGVECTOR INDEX] Skipping unsupported file type (${ext}) for source ${source.id}: ${source.fileName}`);
+                    updateFileProgress(aiConfigId, source.id, 'skipped');
+                    // Mark as indexed so it won't be retried on every sync
+                    await trainingDataModel.addIndexedProvider(source.id, providerTag);
+                    continue;
+                }
                 let rawText: string | null = null;
                 try {
                     rawText = await fileParserService.extractText(source.fileUrl, source.fileName);
@@ -293,22 +303,15 @@ export const pgVectorService = {
                     updateFileProgress(aiConfigId, source.id, 'failed');
                     continue;
                 }
-                // Fallback: nếu PDF trả về rỗng (PDF scan/ảnh), dùng Gemini đọc trực tiếp
-                if (!rawText?.trim() && source.fileName.toLowerCase().endsWith('.pdf')) {
-                    console.log(`[PGVECTOR] PDF empty via pdf-parse, trying Gemini fallback for source ${source.id}...`);
-                    const cleanUrl = source.fileUrl.startsWith('/') ? source.fileUrl.slice(1) : source.fileUrl;
-                    const absolutePath = path.join(projectRoot, cleanUrl);
-                    rawText = await extractTextFromPdfGemini(absolutePath, apiKey);
-                    if (rawText) console.log(`[PGVECTOR] Gemini extracted ${rawText.length} chars from PDF ${source.fileName}`);
-                }
                 if (rawText?.trim()) chunks = chunkText(rawText);
             } else if (source.type === 'document' && source.summary) {
                 chunks = chunkText(source.summary);
             }
 
             if (chunks.length === 0) {
-                console.error(`[PGVECTOR INDEX] Empty content for source ${source.id}. Cannot index.`);
-                updateFileProgress(aiConfigId, source.id, 'failed');
+                console.warn(`[PGVECTOR INDEX] Empty content for source ${source.id} (${source.fileName || source.type}). Skipping.`);
+                updateFileProgress(aiConfigId, source.id, 'skipped');
+                await trainingDataModel.addIndexedProvider(source.id, providerTag);
                 continue;
             }
 
