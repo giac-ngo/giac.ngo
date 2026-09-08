@@ -2857,7 +2857,10 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                 <div className="lg:w-1/2 space-y-2">
                                     <KoiiTaskStatusDisplay status={koiiTaskStatus} language={language} />
                                     {(() => {
-                                        const provider = (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
+                                        // Khi dùng pgvector backend, tag được lưu là 'pgvector', không phải 'gemini'/'gpt'
+                                        const provider = selectedAi?.vectorBackend === 'pgvector'
+                                            ? 'pgvector'
+                                            : (selectedAi?.embeddingProvider as string) || selectedAi?.modelType;
                                         const unindexed = trainingData.filter(d => !provider || !d.indexedProviders?.includes(provider));
                                         if (unindexed.length === 0) return null;
                                         const qaCount = unindexed.filter(d => d.type === 'qa').length;
