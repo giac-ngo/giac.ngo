@@ -58,29 +58,32 @@ export const aiConfigModel = {
     },
 
     async findManageableForUser(user: User): Promise<AIConfig[]> {
-        if (!user.permissions) return [];
+        if (!user) return [];
 
-        if (user.permissions.includes('roles')) { // Super admin can manage all AIs
+        if (user.isGlobalAdmin) { // Truly Super admin can manage all AIs
             const res = await pool.query(`${AI_CONFIG_DETAILS_QUERY} ORDER BY ac.name ASC`);
             return res.rows.map(mapRowToCamelCase);
         }
-        if (user.permissions.includes('ai')) { // Content Manager can manage AIs in their own space(s)
-            const spaceRes = await pool.query(
-                `SELECT DISTINCT id FROM (
+
+        // Non-global admins can only manage AIs they own, AIs in spaces they own, or AIs in spaces where they hold 'ai' permission
+        const query = `
+            ${AI_CONFIG_DETAILS_QUERY}
+            WHERE (
+                ac.owner_id = $1
+                OR ac.space_id IN (
                     SELECT id FROM spaces WHERE user_id = $1
                     UNION
-                    SELECT space_id AS id FROM space_members WHERE user_id = $1
-                ) AS combined`, 
-                [user.id]
-            );
-            if (spaceRes.rows.length === 0) {
-                return []; // This user manages no spaces, so no AIs.
-            }
-            const spaceIds = spaceRes.rows.map((r: Record<string, unknown>) => r.id);
-            const res = await pool.query(`${AI_CONFIG_DETAILS_QUERY} WHERE ac.space_id = ANY($1::int[]) ORDER BY ac.name ASC`, [spaceIds]);
-            return res.rows.map(mapRowToCamelCase);
-        }
-        return [];
+                    SELECT r.space_id FROM user_roles ur
+                    JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = $1
+                      AND r.space_id IS NOT NULL
+                      AND 'ai' = ANY(r.permissions)
+                )
+            )
+            ORDER BY ac.name ASC
+        `;
+        const res = await pool.query(query, [user.id]);
+        return res.rows.map(mapRowToCamelCase);
     },
 
     async findById(id: number | string): Promise<AIConfig | null> {
