@@ -45,10 +45,19 @@ export const enrichUserWithPermissions = async (user: Partial<User> & Record<str
 }
 
 const updateRolesForUser = async (userId: number | string, roleIds: number[], client: { query: Function } = pool) => {
-    await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
-    if (roleIds && roleIds.length > 0) {
-        const values = roleIds.map(roleId => `(${userId}, ${roleId})`).join(',');
-        await client.query(`INSERT INTO user_roles (user_id, role_id) VALUES ${values}`);
+    const numericUserId = parseInt(String(userId), 10);
+    if (isNaN(numericUserId)) return;
+
+    await client.query('DELETE FROM user_roles WHERE user_id = $1', [numericUserId]);
+    if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+        const validRoleIds = roleIds
+            .map(id => typeof id === 'number' ? id : parseInt(String(id), 10))
+            .filter(id => Number.isInteger(id) && id > 0);
+
+        if (validRoleIds.length > 0) {
+            const placeholders = validRoleIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+            await client.query(`INSERT INTO user_roles (user_id, role_id) VALUES ${placeholders}`, [numericUserId, ...validRoleIds]);
+        }
     }
 };
 
@@ -203,12 +212,12 @@ export const userModel = {
 
             // apiKeys encryption removed
 
-            // Whitelist: chỉ cho phép các field thực sự tồn tại trong bảng users
+            // Whitelist: chỉ cho phép các field an toàn thực sự tồn tại trong bảng users
             const ALLOWED_FIELDS = new Set([
                 'email', 'name', 'avatarUrl', 'bio', 'isActive', 'merits',
                 'subscriptionPlanId', 'template', 'requestsRemaining',
-                'resetToken', 'resetTokenExpires', 'stripeCustomerId', 'stripeAccountId',
-                'apiToken', 'weaviateId', 'isAdmin', 'isGlobalAdmin', 'password'
+                'stripeCustomerId', 'stripeAccountId',
+                'weaviateId', 'isAdmin', 'isGlobalAdmin', 'password'
             ]);
             const filtered: Record<string, unknown> = {};
             for (const key of Object.keys(fieldsToUpdate)) {

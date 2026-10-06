@@ -13,42 +13,92 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { pool } from '../db.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
+import { canAccessSpace, hasSpacePermission, isAdmin } from '../middleware/authMiddleware.js';
+import { logger } from '../utils/logger.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..', '..');
 
-const _deleteCategory = async (res: Response, modelFunction: any, id: any) => {
+const _deleteCategory = async (req: Request, res: Response, tableName: string, id: any) => {
     try {
-        await modelFunction(id);
+        const itemRes = await pool.query(`SELECT space_id FROM ${tableName} WHERE id = $1`, [id]);
+        if (itemRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Item not found.' });
+        }
+        const spaceId = itemRes.rows[0].space_id;
+        if (!isAdmin(req.user)) {
+            if (!spaceId) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền xóa danh mục dùng chung toàn hệ thống.' });
+            }
+            const hasAccess = await hasSpacePermission(req.user, spaceId, 'files');
+            if (!hasAccess) {
+                return res.status(403).json({ message: 'Bạn không có quyền xóa mục này trong Không gian.' });
+            }
+        }
+        await documentModel._deleteCategory(tableName, id);
         res.status(204).send();
     } catch (e: unknown) {
-        res.status(400).json({ message: (e instanceof Error ? (e instanceof Error ? e.message : String(e)) : String(e)) });
+        res.status(400).json({ message: (e instanceof Error ? e.message : String(e)) });
     }
 };
 
 const _createCategory = async (req: Request, res: Response, tableName: string, additionalData: any = {}) => {
     try {
         const { name, nameEn, spaceId } = req.body;
-        // Permission check
-        if (!req.user?.isGlobalAdmin && spaceId) {
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user?.id) {
-                return res.status(403).json({ message: 'You can only create items for spaces you own.' });
+        // Global item (no spaceId): ONLY Global Admin can create
+        if (!spaceId) {
+            if (!isAdmin(req.user)) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền tạo danh mục dùng chung toàn hệ thống.' });
+            }
+        } else {
+            // Space-specific item: requires 'files' permission on this specific Space
+            const hasAccess = await hasSpacePermission(req.user, spaceId, 'files');
+            if (!hasAccess) {
+                return res.status(403).json({ message: 'Bạn không có quyền quản lý tài liệu trong Không gian này.' });
             }
         }
         const payload = { name, nameEn, spaceId: spaceId || null, ...additionalData };
         const item = await documentModel._createCategory(tableName, payload);
         res.status(201).json(item);
     } catch (e: unknown) {
-        res.status(500).json({ message: (e instanceof Error ? (e instanceof Error ? e.message : String(e)) : String(e)) });
+        res.status(500).json({ message: (e instanceof Error ? e.message : String(e)) });
     }
 };
 
 const _updateCategory = async (req: Request, res: Response, tableName: string) => {
     try {
         const { name, nameEn, spaceId, typeId, authorId } = req.body;
+        const id = req.params.id;
+
+        const itemRes = await pool.query(`SELECT space_id FROM ${tableName} WHERE id = $1`, [id]);
+        if (itemRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Item not found.' });
+        }
+        const currentSpaceId = itemRes.rows[0].space_id;
+
+        if (!isAdmin(req.user)) {
+            if (!currentSpaceId) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền sửa danh mục dùng chung toàn hệ thống.' });
+            }
+            const hasAccess = await hasSpacePermission(req.user, currentSpaceId, 'files');
+            if (!hasAccess) {
+                return res.status(403).json({ message: 'Bạn không có quyền sửa đổi mục này trong Không gian.' });
+            }
+            if (spaceId !== undefined) {
+                if (!spaceId) {
+                    return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền chuyển danh mục thành dùng chung toàn hệ thống.' });
+                }
+                if (String(spaceId) !== String(currentSpaceId)) {
+                    const hasTargetAccess = await hasSpacePermission(req.user, spaceId, 'files');
+                    if (!hasTargetAccess) {
+                        return res.status(403).json({ message: 'Bạn không có quyền chuyển mục sang Không gian đích.' });
+                    }
+                }
+            }
+        }
+
         const dataToUpdate = {};
         if (name !== undefined) (dataToUpdate as any).name = name;
         if (nameEn !== undefined) (dataToUpdate as any).nameEn = nameEn;
@@ -63,49 +113,36 @@ const _updateCategory = async (req: Request, res: Response, tableName: string) =
             return res.status(400).json({ message: 'No fields to update provided.' });
         }
 
-        // Permission check...
-        if (!req.user?.isGlobalAdmin) {
-            const itemRes = await pool.query(`SELECT space_id FROM ${tableName} WHERE id = $1`, [req.params.id]);
-            if (itemRes.rows.length > 0) {
-                const currentSpaceId = itemRes.rows[0].space_id;
-                if (currentSpaceId) { // Check ownership of current item
-                    const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [currentSpaceId]);
-                    if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user?.id) {
-                        return res.status(403).json({ message: 'You do not have permission to edit this item.' });
-                    }
-                }
-                if (spaceId) { // Check ownership of target space
-                    const targetSpaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-                    if (targetSpaceRes.rows.length === 0 || targetSpaceRes.rows[0].user_id !== req.user?.id) {
-                        return res.status(403).json({ message: 'You can only assign items to spaces you own.' });
-                    }
-                }
-            }
-        }
-
-        const updatedItem = await documentModel._updateCategory(tableName, String(req.params.id), dataToUpdate);
+        const updatedItem = await documentModel._updateCategory(tableName, String(id), dataToUpdate);
         res.json(updatedItem);
     } catch (error: unknown) {
-        res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) });
+        res.status(500).json({ message: (error instanceof Error ? error.message : String(error)) });
     }
 };
 
 
 export const documentController = {
-    extractUpload: multer({ storage: multer.memoryStorage() }),
+    extractUpload: multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+    }),
 
     // Document AI Features
     async extractTextFromFile(req: Request, res: Response) {
-        const { provider, model, userId } = req.body;
+        const { provider, model } = req.body;
         const file = req.file;
+        const currentUser = req.user;
 
-        if (!provider || !model || !userId || !file) {
-            return res.status(400).json({ message: 'Missing required fields: provider, model, userId, and file.' });
+        if (!currentUser) {
+            return res.status(401).json({ message: 'Authentication required.' });
+        }
+
+        if (!provider || !model || !file) {
+            return res.status(400).json({ message: 'Missing required fields: provider, model, and file.' });
         }
         try {
-            // Need a dummy aiConfig to use the helper since this endpoint is generic
-            // We just pass the provider to the override
-            const dummyAiConfig: any = { modelType: provider, ownerId: parseInt(userId, 10) };
+            // Bind to authenticated user's id, never trust userId from request body
+            const dummyAiConfig: any = { modelType: provider, ownerId: currentUser.id };
             const apiKey = await getApiKeyForAi(dummyAiConfig, provider).catch(() => null);
             
             if (!apiKey) {
@@ -115,7 +152,12 @@ export const documentController = {
             const htmlContent = await ocrService.extractAndFormat(file, provider, model, apiKey);
             res.json({ htmlContent });
         } catch (error: unknown) {
-            res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) || 'Failed to extract text from file.' });
+            const rawMsg = error instanceof Error ? error.message : String(error);
+            logger.error('extractTextFromFile failed:', rawMsg);
+            const safeMsg = rawMsg.includes('ENOENT') || rawMsg.includes('/tmp') || rawMsg.includes('\\tmp')
+                ? 'Không đọc được tệp, vui lòng thử lại.'
+                : (rawMsg || 'Không đọc được tệp, vui lòng thử lại.');
+            res.status(500).json({ message: safeMsg });
         }
     },
 
@@ -199,9 +241,9 @@ export const documentController = {
         try {
             const { spaceId } = req.body;
             if (!req.user?.isGlobalAdmin && spaceId) {
-                const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-                if (spaceRes.rows.length === 0 || spaceRes.rows[0].user_id !== req.user?.id) {
-                    return res.status(403).json({ message: 'You can only create documents for spaces you own.' });
+                const hasAccess = await canAccessSpace(req.user, spaceId);
+                if (!hasAccess) {
+                    return res.status(403).json({ message: 'You can only create documents for spaces you own or manage.' });
                 }
             }
 
@@ -218,9 +260,12 @@ export const documentController = {
             const id = parseInt(String(req.params.id), 10);
 
             if (!req.user?.isGlobalAdmin) {
-                const docRes = await pool.query('SELECT s.user_id FROM documents d JOIN spaces s ON d.space_id = s.id WHERE d.id = $1', [id]);
-                if (docRes.rows.length > 0 && docRes.rows[0].user_id !== req.user?.id) {
-                    return res.status(403).json({ message: 'You can only edit documents from spaces you own.' });
+                const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
+                if (docRes.rows.length > 0 && docRes.rows[0].space_id) {
+                    const hasAccess = await canAccessSpace(req.user, docRes.rows[0].space_id);
+                    if (!hasAccess) {
+                        return res.status(403).json({ message: 'You can only edit documents from spaces you own or manage.' });
+                    }
                 }
             }
 
@@ -241,9 +286,12 @@ export const documentController = {
         try {
             const id = parseInt(String(req.params.id), 10);
             if (!req.user?.isGlobalAdmin) {
-                const docRes = await pool.query('SELECT s.user_id FROM documents d JOIN spaces s ON d.space_id = s.id WHERE d.id = $1', [id]);
-                if (docRes.rows.length > 0 && docRes.rows[0].user_id !== req.user?.id) {
-                    return res.status(403).json({ message: 'You can only delete documents from spaces you own.' });
+                const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
+                if (docRes.rows.length > 0 && docRes.rows[0].space_id) {
+                    const hasAccess = await canAccessSpace(req.user, docRes.rows[0].space_id);
+                    if (!hasAccess) {
+                        return res.status(403).json({ message: 'You can only delete documents from spaces you own or manage.' });
+                    }
                 }
             }
 
@@ -327,7 +375,7 @@ export const documentController = {
     },
     async createDocumentAuthor(req: Request, res: Response) { await _createCategory(req, res, 'document_authors'); },
     async updateDocumentAuthor(req: Request, res: Response) { await _updateCategory(req, res, 'document_authors'); },
-    async deleteDocumentAuthor(req: Request, res: Response) { await _deleteCategory(res, documentModel._deleteCategory.bind(null, 'document_authors'), req.params.id); },
+    async deleteDocumentAuthor(req: Request, res: Response) { await _deleteCategory(req, res, 'document_authors', req.params.id); },
 
     async getDocumentTypes(req: Request, res: Response) {
         try {
@@ -353,7 +401,7 @@ export const documentController = {
     },
     async createDocumentType(req: Request, res: Response) { await _createCategory(req, res, 'document_types'); },
     async updateDocumentType(req: Request, res: Response) { await _updateCategory(req, res, 'document_types'); },
-    async deleteDocumentType(req: Request, res: Response) { await _deleteCategory(res, documentModel._deleteCategory.bind(null, 'document_types'), req.params.id); },
+    async deleteDocumentType(req: Request, res: Response) { await _deleteCategory(req, res, 'document_types', req.params.id); },
 
     async getDocumentTopics(req: Request, res: Response) {
         try {
@@ -385,5 +433,5 @@ export const documentController = {
         await _createCategory(req, res, 'document_topics', { typeId, authorId });
     },
     async updateDocumentTopic(req: Request, res: Response) { await _updateCategory(req, res, 'document_topics'); },
-    async deleteDocumentTopic(req: Request, res: Response) { await _deleteCategory(res, documentModel._deleteCategory.bind(null, 'document_topics'), req.params.id); },
+    async deleteDocumentTopic(req: Request, res: Response) { await _deleteCategory(req, res, 'document_topics', req.params.id); },
 };

@@ -61,12 +61,35 @@ export const libraryModel = {
 
         const baseWhereClause = baseWhereClauses.length > 0 ? `WHERE ${baseWhereClauses.join(' AND ')}` : '';
 
-        const authorsQuery = `
-            SELECT id, name, name_en
-            FROM document_authors
-            ${baseWhereClause}
-            ORDER BY name;
-        `;
+        // Xây dựng authorsQuery và authorsParams riêng biệt
+        let authorsQuery: string;
+        let authorsParams: unknown[];
+
+        if (typeId) {
+            // Khi có typeId: chỉ lấy authors có topic thuộc typeId
+            authorsParams = [typeId, ...baseParams];
+            const spaceFilter = spaceId != null && spaceId !== 'global'
+                ? `AND (da.space_id = $2 OR da.space_id IS NULL)`
+                : spaceId === 'global' ? `AND da.space_id IS NULL` : '';
+            authorsQuery = `
+                SELECT DISTINCT da.id, da.name, da.name_en
+                FROM document_authors da
+                WHERE EXISTS (
+                    SELECT 1 FROM document_topics dt
+                    WHERE dt.author_id = da.id AND dt.type_id = $1
+                )
+                ${spaceFilter}
+                ORDER BY da.name;
+            `;
+        } else {
+            authorsQuery = `
+                SELECT id, name, name_en
+                FROM document_authors
+                ${baseWhereClause}
+                ORDER BY name;
+            `;
+            authorsParams = baseParams;
+        }
 
         const typesQuery = `
             SELECT id, name, name_en 
@@ -77,7 +100,7 @@ export const libraryModel = {
 
         const [typesRes, authorsRes] = await Promise.all([
             pool.query(typesQuery, baseParams),
-            pool.query(authorsQuery, baseParams),
+            pool.query(authorsQuery, authorsParams),
         ]);
 
         let topics: unknown[] = [];

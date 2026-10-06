@@ -194,6 +194,20 @@ const DharmaTalkModal: React.FC<{
         }
     }; */
 
+    const detectAudioDuration = (audioUrl: string) => {
+        if (!audioUrl || audioUrl.includes('youtube.com') || audioUrl.includes('youtu.be')) return;
+        try {
+            const a = new Audio();
+            a.preload = 'metadata';
+            a.src = audioUrl;
+            a.onloadedmetadata = () => {
+                if (a.duration && isFinite(a.duration) && a.duration > 0) {
+                    setFormData(prev => ({ ...prev, duration: Math.round(a.duration) }));
+                }
+            };
+        } catch { /* ignore */ }
+    };
+
     const handleAvatarSelect = (url: string) => {
         setFormData(prev => ({ ...prev, speakerAvatarUrl: url }));
         setIsMediaPickerOpen(false);
@@ -238,20 +252,30 @@ const DharmaTalkModal: React.FC<{
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium">{t.url} (VI)</label>
-                                <input type="url" name="url" value={formData.url || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
+                                <input type="url" name="url" value={formData.url || ''} onChange={handleInputChange} onBlur={e => { if (e.target.value && (!formData.duration || formData.duration === 0)) detectAudioDuration(e.target.value); }} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
                                 <button type="button" onClick={() => setIsAudioViPickerOpen(true)} className="mt-2 px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioVi}</button>
                                 {formData.url && !formData.url.startsWith('blob:') && <p className="text-xs text-text-light mt-1 truncate">{formData.url}</p>}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">{t.url} (EN)</label>
-                                <input type="url" name="urlEn" value={formData.urlEn || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
+                                <input type="url" name="urlEn" value={formData.urlEn || ''} onChange={handleInputChange} onBlur={e => { if (e.target.value && (!formData.duration || formData.duration === 0)) detectAudioDuration(e.target.value); }} className="mt-1 w-full p-2 border rounded-md" placeholder="YouTube URL hoặc chọn file từ thư viện" />
                                 <button type="button" onClick={() => setIsAudioEnPickerOpen(true)} className="mt-2 px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary-hover">{t.uploadAudioEn}</button>
                                 {formData.urlEn && !formData.urlEn.startsWith('blob:') && <p className="text-xs text-text-light mt-1 truncate">{formData.urlEn}</p>}
                             </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div><label className="block text-sm font-medium">{t.category}</label><select name="category" value={formData.category || 'dharma_talk'} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md"><option value="dharma_talk">{t.categoryDharmaTalk}</option><option value="music">{t.categoryMusic}</option><option value="podcast">{t.categoryPodcast}</option></select></div>
-                            <div><label className="block text-sm font-medium">{t.duration}</label><input type="number" name="duration" value={formData.duration ?? ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" /></div>
+                            <div>
+                                <label className="block text-sm font-medium">
+                                    {t.duration}
+                                    {formData.duration && formData.duration > 0 ? (
+                                        <span className="ml-2 text-xs text-primary font-normal">
+                                            ({Math.floor(formData.duration / 60)}:{String(formData.duration % 60).padStart(2, '0')})
+                                        </span>
+                                    ) : null}
+                                </label>
+                                <input type="number" name="duration" value={formData.duration ?? ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" placeholder="Tự động tính khi chọn audio" />
+                            </div>
                             <div><label className="block text-sm font-medium">{t.date}</label><input type="date" name="date" value={formData.date ? new Date(formData.date).toISOString().split('T')[0] : ''} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md" /></div>
                             <div><label className="block text-sm font-medium">{t.space}</label><select name="spaceId" value={formData.spaceId ?? (spaces.length > 0 ? spaces[0].id : '')} onChange={handleInputChange} className="mt-1 w-full p-2 border rounded-md">{spaces.map(space => <option key={space.id as number} value={space.id as number}>{space.name}</option>)}</select></div>
                         </div>
@@ -304,6 +328,7 @@ const DharmaTalkModal: React.FC<{
                 onSelect={(url) => {
                     setFormData(prev => ({ ...prev, url }));
                     setIsAudioViPickerOpen(false);
+                    detectAudioDuration(url);
                 }}
                 space={spaces.find(s => s.id === formData.spaceId) ?? null}
                 language={language}
@@ -316,6 +341,7 @@ const DharmaTalkModal: React.FC<{
                 onSelect={(url) => {
                     setFormData(prev => ({ ...prev, urlEn: url }));
                     setIsAudioEnPickerOpen(false);
+                    if (!formData.url) detectAudioDuration(url);
                 }}
                 space={spaces.find(s => s.id === formData.spaceId) ?? null}
                 language={language}

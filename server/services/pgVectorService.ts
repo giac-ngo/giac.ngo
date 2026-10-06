@@ -419,5 +419,9 @@ export const pgVectorService = {
         } catch (error: any) {
             console.error(`[PGVECTOR] Failed to delete embeddings for sourceId ${sourceId}:`, error.message);
         }
+    },
+
+    async deleteEmbeddingsForSource(sourceId: string | number) {
+        return this.deleteDataBySourceId(sourceId);
     }
 };

@@ -7,6 +7,11 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        serif: ['"Lora"', '"Merriweather"', '"Libre Baskerville"', 'Georgia', 'serif'],
+        sans: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
       colors: {
         primary: 'var(--color-primary)',
         'primary-hover': 'var(--color-primary-hover)',

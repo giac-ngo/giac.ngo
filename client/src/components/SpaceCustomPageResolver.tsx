@@ -1,10 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { NotFoundPage } from '../pages/NotFoundPage';
+import { User } from '../types';
+import { MeritPaymentModal } from './MeritPaymentModal';
 
-export const SpaceCustomPageResolver: React.FC = () => {
+interface SpaceCustomPageResolverProps {
+    language?: 'vi' | 'en';
+    setLanguage?: (lang: 'vi' | 'en') => void;
+    user?: User | null;
+    onUserUpdate?: (user: User) => void;
+}
+
+export const SpaceCustomPageResolver: React.FC<SpaceCustomPageResolverProps> = ({ language, setLanguage, user, onUserUpdate }) => {
     const { spaceSlug, pageSlug } = useParams<{ spaceSlug: string; pageSlug?: string }>();
     const [status, setStatus] = useState<'loading' | 'found' | 'not_found'>('loading');
+    const [spaceExists, setSpaceExists] = useState<boolean | null>(null);
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
+    const [donationModal, setDonationModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        amount: number;
+    }>({ isOpen: false, title: '', amount: 0 });
     const navigate = useNavigate();
 
     // Listen for postMessage from iframe (navigation, donation, etc.)
@@ -20,17 +37,36 @@ export const SpaceCustomPageResolver: React.FC = () => {
                 }
                 // Use full navigation instead of React Router to ensure it works from any iframe context
                 window.location.href = data.path;
-            } else if (data.type === 'OPEN_DONATION') {
-                // Donation modal is handled within the iframe itself - no action needed here
+            } else if (data.type === 'OPEN_DONATION_MODAL' || data.type === 'OPEN_DONATION') {
+                setDonationModal({
+                    isOpen: true,
+                    title: data.title || '',
+                    amount: Number(data.amount) || 0,
+                });
+            } else if (data.type === 'SET_LANGUAGE' || data.type === 'LANGUAGE_CHANGE') {
+                if (data.language === 'vi' || data.language === 'en') {
+                    try {
+                        localStorage.setItem('language', data.language);
+                    } catch (e) {}
+                    if (setLanguage) {
+                        setLanguage(data.language);
+                    }
+                }
             }
         };
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [navigate]);
+    }, [navigate, setLanguage]);
 
     useEffect(() => {
         const checkCustomPage = async () => {
+            if (!spaceSlug) {
+                setStatus('not_found');
+                setSpaceExists(false);
+                return;
+            }
+
             try {
                 const apiUrl = pageSlug
                     ? `/api/spaces/${spaceSlug}/published-page/${pageSlug}`
@@ -41,10 +77,22 @@ export const SpaceCustomPageResolver: React.FC = () => {
                     setHtmlContent(html);
                     setStatus('found');
                 } else {
+                    // Check whether the space itself exists
+                    try {
+                        const space = await apiService.getSpaceBySlug(spaceSlug);
+                        if (space && space.id) {
+                            setSpaceExists(true);
+                        } else {
+                            setSpaceExists(false);
+                        }
+                    } catch {
+                        setSpaceExists(false);
+                    }
                     setStatus('not_found');
                 }
             } catch (err) {
                 console.error("Failed to fetch custom space page:", err);
+                setSpaceExists(false);
                 setStatus('not_found');
             }
         };
@@ -86,18 +134,17 @@ export const SpaceCustomPageResolver: React.FC = () => {
         );
     }
 
-    if (status === 'not_found' && !pageSlug) {
-        return <Navigate to={`/${spaceSlug}/about`} replace />;
-    }
-
-    if (status === 'not_found' && pageSlug) {
-        return (
-            <div className="w-full h-screen flex flex-col items-center justify-center bg-[#F9F5F0]">
-                <h1 className="text-3xl font-bold font-serif text-[#5D2E0C] mb-2">404 - Not Found</h1>
-                <p className="text-[#8B4513]">The requested page could not be found in this space.</p>
-                <a href={`/${spaceSlug}/about`} className="mt-4 px-6 py-2 bg-[#8B4513] text-white rounded hover:bg-[#5D2E0C] transition-colors">Return to Space</a>
-            </div>
-        );
+    if (status === 'not_found') {
+        // If the space itself does not exist: render dedicated 404 page
+        if (spaceExists === false) {
+            return <NotFoundPage language={language} setLanguage={setLanguage} />;
+        }
+        // If the space exists but has no custom home page, fallback to space's about page
+        if (!pageSlug && spaceExists === true) {
+            return <Navigate to={`/${spaceSlug}/about`} replace />;
+        }
+        // If the space exists but a specific sub-page slug was not found
+        return <NotFoundPage language={language} setLanguage={setLanguage} />;
     }
 
     // If the custom page is just a redirect, perform it at the parent level
@@ -123,11 +170,27 @@ export const SpaceCustomPageResolver: React.FC = () => {
     ) : '';
 
     return (
-        <iframe
-            title={`Space Page - ${pageSlug || 'home'}`}
-            srcDoc={safeHtml}
-            className="w-full h-screen border-none block m-0 p-0"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
-        />
+        <>
+            <iframe
+                title={`Space Page - ${pageSlug || 'home'}`}
+                srcDoc={safeHtml}
+                className="w-full h-screen border-none block m-0 p-0"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
+            />
+            {donationModal.isOpen && (
+                <MeritPaymentModal
+                    isOpen={donationModal.isOpen}
+                    onClose={() => setDonationModal(prev => ({ ...prev, isOpen: false }))}
+                    user={user || null}
+                    onPaymentSuccess={(updatedUser) => {
+                        if (onUserUpdate) onUserUpdate(updatedUser);
+                        setDonationModal(prev => ({ ...prev, isOpen: false }));
+                    }}
+                    language={language || 'vi'}
+                    offeringTitle={donationModal.title}
+                    suggestedAmount={donationModal.amount}
+                />
+            )}
+        </>
     );
 };

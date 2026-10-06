@@ -49,3 +49,5 @@ test_*.cjs
 test_*.mjs
 check_and_fix_permissions.mjs
 server/test_db.cjs
+test-results/
+server/tests/

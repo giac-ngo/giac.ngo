@@ -13,7 +13,9 @@ const translations = {
         backToHome: 'Quay về trang chủ',
         title: 'Đăng nhập vào tài khoản của bạn',
         emailLabel: 'Email',
+        emailPlaceholder: 'Nhập email của bạn',
         passwordLabel: 'Mật khẩu',
+        passwordPlaceholder: 'Nhập mật khẩu của bạn',
         forgotPassword: 'Quên mật khẩu?',
         signInButton: 'Đăng nhập',
         signingInButton: 'Đang đăng nhập...',
@@ -26,7 +28,9 @@ const translations = {
         backToHome: 'Back to Home',
         title: 'Sign in to your account',
         emailLabel: 'Email',
+        emailPlaceholder: 'Enter your email',
         passwordLabel: 'Password',
+        passwordPlaceholder: 'Enter your password',
         forgotPassword: 'Forgot password?',
         signInButton: 'Sign in',
         signingInButton: 'Signing in...',
@@ -120,7 +124,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const userData = await apiService.login(email, password, 'space', customSpace?.slug);
+      // The URL slug is authoritative on /:spaceSlug/login routes. On a custom
+      // domain, use the resolved domain space as the fallback.
+      const loginSpaceSlug = params.spaceSlug || customSpace?.slug;
+      const userData = await apiService.login(email, password, 'space', loginSpaceSlug);
       onLogin(userData);
       
       if (userData.isGlobalAdmin) {
@@ -170,7 +177,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder={t.emailPlaceholder}
                   className="login-input"
                 />
               </div>
@@ -190,7 +197,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t.passwordPlaceholder}
                   className="login-input"
                 />
               </div>

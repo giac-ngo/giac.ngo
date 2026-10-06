@@ -22,8 +22,19 @@ import systemRoutes from './systemRoutes.js';
 import trainingDataRoutes from './trainingDataRoutes.js';
 import userRoutes from './userRoutes.js';
 import v1Routes from './v1Routes.js';
+import { getUsdVndRate } from '../utils/exchangeRate.js';
 
 const router = Router();
+
+// Public USD/VND exchange rate endpoint
+router.get('/exchange-rate', async (_req, res) => {
+    try {
+        const rate = await getUsdVndRate();
+        res.json({ rate, base: 'USD', target: 'VND', success: true });
+    } catch {
+        res.json({ rate: 25000, base: 'USD', target: 'VND', fallback: true });
+    }
+});
 
 router.use('/ai-configs', aiConfigRoutes);
 router.use('/auth', authRoutes);

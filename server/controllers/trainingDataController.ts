@@ -79,6 +79,13 @@ export const trainingDataController = {
                 if (req.body.fileUrl) {
                     const fileUrl = req.body.fileUrl;
                     const fileName = path.basename(fileUrl.split('?')[0]);
+                    const ext = path.extname(fileName).toLowerCase();
+                    const ALLOWED_TRAINING_EXTS = ['.docx', '.xlsx', '.xls', '.csv', '.pdf', '.txt', '.json', '.md'];
+                    if (!ALLOWED_TRAINING_EXTS.includes(ext)) {
+                        return res.status(400).json({
+                            message: `Định dạng tệp "${fileName}" không được hỗ trợ để huấn luyện AI. Chỉ chấp nhận các tệp: ${ALLOWED_TRAINING_EXTS.join(', ')}`
+                        });
+                    }
                     // @ts-ignore
                     newSourceData.fileUrl = fileUrl;
                     // @ts-ignore
@@ -86,6 +93,15 @@ export const trainingDataController = {
                 }
                 // Mode 2: Direct file upload via multer
                 else if (req.file) {
+                    const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                    const ext = path.extname(utf8Name).toLowerCase();
+                    const ALLOWED_TRAINING_EXTS = ['.docx', '.xlsx', '.xls', '.csv', '.pdf', '.txt', '.json', '.md'];
+                    if (!ALLOWED_TRAINING_EXTS.includes(ext)) {
+                        return res.status(400).json({
+                            message: `Định dạng tệp "${utf8Name}" không được hỗ trợ để huấn luyện AI. Chỉ chấp nhận các tệp: ${ALLOWED_TRAINING_EXTS.join(', ')}`
+                        });
+                    }
+
                     const safeSpaceId = aiConfig.spaceId
                         ? String(aiConfig.spaceId).replace(/[^a-zA-Z0-9_-]/g, '_')
                         : 'global';
@@ -95,7 +111,6 @@ export const trainingDataController = {
                         : path.join(uploadsDir, `space-${safeSpaceId}`, 'training');
                     await fs.mkdir(spaceDir, { recursive: true });
 
-                    const utf8Name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
                     const safeName = path.basename(utf8Name).replace(/[^\w\s.\-\p{L}]/gu, '_');
                     // Timestamp + random prefix to avoid name collisions on re-upload
                     const uniquePrefix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000_000)}`;
@@ -206,40 +221,47 @@ export const trainingDataController = {
         try {
             // @ts-ignore
             const sourceId = parseInt(String(req.params.id), 10);
-            // Get source info before deleting to know which providers indexed it
+            if (isNaN(sourceId)) {
+                return res.status(400).json({ message: 'Invalid training data source ID.' });
+            }
+
             const sourceToDelete = await trainingDataModel.delete(sourceId);
+            if (!sourceToDelete) {
+                return res.status(404).json({ message: 'Training data source not found.' });
+            }
 
-            if (!sourceToDelete) return res.status(404).json({ message: 'Training data source not found.' });
+            // Clean up vector embeddings (pgvector)
+            try {
+                await pgVectorService.deleteEmbeddingsForSource(sourceToDelete.id);
+            } catch (err: any) {
+                logger.error(`pgvector cleanup failed for source ${sourceToDelete.id}:`, err?.message || err);
+            }
 
-            // Clean up vector embeddings (Weaviate & pgvector)
-            await pgVectorService.deleteEmbeddingsForSource(sourceToDelete.id).catch(err => logger.error(`pgvector cleanup failed for source ${sourceToDelete.id}:`, err.message));
-
-            const aiConfig = await aiConfigModel.findById(sourceToDelete.aiConfigId);
-            if (aiConfig) {
-                const owner = aiConfig.ownerId ? await userModel.findById(aiConfig.ownerId) : null;
-
-                // Iterate through all providers (gpt, gemini, etc.) that have this file indexed
-                if (sourceToDelete.indexedProviders && Array.isArray(sourceToDelete.indexedProviders)) {
+            // Clean up Weaviate embeddings if any external provider was used
+            try {
+                const aiConfig = await aiConfigModel.findById(sourceToDelete.aiConfigId);
+                if (aiConfig && sourceToDelete.indexedProviders && Array.isArray(sourceToDelete.indexedProviders)) {
                     for (const provider of sourceToDelete.indexedProviders) {
+                        if (provider === 'pgvector') continue;
                         const providerKey = await getApiKeyForAi(aiConfig, provider).catch(() => null);
                         if (providerKey) {
                             await weaviateService.deleteDataBySourceId(provider, sourceToDelete.id, sourceToDelete.type, providerKey)
-                                .catch(err => logger.error(`Weaviate cleanup failed for provider ${provider}:`, err.message));
+                                .catch(err => logger.error(`Weaviate cleanup failed for provider ${provider}:`, err?.message || err));
                         }
                     }
                 }
+            } catch (err: any) {
+                logger.error(`Weaviate provider cleanup error for source ${sourceToDelete.id}:`, err?.message || err);
             }
 
-            // Clean up physical file
+            // Clean up physical file safely
             if (sourceToDelete.type === 'file' && sourceToDelete.fileUrl) {
-                // Construct absolute path using project root
-                // fileUrl is like "/uploads/..."
-                const absolutePath = path.join(projectRoot, sourceToDelete.fileUrl);
                 try {
+                    const cleanUrl = sourceToDelete.fileUrl.startsWith('/') ? sourceToDelete.fileUrl.slice(1) : sourceToDelete.fileUrl;
+                    const absolutePath = path.join(projectRoot, cleanUrl);
                     await fs.unlink(absolutePath);
-                } catch (e: unknown) {
-                    // @ts-ignore
-                    logger.warn(`Failed to delete file from disk: ${absolutePath}`, e.message);
+                } catch (e: any) {
+                    logger.warn(`Failed to delete file from disk: ${sourceToDelete.fileUrl}`, e?.message || e);
                 }
             }
 

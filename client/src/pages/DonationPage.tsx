@@ -77,9 +77,9 @@ const translations = {
       title: "Cúng Dường Tương Tác",
       description: "Trải nghiệm cách người cúng dường sẽ tương tác với trang cúng dường của bạn. Chọn số tiền và thử giao diện.",
       amounts: [
-        { value: 100000, label: "100.000đ", subtitle: "Hỗ trợ cơ bản" },
-        { value: 300000, label: "300.000đ", subtitle: "Hỗ trợ trung bình", popular: true },
-        { value: 1000000, label: "1.000.000đ", subtitle: "Hỗ trợ lớn" },
+        { value: 50000, label: "50.000đ (~$2)", subtitle: "Gieo Duyên" },
+        { value: 200000, label: "200.000đ (~$8)", subtitle: "Hoằng Pháp Lợi Sinh", popular: true },
+        { value: 500000, label: "500.000đ (~$20)", subtitle: "Hộ Pháp Đại Tạng" },
       ],
       customAmount: "Hoặc nhập số tiền tùy ý",
       customPlaceholder: "Nhập số tiền (VNĐ)",
@@ -160,9 +160,9 @@ const translations = {
       title: "Interactive Donation Demo",
       description: "Experience how your donors will interact with your donation page. Select an amount and try the interface.",
       amounts: [
-        { value: 100000, label: "100,000đ", subtitle: "Basic support" },
-        { value: 300000, label: "300,000đ", subtitle: "Medium support", popular: true },
-        { value: 1000000, label: "1,000,000đ", subtitle: "Major support" },
+        { value: 50000, label: "50,000 VND ($2)", subtitle: "Planting the Seed" },
+        { value: 200000, label: "200,000 VND ($8)", subtitle: "Work of Awakening", popular: true },
+        { value: 500000, label: "500,000 VND ($20)", subtitle: "Dharma Guardian" },
       ],
       customAmount: "Or enter custom amount",
       customPlaceholder: "Enter amount (VND)",
@@ -186,7 +186,7 @@ interface DonationDemoProps {
 }
 
 const DonationDemo: React.FC<DonationDemoProps> = ({ language, currentContent, user }) => {
-    const [selectedAmount, setSelectedAmount] = useState<number | null>(300000);
+    const [selectedAmount, setSelectedAmount] = useState<number | null>(200000);
     const [customAmount, setCustomAmount] = useState<string>("");
     const [paymentMethod, setPaymentMethod] = useState<string>("card");
     const [enabledPaymentMethods, setEnabledPaymentMethods] = useState<string[]>([]);

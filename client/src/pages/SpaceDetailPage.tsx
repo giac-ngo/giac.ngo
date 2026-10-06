@@ -6,6 +6,7 @@ import { Space, User, AIConfig } from '../types';
 import { useToast } from '../components/ToastProvider';
 import { MapPinIcon, UsersIcon, StarIcon, ChevronLeftIcon, BookOpenIcon, CalendarIcon, AiIcon, RadioIcon, HeartIcon, GlobeAltIcon, PhoneIcon, EnvelopeIcon } from '../components/Icons';
 import { MeritPaymentModal } from '../components/MeritPaymentModal';
+import { NotFoundPage } from './NotFoundPage';
 
 const translations = {
     vi: {
@@ -220,8 +221,7 @@ export const SpaceDetailPage: React.FC<SpaceDetailPageProps> = ({ user, onUserUp
                 }
             })
             .catch((err: any) => {
-                showToast(t.loadError, 'error');
-                console.error(err);
+                console.error("Failed to load space detail:", err);
             })
             .finally(() => setIsLoading(false));
     }, [slug, showToast, t.loadError, t.aiLoadError]);
@@ -336,7 +336,7 @@ export const SpaceDetailPage: React.FC<SpaceDetailPageProps> = ({ user, onUserUp
     };
 
     if (isLoading) return <div className="loading-container">{t.loading}</div>;
-    if (!center) return <div className="loading-container">{t.notFound}</div>;
+    if (!center) return <NotFoundPage language={language} />;
 
     const centerName = language === 'en' && center.nameEn ? center.nameEn : center.name;
 

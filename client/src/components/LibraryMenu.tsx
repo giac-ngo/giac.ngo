@@ -117,6 +117,25 @@ export const LibraryMenu: React.FC<LibraryMenuProps> = ({ filters, onSetFilters,
         setHasMoreTopics(true);
     };
 
+    // Reload authors khi typeId thay đổi
+    useEffect(() => {
+        if (!filters.typeId) return;
+        const spaceParam = spaceSlug || (typeof spaceId === 'number' ? spaceId : null);
+        apiService.getLibraryFilters(spaceParam, { typeId: filters.typeId })
+            .then(data => {
+                const fetchedAuthors: { id: number; name: string; nameEn?: string }[] = data.authors || [];
+                setAuthors(fetchedAuthors);
+                // Nếu author hiện tại không còn trong danh sách mới → chọn author đầu tiên
+                if (fetchedAuthors.length > 0) {
+                    const currentAuthorValid = fetchedAuthors.some(a => a.id === filters.authorId);
+                    if (!currentAuthorValid) {
+                        onSetFilters(prev => ({ ...prev, authorId: fetchedAuthors[0].id, topicId: undefined }));
+                    }
+                }
+            })
+            .catch(err => console.error('Failed to reload authors by type:', err));
+    }, [filters.typeId, spaceId, spaceSlug, onSetFilters]);
+
     const handleAuthorChange = (authorId: number | undefined) => {
         onSetFilters(prev => ({ ...prev, authorId, topicId: undefined }));
         setTopics([]);

@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { spacePageController } from '../controllers/spacePageController.js';
-import { checkPermission } from '../middleware/authMiddleware.js';
+import { requireSpacePermission } from '../middleware/authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(path.join(__filename, '..'));
@@ -43,15 +43,15 @@ const upload = multer({
 const router = Router();
 
 // Pages CRUD (admin only)
-router.get('/:id/pages', checkPermission('spaces'), spacePageController.listPages);
-router.post('/:id/pages', checkPermission('spaces'), spacePageController.createPage);
-router.get('/:id/pages/:pageId', checkPermission('spaces'), spacePageController.getPage);
-router.put('/:id/pages/:pageId', checkPermission('spaces'), spacePageController.updatePage);
-router.delete('/:id/pages/:pageId', checkPermission('spaces'), spacePageController.deletePage);
+router.get('/:id/pages', requireSpacePermission('spaces'), spacePageController.listPages);
+router.post('/:id/pages', requireSpacePermission('spaces'), spacePageController.createPage);
+router.get('/:id/pages/:pageId', requireSpacePermission('spaces'), spacePageController.getPage);
+router.put('/:id/pages/:pageId', requireSpacePermission('spaces'), spacePageController.updatePage);
+router.delete('/:id/pages/:pageId', requireSpacePermission('spaces'), spacePageController.deletePage);
 
 // Asset upload/delete (admin only)
-router.post('/:id/page-assets', checkPermission('spaces'), upload.single('file'), spacePageController.uploadAsset);
-router.delete('/:id/page-assets/:assetId', checkPermission('spaces'), spacePageController.deleteAsset);
+router.post('/:id/page-assets', requireSpacePermission('spaces'), upload.single('file'), spacePageController.uploadAsset);
+router.delete('/:id/page-assets/:assetId', requireSpacePermission('spaces'), spacePageController.deleteAsset);
 
 // Public: contact form submission
 router.post('/:id/contact', spacePageController.handleContactForm);

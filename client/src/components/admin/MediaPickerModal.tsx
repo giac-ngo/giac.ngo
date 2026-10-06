@@ -7,6 +7,8 @@ interface MediaPickerModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSelect: (url: string) => void;
+    onSelectMultiple?: (urls: string[]) => void;
+    multiple?: boolean;
     space: Space | null;
     language: 'vi' | 'en';
     /** Pre-select file type tab: 'all' | 'image' | 'audio' | 'video' | 'document' */
@@ -17,6 +19,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     isOpen,
     onClose,
     onSelect,
+    onSelectMultiple,
+    multiple = false,
     space,
     language,
     defaultFileType,
@@ -25,6 +29,15 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 
     const handleSelect = (url: string) => {
         onSelect(url);
+        onClose();
+    };
+
+    const handleSelectMultiple = (urls: string[]) => {
+        if (onSelectMultiple) {
+            onSelectMultiple(urls);
+        } else if (urls.length > 0) {
+            onSelect(urls[0]);
+        }
         onClose();
     };
 
@@ -43,7 +56,10 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         space={space} 
                         language={language} 
                         selectable={true} 
+                        multiple={multiple}
                         onSelect={handleSelect}
+                        onSelectMultiple={handleSelectMultiple}
+                        onCancel={onClose}
                         defaultFileType={defaultFileType}
                     />
                 </div>

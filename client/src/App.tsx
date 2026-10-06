@@ -1,5 +1,5 @@
 // client/src/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
@@ -11,6 +11,7 @@ import AdminPage from './pages/AdminPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { HomePage } from './pages/HomePage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 import DocumentDetailPage from './pages/DocumentDetailPage';
 import { User, SystemConfig } from './types';
@@ -70,6 +71,13 @@ const LoginRedirect: React.FC = () => {
     return <Navigate to="/admin" replace />;
   }
   
+  // If redirected to login with a specific return path (e.g. ?from=/ or ?from=/giac-ngo)
+  const searchParams = new URLSearchParams(window.location.search);
+  const fromParam = searchParams.get('from');
+  if (fromParam && fromParam.startsWith('/') && !fromParam.includes('/login')) {
+    return <Navigate to={fromParam} replace />;
+  }
+
   // If URL is /:spaceSlug/login, redirect to that space's chat
   if (pathParts.length >= 2 && pathParts[1] === 'login') {
     const spaceSlug = pathParts[0];
@@ -92,10 +100,10 @@ const SlugRedirect: React.FC<{ path: string }> = ({ path }) => {
   return <Navigate to={`/${slug}/${path}`} replace />;
 };
 
-// Redirect /:spaceSlug/donation back to /:spaceSlug (donation handled as modal in homepage)
+// Redirect /:spaceSlug/donation to /:spaceSlug/chat?donation=true to auto-open the donation modal
 const SpaceDonationRedirect: React.FC = () => {
   const { spaceSlug } = useParams<{ spaceSlug: string }>();
-  return <Navigate to={`/${spaceSlug}`} replace />;
+  return <Navigate to={`/${spaceSlug}/chat?donation=true`} replace />;
 };
 
 const App: React.FC = () => {
@@ -108,9 +116,20 @@ const App: React.FC = () => {
     }
   });
 
-  const [language, setLanguage] = useState<'vi' | 'en'>(() => {
-    return (localStorage.getItem('language') as 'vi' | 'en') || 'vi';
+  const [language, setLanguageState] = useState<'vi' | 'en'>(() => {
+    try {
+      return (localStorage.getItem('language') as 'vi' | 'en') || 'vi';
+    } catch {
+      return 'vi';
+    }
   });
+
+  const setLanguage = useCallback((lang: 'vi' | 'en') => {
+    try {
+      localStorage.setItem('language', lang);
+    } catch (e) {}
+    setLanguageState(lang);
+  }, []);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,9 +145,10 @@ const App: React.FC = () => {
     }
   }, [location, navigate]);
 
-
   useEffect(() => {
-    localStorage.setItem('language', language);
+    try {
+      localStorage.setItem('language', language);
+    } catch (e) {}
   }, [language]);
 
   useEffect(() => {
@@ -363,16 +383,16 @@ const App: React.FC = () => {
                 onUserUpdate={handleUserUpdate}
               />
             } />
-            <Route path="/:spaceSlug/page/:pageSlug" element={<SpaceCustomPageResolver />} />
-            <Route path="/:spaceSlug" element={<SpaceCustomPageResolver />} />
+            <Route path="/:spaceSlug/page/:pageSlug" element={<SpaceCustomPageResolver user={user} onUserUpdate={handleUserUpdate} language={language} setLanguage={setLanguage} />} />
+            <Route path="/:spaceSlug" element={<SpaceCustomPageResolver user={user} onUserUpdate={handleUserUpdate} language={language} setLanguage={setLanguage} />} />
 
             {/* Home and Fallback */}
             <Route path="/" element={
               isRootDomain() 
                 ? (user ? <Navigate to="/admin" replace /> : <AdminLoginPage onLogin={handleLogin} language={language} />)
-                : <CustomDomainPageResolver fallback={<HomePage user={user} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />} />
+                : <CustomDomainPageResolver user={user} onUserUpdate={handleUserUpdate} language={language} setLanguage={setLanguage} fallback={<HomePage user={user} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />} />
             } />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage language={language} setLanguage={setLanguage} />} />
           </Routes>
           </ErrorBoundary>
         ) : (

@@ -126,7 +126,7 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({ space, languag
 
             if (space.stripeAccountId) {
                 setIsCheckingStripe(true);
-                apiService.getStripeConnectAccountStatus(space.stripeAccountId)
+                apiService.getStripeConnectAccountStatus(space.id)
                     .then(status => setStripeStatus(status))
                     .catch(err => {
                         console.error('Failed to get stripe status', err);
@@ -163,7 +163,7 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({ space, languag
         if (!space?.stripeAccountId) return;
         setIsConnectingStripe(true);
         try {
-            const res = await apiService.createStripeLoginLink(space.stripeAccountId);
+            const res = await apiService.createStripeLoginLink(space.id);
             window.open(res.url, '_blank');
         } catch (error: any) {
             showToast(error.message || t.openError, 'error');

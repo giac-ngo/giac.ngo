@@ -223,7 +223,7 @@ export const SpaceOwnerBilling: React.FC<{ user: User; language: 'vi' | 'en' }> 
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const res = await apiService.createStripeLoginLink(stripeAccountId);
+                                            const res = await apiService.createStripeLoginLink(selectedSpaceId!);
                                             if (res.url) window.open(res.url, '_blank');
                                         } catch (e: any) {
                                             showToast(e.message, 'error');

@@ -61,28 +61,29 @@ const translations = {
 };
 
 const formatDuration = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return 'N/A';
+    if (isNaN(seconds) || seconds <= 0) return '--:--';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
+    const remainingSeconds = Math.floor(seconds % 60);
     if (hours > 0) {
         return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
     }
-    return `${String(minutes).padStart(1, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
 const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '00:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
 const formatDurationShort = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '';
+    if (isNaN(seconds) || seconds <= 0) return '';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')} phút`;
-    return `${minutes} phút`;
+    return `${minutes || 1} phút`;
 };
 
 type TabFilter = 'all' | 'dharma_talk' | 'music' | 'podcast';
@@ -100,6 +101,7 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
     const [activeTab, setActiveTab] = useState<TabFilter>('all');
 
     const [playingTalkId, setPlayingTalkId] = useState<number | 'new' | null>(null);
+    const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [viewIncremented, setViewIncremented] = useState<Set<number | 'new'>>(new Set());
@@ -130,25 +132,78 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
         fetchTalks();
     }, [spaceId, showToast, t.loadError]);
 
+    // Auto-detect duration for any talks in the list with 0 or missing duration
+    useEffect(() => {
+        if (!talks || talks.length === 0) return;
+        talks.forEach(talk => {
+            const audioUrl = language === 'en' && talk.urlEn ? talk.urlEn : talk.url;
+            if ((!talk.duration || talk.duration <= 0) && audioUrl && !audioUrl.includes('youtube.com') && !audioUrl.includes('youtu.be')) {
+                const tempAudio = new Audio();
+                tempAudio.preload = 'metadata';
+                tempAudio.src = audioUrl;
+                tempAudio.onloadedmetadata = () => {
+                    if (tempAudio.duration && isFinite(tempAudio.duration) && tempAudio.duration > 0) {
+                        const dur = Math.round(tempAudio.duration);
+                        setTalks(prev => prev.map(t => t.id === talk.id ? { ...t, duration: dur } : t));
+                    }
+                };
+            }
+        });
+    }, [talks.length, language]);
+
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-        const handleEnded = () => setPlayingTalkId(null);
-        const handlePause = () => setPlayingTalkId(null);
-        const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-        const handleLoadedMetadata = () => setDuration(audio.duration);
+
+        const updateDuration = () => {
+            if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                setDuration(audio.duration);
+                if (playingTalkId && typeof playingTalkId === 'number') {
+                    const dur = Math.round(audio.duration);
+                    setTalks(prev => prev.map(t => (t.id === playingTalkId && (!t.duration || t.duration === 0)) ? { ...t, duration: dur } : t));
+                }
+            }
+        };
+
+        const handleEnded = () => {
+            setIsAudioPlaying(false);
+            setCurrentTime(0);
+        };
+        const handlePause = () => {
+            setIsAudioPlaying(false);
+        };
+        const handlePlay = () => {
+            setIsAudioPlaying(true);
+        };
+        const handleTimeUpdate = () => {
+            setCurrentTime(audio.currentTime);
+            // Handle VBR MP3 duration drift where audio.duration updates mid-stream
+            if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                if (Math.abs(audio.duration - duration) > 0.5) {
+                    setDuration(audio.duration);
+                }
+            }
+        };
+
         audio.addEventListener('ended', handleEnded);
         audio.addEventListener('pause', handlePause);
+        audio.addEventListener('play', handlePlay);
         audio.addEventListener('timeupdate', handleTimeUpdate);
-        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.addEventListener('loadedmetadata', updateDuration);
+        audio.addEventListener('durationchange', updateDuration);
+        audio.addEventListener('canplay', updateDuration);
+
         return () => {
             audio.removeEventListener('ended', handleEnded);
             audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('play', handlePlay);
             audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            audio.removeEventListener('loadedmetadata', updateDuration);
+            audio.removeEventListener('durationchange', updateDuration);
+            audio.removeEventListener('canplay', updateDuration);
             if (!audio.paused) audio.pause();
         };
-    }, []);
+    }, [playingTalkId, duration]);
 
     const playingTalk = talks.find(t => t.id === playingTalkId);
 
@@ -163,15 +218,31 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
         }
 
         if (playingTalkId === talk.id) {
-            audio.pause();
-            setPlayingTalkId(null);
+            if (isAudioPlaying) {
+                audio.pause();
+                setIsAudioPlaying(false);
+            } else {
+                audio.play().then(() => setIsAudioPlaying(true)).catch(e => {
+                    console.error("Audio playback error:", e);
+                    showToast(t.audioPlaybackError, "error");
+                    setIsAudioPlaying(false);
+                });
+            }
         } else {
             if (!audio.paused) audio.pause();
             audio.src = audioUrl;
-            audio.play().catch(e => {
+            setCurrentTime(0);
+            if (talk.duration && talk.duration > 0) {
+                setDuration(talk.duration);
+            } else {
+                setDuration(0);
+            }
+            audio.play().then(() => {
+                setIsAudioPlaying(true);
+            }).catch(e => {
                 console.error("Audio playback error:", e);
                 showToast(t.audioPlaybackError, "error");
-                setPlayingTalkId(null);
+                setIsAudioPlaying(false);
             });
             setPlayingTalkId(talk.id);
 
@@ -187,12 +258,14 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
 
     const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
         const audio = audioRef.current;
-        if (!audio || !duration) return;
+        const totalDuration = Math.max(duration, currentTime);
+        if (!audio || !totalDuration) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
-        const percentage = clickX / rect.width;
-        audio.currentTime = percentage * duration;
-        setCurrentTime(percentage * duration);
+        const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+        const seekTime = percentage * totalDuration;
+        audio.currentTime = seekTime;
+        setCurrentTime(seekTime);
     };
 
     const handleLike = async (talk: DharmaTalk) => {
@@ -210,7 +283,8 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
     const musicTalks = talks.filter(t => t.category === 'music');
     const podcastTalks = talks.filter(t => t.category === 'podcast');
 
-    const progress = playingTalkId && duration > 0 ? (currentTime / duration) * 100 : 0;
+    const totalDuration = Math.max(duration, currentTime);
+    const progress = playingTalkId && totalDuration > 0 ? Math.min(100, Math.max(0, (currentTime / totalDuration) * 100)) : 0;
     const getThumbnail = (talk: DharmaTalk) => talk.thumbnailUrl || talk.speakerAvatarUrl;
 
     const getTitle = (talk: DharmaTalk) => (language === 'en' && talk.titleEn) ? talk.titleEn : talk.title;
@@ -234,7 +308,14 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                             {getThumbnail(playingTalk) && <img src={getThumbnail(playingTalk)} alt="" className="now-playing-thumb" />}
                             <div>
                                 <div className="now-playing-title">{getTitle(playingTalk)}</div>
-                                <div className="now-playing-speaker">{playingTalk.speaker} · {(playingTalk.category || 'dharma_talk') === 'dharma_talk' ? 'Pháp thoại' : playingTalk.category === 'music' ? 'Nhạc' : 'Podcast'} · {formatDurationShort(playingTalk.duration || 0)}</div>
+                                <div className="now-playing-speaker">
+                                    {playingTalk.speaker} · {(playingTalk.category || 'dharma_talk') === 'dharma_talk' ? 'Pháp thoại' : playingTalk.category === 'music' ? 'Nhạc' : 'Podcast'}
+                                    {(() => {
+                                        const talkDur = playingTalk.duration || Math.round(totalDuration);
+                                        const durStr = formatDurationShort(talkDur);
+                                        return durStr ? ` · ${durStr}` : '';
+                                    })()}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -243,9 +324,9 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                         <div className="now-playing-progress" onClick={handleSeek}>
                             <div className="now-playing-progress-fill" style={{ width: `${progress}%` }}></div>
                         </div>
-                        <span className="now-playing-time">{formatTime(duration)}</span>
+                        <span className="now-playing-time">{formatTime(totalDuration)}</span>
                         <button className="now-playing-play-btn" onClick={() => handlePlayPause(playingTalk)}>
-                            <PauseIcon className="w-5 h-5" />
+                            {isAudioPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
                         </button>
                     </div>
                 </div>
@@ -296,7 +377,7 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                                             <span className="featured-badge">{t.dharmaLabel}</span>
                                         </div>
                                         <button className="featured-play-btn" onClick={(e) => { e.stopPropagation(); handlePlayPause(featuredTalk); }}>
-                                            {playingTalkId === featuredTalk.id ? <PauseIcon className="w-7 h-7" /> : <PlayIcon className="w-7 h-7" />}
+                                            {playingTalkId === featuredTalk.id && isAudioPlaying ? <PauseIcon className="w-7 h-7" /> : <PlayIcon className="w-7 h-7" />}
                                         </button>
                                     </div>
                                 )}
@@ -305,10 +386,10 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                                 <div className="dharma-numbered-list">
                                     <h3 className="dharma-section-title" style={{ marginBottom: '0.75rem' }}>{t.tabDharmaTalk}</h3>
                                     {dharmaListTalks.map((talk, index) => {
-                                        const isPlaying = playingTalkId === talk.id;
+                                        const isPlaying = playingTalkId === talk.id && isAudioPlaying;
                                         return (
-                                            <div key={talk.id} className={`dharma-list-row ${isPlaying ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
-                                                <span className="list-number">{isPlaying ? <PlayIcon className="w-3 h-3" /> : index + 1}</span>
+                                            <div key={talk.id} className={`dharma-list-row ${playingTalkId === talk.id ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
+                                                <span className="list-number">{isPlaying ? <PauseIcon className="w-3 h-3" /> : (playingTalkId === talk.id ? <PlayIcon className="w-3 h-3" /> : index + 1)}</span>
                                                 {getThumbnail(talk) ? <img src={getThumbnail(talk)} alt="" className="list-avatar" /> : <UserIcon className="list-avatar list-avatar-placeholder" />}
                                                 <div className="list-info">
                                                     <div className="list-title">{getTitle(talk)}</div>
@@ -342,11 +423,11 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                                     <span className="music-col-duration"><ClockIcon className="w-4 h-4" /></span>
                                 </div>
                                 {(activeTab === 'music' || showAllMusic ? musicTalks : musicTalks.slice(0, 6)).map((talk, index) => {
-                                    const isPlaying = playingTalkId === talk.id;
+                                    const isPlaying = playingTalkId === talk.id && isAudioPlaying;
                                     return (
-                                        <div key={talk.id} className={`music-table-row ${isPlaying ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
+                                        <div key={talk.id} className={`music-table-row ${playingTalkId === talk.id ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
                                             <span className="music-col-num">
-                                                {isPlaying ? <span className="playing-indicator">▶</span> : index + 1}
+                                                {isPlaying ? <span className="playing-indicator">⏸</span> : (playingTalkId === talk.id ? <span className="playing-indicator">▶</span> : index + 1)}
                                             </span>
                                             <div className="music-col-title">
                                                 {getThumbnail(talk) ? <img src={getThumbnail(talk)} alt="" className="music-thumb" /> : <div className="music-thumb music-thumb-placeholder"><UserIcon className="w-6 h-6" /></div>}
@@ -381,12 +462,10 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                             </div>
                             <div className="dharma-podcast-grid">
                                 {(activeTab === 'podcast' || showAllPodcast ? podcastTalks : podcastTalks.slice(0, 4)).map((talk) => {
-                                    const isPlaying = playingTalkId === talk.id;
-
                                     const tags = (language === 'en' && talk.tagsEn ? talk.tagsEn : talk.tags) || [];
 
                                     return (
-                                        <div key={talk.id} className={`podcast-card ${isPlaying ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
+                                        <div key={talk.id} className={`podcast-card ${playingTalkId === talk.id ? 'playing' : ''}`} onClick={() => handlePlayPause(talk)}>
                                             <div className="podcast-thumb-wrapper">
                                                 {getThumbnail(talk) ? <img src={getThumbnail(talk)} alt="" className="podcast-thumb" /> : <div className="podcast-thumb podcast-thumb-placeholder"><UserIcon className="w-12 h-12" /></div>}
                                             </div>
@@ -396,7 +475,7 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                                                 <div className="podcast-meta">
                                                     {tags.slice(0, 1).map(tag => <span key={tag} className="podcast-tag">{tag}</span>)}
                                                     {talk.episodeNumber && <span>{t.episode} {talk.episodeNumber}</span>}
-                                                    <span>· {formatDurationShort(talk.duration || 0)}</span>
+                                                    {talk.duration ? <span>· {formatDurationShort(talk.duration)}</span> : null}
                                                 </div>
                                             </div>
                                         </div>

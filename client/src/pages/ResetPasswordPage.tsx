@@ -9,7 +9,9 @@ const translations = {
     vi: {
         title: 'Đặt lại Mật khẩu',
         newPasswordLabel: 'Mật khẩu mới',
+        newPasswordPlaceholder: 'Nhập mật khẩu mới của bạn',
         confirmPasswordLabel: 'Xác nhận Mật khẩu mới',
+        confirmPasswordPlaceholder: 'Nhập lại mật khẩu mới',
         resetButton: 'Đặt lại Mật khẩu',
         resettingButton: 'Đang xử lý...',
         passwordMismatch: 'Mật khẩu xác nhận không khớp.',
@@ -21,7 +23,9 @@ const translations = {
     en: {
         title: 'Reset Password',
         newPasswordLabel: 'New Password',
+        newPasswordPlaceholder: 'Enter your new password',
         confirmPasswordLabel: 'Confirm New Password',
+        confirmPasswordPlaceholder: 'Confirm your new password',
         resetButton: 'Reset Password',
         resettingButton: 'Processing...',
         passwordMismatch: 'Passwords do not match.',
@@ -88,32 +92,32 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ language }
                                 <label htmlFor="password"  className="block text-sm font-medium text-text-main">
                                 {t.newPasswordLabel}
                                 </label>
-                                <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Enter your new password"
-                                className="login-input"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="confirmPassword"  className="block text-sm font-medium text-text-main">
-                                {t.confirmPasswordLabel}
-                                </label>
-                                <input
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                type="password"
-                                required
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Confirm your new password"
-                                className="login-input"
-                                />
-                            </div>
+                                 <input
+                                 id="password"
+                                 name="password"
+                                 type="password"
+                                 required
+                                 value={password}
+                                 onChange={(e) => setPassword(e.target.value)}
+                                 placeholder={t.newPasswordPlaceholder}
+                                 className="login-input"
+                                 />
+                             </div>
+                             <div>
+                                 <label htmlFor="confirmPassword"  className="block text-sm font-medium text-text-main">
+                                 {t.confirmPasswordLabel}
+                                 </label>
+                                 <input
+                                 id="confirmPassword"
+                                 name="confirmPassword"
+                                 type="password"
+                                 required
+                                 value={confirmPassword}
+                                 onChange={(e) => setConfirmPassword(e.target.value)}
+                                 placeholder={t.confirmPasswordPlaceholder}
+                                 className="login-input"
+                                 />
+                             </div>
                             <div>
                                 <button
                                 type="submit"

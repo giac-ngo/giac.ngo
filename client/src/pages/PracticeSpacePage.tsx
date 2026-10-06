@@ -15,6 +15,7 @@ import { DonateForLimitModal } from '../components/DonateForLimitModal';
 import { PricingModal } from '../components/PricingModal';
 import { PracticeSpaceHeader } from '../components/PracticeSpaceHeader';
 import { SpaceDetailPage } from './SpaceDetailPage';
+import { NotFoundPage } from './NotFoundPage';
 import { SocialFeed, UserPhotoGallery } from '../components/social/SocialFeed';
 import { VoiceChat } from '../components/social/VoiceChat';
 import { MediaLibraryPicker } from '../components/MediaLibraryPicker';
@@ -194,6 +195,7 @@ export const PracticeSpacePage: React.FC<{
     const view = params.view || inferredView;
     const handleGoToSpaceLogin = () => onGoToLogin(spaceSlug);
     const [currentSpace, setCurrentSpace] = useState<Space | null>(null);
+    const [isSpaceNotFound, setIsSpaceNotFound] = useState(false);
     const [allMessages, setAllMessages] = useState<Message[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -245,6 +247,31 @@ export const PracticeSpacePage: React.FC<{
     const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
     const [shareModal, setShareModal] = useState<{ text: string; comment: string; submitting: boolean; aiName?: string; userQuestion?: string; libraryDoc?: { title: string; author: string; content: string } } | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
+    const [modalPrefill, setModalPrefill] = useState<{ title?: string; amount?: number }>({});
+
+    // Auto-open donation modal when route or query param ?donation=true / ?offering=true is present
+    useEffect(() => {
+        if (searchParams.get('donation') === 'true' || searchParams.get('offering') === 'true' || searchParams.get('openDonation') === 'true') {
+            const amt = searchParams.get('amount');
+            const tit = searchParams.get('title');
+            if (amt || tit) {
+                setModalPrefill({
+                    title: tit || undefined,
+                    amount: amt ? Number(amt) : undefined
+                });
+            }
+            setIsMeritPurchaseModalOpen(true);
+            setSearchParams(prev => {
+                prev.delete('donation');
+                prev.delete('offering');
+                prev.delete('openDonation');
+                prev.delete('amount');
+                prev.delete('title');
+                return prev;
+            }, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
+
     const [communityTab, setCommunityTabState] = useState<'home' | 'feed'>(() => {
         const tab = searchParams.get('tab');
         return (tab === 'home' || tab === 'feed') ? tab : 'feed';
@@ -686,14 +713,13 @@ export const PracticeSpacePage: React.FC<{
                     apiService.getSpaces()
                 ]);
 
-                setCurrentSpace(spaceData);
-                setAllSpaces(allSpacesData || []);
-
                 if (!spaceData || typeof spaceData.id !== 'number') {
-                    showToast('Space not found.', 'error');
-                    navigate('/');
+                    setIsSpaceNotFound(true);
                     return;
                 }
+
+                setCurrentSpace(spaceData);
+                setAllSpaces(allSpacesData || []);
 
                 const spaceSpecificAIs = await apiService.getAiConfigsBySpaceId(spaceData.id);
                 setAllAiConfigs(spaceSpecificAIs || []);
@@ -716,8 +742,7 @@ export const PracticeSpacePage: React.FC<{
 
             } catch (error) {
                 console.error("Error loading practice space data:", error);
-                showToast(t.loadError, 'error');
-                navigate('/');
+                setIsSpaceNotFound(true);
             }
         };
 
@@ -1416,6 +1441,10 @@ export const PracticeSpacePage: React.FC<{
     else if (needsPurchase) placeholder = t.purchaseNeeded;
     else if (needsContactAccess) placeholder = t.contactAdminForAccess;
     else if (isRecording) placeholder = t.listening;
+
+    if (isSpaceNotFound) {
+        return <NotFoundPage language={language} setLanguage={setLanguage} />;
+    }
 
     return (
         <div className="practice-space-page">
@@ -2166,11 +2195,16 @@ export const PracticeSpacePage: React.FC<{
             {isMeritPurchaseModalOpen && (
                 <MeritPaymentModal
                     isOpen={isMeritPurchaseModalOpen}
-                    onClose={() => setIsMeritPurchaseModalOpen(false)}
+                    onClose={() => {
+                        setIsMeritPurchaseModalOpen(false);
+                        setModalPrefill({});
+                    }}
                     user={user}
                     onPaymentSuccess={onUserUpdate}
                     language={language}
                     showIncenseOption={true}
+                    offeringTitle={modalPrefill.title}
+                    suggestedAmount={modalPrefill.amount}
                     spaceId={typeof currentSpace?.id === 'number' ? currentSpace.id : undefined}
                 />
             )}

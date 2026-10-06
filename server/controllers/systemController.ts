@@ -10,6 +10,7 @@ import { aiConfigModel } from '../models/aiConfig.model.js';
 import { documentModel } from '../models/document.model.js';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { getUserManagedSpaceIds, isAdmin } from '../middleware/authMiddleware.js';
@@ -26,17 +27,22 @@ const storage = multer.diskStorage({
     destination: (req, _file, cb) => {
         const { spaceId, userScoped } = req.body;
         const userId = req.user?.id;
-        let dir;
+        const isGlobal = isAdmin(req.user);
+        let dir: string;
 
         if (spaceId && spaceId !== 'global' && spaceId !== 'system') {
             const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
-            if ((userScoped === 'true' || userScoped === true) && userId) {
-                dir = path.join(uploadsDir, `space-${safeSpaceId}`, `user-${userId}`);
+            // Unless global admin, user uploads must be scoped under their user folder to prevent overwriting space assets
+            if (userScoped === 'true' || userScoped === true || !isGlobal) {
+                dir = path.join(uploadsDir, `space-${safeSpaceId}`, `user-${userId || 'anon'}`);
             } else {
                 dir = path.join(uploadsDir, `space-${safeSpaceId}`);
             }
-        } else {
+        } else if (isGlobal) {
             dir = path.join(uploadsDir, 'system');
+        } else {
+            // General user uploads go to user-scoped directory
+            dir = path.join(uploadsDir, 'users', `user-${userId || 'anon'}`);
         }
 
         try {
@@ -48,13 +54,27 @@ const storage = multer.diskStorage({
         }
     },
     filename: (_req, file, cb) => {
-        const utf8OriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        const safeOriginalName = path.basename(utf8OriginalName).replace(/[^\w\s.\-\p{L}]/gu, '_');
-        cb(null, safeOriginalName);
+        const ext = path.extname(file.originalname).toLowerCase();
+        const safeExt = ext.replace(/[^a-z0-9.]/gi, '');
+        const randomName = `${crypto.randomUUID()}${safeExt}`;
+        cb(null, randomName);
     }
 });
 
+const DANGEROUS_EXTENSIONS = new Set([
+    '.svg', '.html', '.htm', '.xhtml', '.shtml',
+    '.exe', '.dll', '.bat', '.cmd', '.sh', '.bash',
+    '.php', '.phtml', '.php3', '.php4', '.php5',
+    '.js', '.mjs', '.cjs', '.ts', '.vbs', '.py',
+    '.cgi', '.pl', '.jsp', '.asp', '.aspx', '.war'
+]);
+
 const trainingFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ext || DANGEROUS_EXTENSIONS.has(ext)) {
+        return cb(new Error('Phần mở rộng tệp này không được phép tải lên vì lý do bảo mật.'));
+    }
+
     const allowedTypes = [
         'application/pdf',
         'application/msword',
@@ -72,7 +92,6 @@ const trainingFileFilter = (_req: Request, file: Express.Multer.File, cb: multer
         'image/avif',
         'image/bmp',
         'image/tiff',
-        'image/svg+xml',
         'audio/mpeg',
         'audio/mp3',
         'audio/wav',
@@ -93,23 +112,84 @@ export const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+const maskKey = (key: string): string => {
+    if (!key || typeof key !== 'string') return '';
+    if (key.length <= 8) return '••••••••';
+    return '••••••••' + key.slice(-4);
+};
+
 export const systemController = {
-    async getSystemConfig(_req: Request, res: Response) {
+    async getSystemConfig(req: Request, res: Response) {
         try {
             const config = await systemModel.getConfig();
             if (!config) {
                 return res.status(404).json({ message: 'System configuration not found.' });
             }
-            res.json(config);
+
+            // Global Admin receives full config with masked keys
+            if (isAdmin(req.user)) {
+                const adminConfig = { ...config };
+                if (adminConfig.systemKeys) {
+                    const masked: Record<string, string> = {};
+                    for (const k in adminConfig.systemKeys) {
+                        masked[k] = adminConfig.systemKeys[k] ? maskKey(adminConfig.systemKeys[k]) : '';
+                    }
+                    adminConfig.systemKeys = masked;
+                }
+                return res.json(adminConfig);
+            }
+
+            // Public safe fields only: NEVER leak API keys or sensitive billing settings
+            res.json({
+                id: config.id,
+                guestMessageLimit: config.guestMessageLimit,
+                template: config.template,
+                templateSettings: config.templateSettings,
+                platformFeePercent: config.platformFeePercent
+            });
         } catch (error: any) {
             res.status(500).json({ message: 'Không thể tải cấu hình hệ thống.' });
         }
     },
 
+    async getAdminConfig(req: Request, res: Response) {
+        try {
+            if (!isAdmin(req.user)) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền truy cập cấu hình quản trị.' });
+            }
+            const config = await systemModel.getConfig();
+            if (!config) {
+                return res.status(404).json({ message: 'System configuration not found.' });
+            }
+            const adminConfig = { ...config };
+            if (adminConfig.systemKeys) {
+                const masked: Record<string, string> = {};
+                for (const k in adminConfig.systemKeys) {
+                    masked[k] = adminConfig.systemKeys[k] ? maskKey(adminConfig.systemKeys[k]) : '';
+                }
+                adminConfig.systemKeys = masked;
+            }
+            res.json(adminConfig);
+        } catch (error: any) {
+            res.status(500).json({ message: 'Không thể tải cấu hình quản trị hệ thống.' });
+        }
+    },
+
     async updateSystemConfig(req: Request, res: Response) {
         try {
+            if (!isAdmin(req.user)) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền cập nhật cấu hình hệ thống.' });
+            }
             const updatedConfig = await systemModel.updateConfig(req.body);
-            res.json(updatedConfig);
+            const safeUpdated = { ...updatedConfig };
+            if (safeUpdated.systemKeys) {
+                const masked: Record<string, string> = {};
+                for (const k in safeUpdated.systemKeys) {
+                    masked[k] = safeUpdated.systemKeys[k] ? maskKey(safeUpdated.systemKeys[k]) : '';
+                }
+                safeUpdated.systemKeys = masked;
+            }
+            res.json(safeUpdated);
         } catch (error: any) {
             res.status(500).json({ message: 'Lỗi khi cập nhật cấu hình hệ thống.' });
         }

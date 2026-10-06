@@ -443,16 +443,16 @@ export const apiService = {
         body: JSON.stringify({ spaceId })
     }).then(handleResponse),
 
-    getStripeConnectAccountStatus: (accountId: string) => authedFetch(`/api/billing/stripe/connect/account/${accountId}/status`).then(handleResponse),
+    getStripeConnectAccountStatus: (spaceId: number | string) => authedFetch(`/api/billing/stripe/connect/space/${spaceId}/status`).then(handleResponse),
 
     createStripeAccountLink: (accountId: string, spaceId?: number | string) => authedFetch('/api/billing/stripe/connect/account-link', {
         method: 'POST',
         body: JSON.stringify({ accountId, spaceId })
     }).then(handleResponse),
 
-    createStripeLoginLink: (accountId: string) => authedFetch('/api/billing/stripe/connect/login-link', {
+    createStripeLoginLink: (spaceId: number | string) => authedFetch('/api/billing/stripe/connect/login-link', {
         method: 'POST',
-        body: JSON.stringify({ accountId })
+        body: JSON.stringify({ spaceId })
     }).then(handleResponse),
 
     disconnectStripeConnect: (spaceId: number | string) => authedFetch('/api/billing/stripe/connect/disconnect', {
@@ -476,11 +476,14 @@ export const apiService = {
         method: 'POST',
         body: JSON.stringify({ planId, spaceId, returnPath })
     }).then(handleResponse),
+    verifyPayOsOrder: (orderCode: string | number) => authedFetch(`/api/payos/verify-order?orderCode=${encodeURIComponent(String(orderCode))}`).then(handleResponse),
+    getExchangeRate: (): Promise<{ rate: number; base: string; target: string }> => fetch('/api/exchange-rate').then(handleResponse),
     verifyCheckoutSession: (sessionId: string) => authedFetch('/api/billing/stripe/verify-checkout-session', {
         method: 'POST',
         body: JSON.stringify({ sessionId })
     }).then(handleResponse),
-    verifyPayOsOrder: (orderCode: string | number) => authedFetch(`/api/payos/verify-order?orderCode=${orderCode}`).then(handleResponse),
+    getStripeConfig: (): Promise<{ publishableKey: string | null; configured: boolean; enabled: boolean }> =>
+        authedFetch('/api/billing/stripe/config').then(handleResponse),
     getEnabledPaymentMethods: () => authedFetch('/api/billing/stripe/payment-methods').then(handleResponse),
     purchaseAi: (aiId: number | string, userId: number): Promise<{ updatedUser: User }> => authedFetch(`/api/ai-configs/${aiId}/purchase`, {
         method: 'POST',

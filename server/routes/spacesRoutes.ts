@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spacesController } from '../controllers/spacesController.js';
-import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
+import { checkPermission, isAuthenticated, optionalAuth, requireSpacePermission } from '../middleware/authMiddleware.js';
 import { aiConfigController } from '../controllers/aiConfigController.js';
 import { spacePageController } from '../controllers/spacePageController.js';
 import { userController } from '../controllers/userController.js';
@@ -64,14 +64,14 @@ router.get('/slug/:slug', optionalAuth, spacesController.getSpaceBySlug);       
 router.get('/:slug/published-page/:pageSlug(*)?', spacePageController.servePublicPage);
 router.get('/:slug', optionalAuth, spacesController.getSpaceBySlug);
 router.post('/', checkPermission('spaces'), upload.single('image'), spacesController.createSpace);
-router.put('/:id', checkPermission('spaces'), upload.single('image'), spacesController.updateSpace);
-router.delete('/:id', checkPermission('spaces'), spacesController.deleteSpace);
+router.put('/:id', requireSpacePermission('spaces'), upload.single('image'), spacesController.updateSpace);
+router.delete('/:id', requireSpacePermission('spaces'), spacesController.deleteSpace);
 
 // --- Space Member Management ---
-router.get('/:id/members', checkPermission('users'), spacesController.getMembers);
-router.post('/:id/members', checkPermission('users'), spacesController.addMember);
-router.put('/:id/members/:userId/role', isAuthenticated, spacesController.addMember); // updateMemberRole - reuse addMember or add specific handler
-router.delete('/:id/members/:userId', checkPermission('users'), spacesController.removeMember);
+router.get('/:id/members', requireSpacePermission('users'), spacesController.getMembers);
+router.post('/:id/members', requireSpacePermission('users'), spacesController.addMember);
+router.put('/:id/members/:userId/role', requireSpacePermission('users'), spacesController.addMember); // updateMemberRole - reuse addMember or add specific handler
+router.delete('/:id/members/:userId', requireSpacePermission('users'), spacesController.removeMember);
 
 // Route to handle views on a space (public)
 router.post('/:id/view', spacesController.incrementViews);
@@ -92,7 +92,7 @@ router.get('/:id/documents', spacesController.getDocumentsBySpaceId);
 router.get('/:id/ai-configs', aiConfigController.getAiConfigsBySpaceId);
 
 // Route for uploading QR code image for a space (Admin/Space Owner only)
-router.post('/:id/qr-code', checkPermission('spaces'), upload.single('qrImage'), spacesController.uploadQrCode);
+router.post('/:id/qr-code', requireSpacePermission('spaces'), upload.single('qrImage'), spacesController.uploadQrCode);
 
 // Route for confirming a QR donation (optional auth — guests allowed)
 router.post('/:id/qr-donation', optionalAuth, spacesController.confirmQrDonation);

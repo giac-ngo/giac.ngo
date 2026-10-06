@@ -96,19 +96,24 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
     }>({ hasPayos: true, hasStripe: false, hasVenmo: false, venmoHandle: '' });
 
     useEffect(() => {
+        if (!isOpen) return;
         const targetSpaceId = spaceId || 1;
-        apiService.getSpaceById(targetSpaceId).then((space: any) => {
+        Promise.all([
+            apiService.getSpaceById(targetSpaceId).catch(() => null),
+            apiService.getStripeConfig().catch(() => null)
+        ]).then(([space, stripeCfg]) => {
             if (!space) return;
             const hasPayos = !!(space.payosClientId);
-            const hasStripe = !!(space.stripeAccountId);
+            const isStripeConfigured = !!(stripeCfg && (stripeCfg.configured || stripeCfg.enabled));
+            const hasStripe = !!(space.stripeAccountId) && isStripeConfigured;
             const hasVenmo = !!(space.venmoHandle);
             setSpaceConfig({ hasPayos, hasStripe, hasVenmo, venmoHandle: space.venmoHandle || '' });
             // Set default tab to first available
             if (hasPayos) setPaymentTab('payos');
             else if (hasStripe) setPaymentTab('stripe');
             else if (hasVenmo) setPaymentTab('venmo');
-        }).catch(() => {});
-    }, [spaceId]);
+        });
+    }, [spaceId, isOpen]);
 
     // Donation List State
     // Donation List State
@@ -158,40 +163,67 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
         // fetchTransactions(1);
     }, []);
 
+    const [usdVndRate, setUsdVndRate] = useState<number>(25000);
+
     useEffect(() => {
+        if (!isOpen) return;
+        let isMounted = true;
+        apiService.getExchangeRate()
+            .then(data => {
+                if (isMounted && data && data.rate) setUsdVndRate(data.rate);
+            })
+            .catch(() => {
+                // Fallback fetch if apiService failed
+                fetch('/api/exchange-rate')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (isMounted && data && data.rate) setUsdVndRate(data.rate);
+                    })
+                    .catch(() => { /* silent — keep fallback 25000 */ });
+            });
+        return () => { isMounted = false; };
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
         if (suggestedAmount) {
-            setCustomAmount(String(suggestedAmount));
+            const isVnd = suggestedAmount > 100;
+            if (paymentTab === 'stripe') {
+                const usd = isVnd ? Math.round(suggestedAmount / usdVndRate) || 1 : suggestedAmount;
+                setCustomAmount(String(usd));
+            } else {
+                const vnd = isVnd ? suggestedAmount : Math.round(suggestedAmount * usdVndRate);
+                setCustomAmount(String(vnd));
+            }
         }
-    }, [suggestedAmount]);
+    }, [suggestedAmount, isOpen, paymentTab, usdVndRate]);
+
+    const handleSwitchTab = (newTab: 'payos' | 'stripe' | 'venmo') => {
+        if (newTab === paymentTab) return;
+        const currentNum = parseFloat(customAmount.replace(/[^0-9.]/g, ''));
+        if (!isNaN(currentNum) && currentNum > 0) {
+            if (paymentTab === 'payos' && newTab === 'stripe') {
+                // Chuyển từ VNĐ sang USD
+                setCustomAmount(String(Math.round(currentNum / usdVndRate) || 1));
+            } else if (paymentTab === 'stripe' && newTab === 'payos') {
+                // Chuyển từ USD sang VNĐ
+                setCustomAmount(String(Math.round(currentNum * usdVndRate)));
+            }
+        }
+        setPaymentTab(newTab);
+    };
 
     const handleSelectOption = (option: 'custom' | 'incense' | 'book') => {
         setSelection(option);
+        const isUsd = paymentTab === 'stripe';
         if (option === 'incense') {
-            setCustomAmount(language === 'vi' ? '50000' : '2');
+            setCustomAmount(isUsd ? '2' : '50000');
         } else if (option === 'book') {
-            setCustomAmount(language === 'vi' ? '200000' : '8');
+            setCustomAmount(isUsd ? '8' : '200000');
         } else {
             setCustomAmount('');
         }
     };
-
-    const [usdVndRate, setUsdVndRate] = useState<number>(25000);
-
-    useEffect(() => {
-        let isMounted = true;
-        fetch('/api/exchange-rate')
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const ct = res.headers.get('content-type') || '';
-                if (!ct.includes('application/json')) throw new Error('Not JSON');
-                return res.json();
-            })
-            .then(data => {
-                if (isMounted && data.rate) setUsdVndRate(data.rate);
-            })
-            .catch(() => { /* silent — use default 25000 */ });
-        return () => { isMounted = false; };
-    }, []);
 
     const handlePayment = async () => {
         if (!user) {
@@ -199,13 +231,26 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
             return;
         }
 
-        const amount = parseFloat(customAmount);
-        if (isNaN(amount) || amount <= 0) {
+        const rawNum = parseFloat(customAmount.replace(/[^0-9.]/g, ''));
+        if (isNaN(rawNum) || rawNum <= 0) {
             showToast(t.errorAmount, 'error');
             return;
         }
 
-        const amountUSD = language === 'vi' ? amount / usdVndRate : amount; // Backend expects USD
+        let amountUSD: number;
+        if (paymentTab === 'stripe') {
+            if (rawNum < 1) {
+                showToast(language === 'vi' ? 'Mức cúng dường tối thiểu qua thẻ quốc tế là $1 USD.' : 'Minimum donation is $1 USD.', 'error');
+                return;
+            }
+            amountUSD = rawNum;
+        } else {
+            if (rawNum < 10000) {
+                showToast(language === 'vi' ? 'Mức cúng dường tối thiểu qua hệ thống là 10.000 VNĐ.' : 'Minimum donation is 10,000 VND.', 'error');
+                return;
+            }
+            amountUSD = rawNum / usdVndRate;
+        }
 
         setIsLoading(true);
         try {
@@ -226,7 +271,13 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
             }
         } catch (error: any) {
             console.error('Payment error:', error);
-            showToast(error.message || t.errorGeneric, 'error');
+            const rawMsg = error.message || '';
+            if (rawMsg.includes('Stripe') || rawMsg.includes('Secret Key') || rawMsg.includes('STRIPE_') || rawMsg.includes('bảo trì')) {
+                showToast('Cổng thanh toán Stripe hiện chưa sẵn sàng hoặc đang bảo trì. Đang chuyển sang hình thức Quét mã QR VN...', 'error');
+                handleSwitchTab('payos');
+            } else {
+                showToast(rawMsg || t.errorGeneric, 'error');
+            }
             setIsLoading(false);
         }
     };
@@ -282,7 +333,7 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                 <div className="flex rounded-xl overflow-hidden border border-[#dcd5bc] mb-5 text-sm font-semibold font-sans">
                     {spaceConfig.hasPayos && (
                         <button
-                            onClick={() => setPaymentTab('payos')}
+                            onClick={() => handleSwitchTab('payos')}
                             className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 transition-colors ${paymentTab === 'payos'
                                 ? 'bg-[#991b1b] text-white'
                                 : 'bg-white text-[#5d4a3a] hover:bg-[#f5ede0]'
@@ -294,19 +345,19 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                     )}
                     {spaceConfig.hasStripe && (
                         <button
-                            onClick={() => setPaymentTab('stripe')}
+                            onClick={() => handleSwitchTab('stripe')}
                             className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 transition-colors ${paymentTab === 'stripe'
                                 ? 'bg-[#991b1b] text-white'
                                 : 'bg-white text-[#5d4a3a] hover:bg-[#f5ede0]'
                                 }`}
                         >
                             <span>🌍</span>
-                            Stripe
+                            Stripe (USD)
                         </button>
                     )}
                     {spaceConfig.hasVenmo && (
                         <button
-                            onClick={() => setPaymentTab('venmo')}
+                            onClick={() => handleSwitchTab('venmo')}
                             className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 transition-colors ${paymentTab === 'venmo'
                                 ? 'bg-[#991b1b] text-white'
                                 : 'bg-white text-[#5d4a3a] hover:bg-[#f5ede0]'
@@ -331,7 +382,7 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                             >
                                 <img src="/themes/giacngo/nhang.png" alt="nhang" className="w-10 h-10 object-contain mb-1" />
                                 <h3 className="text-[#1f2937] font-bold text-sm font-sans">{t.incense}</h3>
-                                <p className="text-[#6D605A] text-[9px] font-sans">+2 MERIT</p>
+                                <p className="text-[#6D605A] text-[10px] font-sans font-medium">{paymentTab === 'stripe' ? '$2 • +2 MERIT' : '50.000đ • +2 MERIT'}</p>
                             </button>
 
                             {/* Sutra/Book Card */}
@@ -341,7 +392,7 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                             >
                                 <img src="/themes/giacngo/sach.png" alt="sách" className="w-10 h-10 object-contain mb-1" />
                                 <h3 className="text-[#1f2937] font-bold text-sm font-sans">{language === 'vi' ? 'Cuộn Kinh' : 'Scriptures'}</h3>
-                                <p className="text-[#6D605A] text-[9px] font-sans">+8 MERIT</p>
+                                <p className="text-[#6D605A] text-[10px] font-sans font-medium">{paymentTab === 'stripe' ? '$8 • +8 MERIT' : '200.000đ • +8 MERIT'}</p>
                             </button>
 
                             {/* Custom Card */}
@@ -351,7 +402,7 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                             >
                                 <img src="/themes/giacngo/hoasen.png" alt="hoa sen" className="w-10 h-10 object-contain mb-1" />
                                 <h3 className="text-[#1f2937] font-bold text-sm font-sans">{t.custom}</h3>
-                                <p className="text-[#6D605A] text-[9px] font-sans opacity-0">Hidden</p>
+                                <p className="text-[#6D605A] text-[10px] font-sans font-medium">{language === 'vi' ? 'Tuỳ ý' : 'Custom'}</p>
                             </button>
                         </div>
                     )}
@@ -368,44 +419,54 @@ export const MeritPaymentModal: React.FC<MeritPaymentModalProps> = ({
                                     </div>
                                 )}
                                 <div className="relative w-full">
-                                    {language === 'en' && (
+                                    {paymentTab === 'stripe' && (
                                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                             <span className="text-[#991b1b] font-bold text-xl">$</span>
                                         </div>
                                     )}
                                     <input
                                         type="text"
-                                        inputMode={language === 'vi' ? "numeric" : "decimal"}
+                                        inputMode={paymentTab === 'stripe' ? "decimal" : "numeric"}
                                         value={customAmount 
-                                            ? (language === 'vi' 
-                                                ? Number(customAmount.replace(/[^0-9]/g, '') || '0').toLocaleString('vi-VN')
-                                                : Number(customAmount.replace(/[^0-9.]/g, '') || '0').toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))
+                                            ? (paymentTab === 'stripe'
+                                                ? customAmount
+                                                : Number(customAmount.replace(/[^0-9]/g, '') || '0').toLocaleString('vi-VN'))
                                             : ''}
                                         onChange={(e) => {
-                                            const raw = language === 'vi' 
-                                                ? e.target.value.replace(/[^0-9]/g, '')
-                                                : e.target.value.replace(/[^0-9.]/g, '');
+                                            const raw = paymentTab === 'stripe'
+                                                ? e.target.value.replace(/[^0-9.]/g, '')
+                                                : e.target.value.replace(/[^0-9]/g, '');
                                             setCustomAmount(raw);
                                         }}
-                                        placeholder={language === 'vi' ? 'Nhập số tiền (VNĐ)' : 'Enter amount ($)'}
-                                        className={`w-full bg-white border border-[#e0d5b8] rounded-xl py-3 text-center text-[#991b1b] font-bold text-2xl placeholder-[#d1d5db] focus:outline-none focus:border-[#991b1b] font-sans transition-all ${language === 'vi' ? 'pr-12 pl-4' : 'pl-8 pr-4'}`}
+                                        placeholder={paymentTab === 'stripe' ? (language === 'vi' ? 'Nhập số tiền ($ USD)' : 'Enter amount ($ USD)') : (language === 'vi' ? 'Nhập số tiền (VNĐ)' : 'Enter amount (VND)')}
+                                        className={`w-full bg-white border border-[#e0d5b8] rounded-xl py-3 text-center text-[#991b1b] font-bold text-2xl placeholder-[#d1d5db] focus:outline-none focus:border-[#991b1b] font-sans transition-all ${paymentTab === 'stripe' ? 'pl-8 pr-4' : 'pr-14 pl-4'}`}
                                         autoFocus={selection === 'custom'}
                                     />
-                                    {language === 'vi' && (
+                                    {paymentTab !== 'stripe' && (
                                         <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
                                             <span className="text-[#991b1b] font-bold text-xl">VNĐ</span>
                                         </div>
                                     )}
                                 </div>
-                                {customAmount && !isNaN(parseFloat(customAmount)) && parseFloat(customAmount) > 0 && language === 'vi' && (
-                                    <p className="text-center text-sm font-medium text-[#8c7b75] mt-3 animate-fade-in opacity-80">
-                                        Mức cúng dường tối thiểu qua hệ thống là 10.000 VNĐ.
-                                    </p>
+                                {customAmount && !isNaN(parseFloat(customAmount)) && parseFloat(customAmount) > 0 && paymentTab !== 'stripe' && (
+                                    <div className="text-center mt-3 animate-fade-in space-y-1">
+                                        <p className="text-sm font-bold text-[#991b1b]">
+                                            ≈ ${(parseFloat(customAmount) / usdVndRate).toFixed(2)} USD
+                                        </p>
+                                        <p className="text-xs text-[#8c7b75]">
+                                            {language === 'vi' ? `Tỷ giá: 1 USD ≈ ${usdVndRate.toLocaleString('vi-VN')} VNĐ • Tối thiểu 10.000 VNĐ` : `Rate: 1 USD ≈ ${usdVndRate.toLocaleString('en-US')} VND • Min 10,000 VND`}
+                                        </p>
+                                    </div>
                                 )}
-                                {customAmount && !isNaN(parseFloat(customAmount)) && parseFloat(customAmount) > 0 && language === 'en' && (
-                                    <p className="text-center text-sm font-bold text-[#991b1b] mt-3 animate-fade-in opacity-80">
-                                        = {Math.round(parseFloat(customAmount) * usdVndRate).toLocaleString('vi-VN')} VNĐ
-                                    </p>
+                                {customAmount && !isNaN(parseFloat(customAmount)) && parseFloat(customAmount) > 0 && paymentTab === 'stripe' && (
+                                    <div className="text-center mt-3 animate-fade-in space-y-1">
+                                        <p className="text-sm font-bold text-[#991b1b]">
+                                            ≈ {Math.round(parseFloat(customAmount) * usdVndRate).toLocaleString('vi-VN')} VNĐ
+                                        </p>
+                                        <p className="text-xs text-[#8c7b75]">
+                                            {language === 'vi' ? `Tỷ giá: 1 USD ≈ ${usdVndRate.toLocaleString('vi-VN')} VNĐ • Tối thiểu $1 USD` : `Rate: 1 USD ≈ ${usdVndRate.toLocaleString('en-US')} VND • Min $1 USD`}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         )}

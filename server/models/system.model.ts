@@ -68,21 +68,35 @@ export const systemModel = {
     },
 
     async updateConfig(config: Partial<SystemConfig>): Promise<SystemConfig> {
-        const { guestMessageLimit, template, templateSettings, systemKeys, withdrawalSettings, platformFeePercent } = config;
+        try {
+            const currentRes = await pool.query('SELECT * FROM system_config WHERE id = 1');
+            const current = currentRes.rows[0] ? mapRowToCamelCase(currentRes.rows[0]) : null;
+            if (!current) throw new Error('System configuration not found.');
 
-        let encryptedKeys: Record<string, string> | null = null;
-        if (systemKeys) {
-            encryptedKeys = {};
-            for (const key in systemKeys) {
-                if (systemKeys[key]) {
-                    encryptedKeys[key] = cryptoService.encrypt(systemKeys[key]);
-                } else {
-                    encryptedKeys[key] = '';
+            const guestMessageLimit = config.guestMessageLimit !== undefined ? config.guestMessageLimit : current.guestMessageLimit;
+            const template = config.template !== undefined ? config.template : current.template;
+            const templateSettings = config.templateSettings !== undefined ? config.templateSettings : current.templateSettings;
+            const withdrawalSettings = config.withdrawalSettings !== undefined ? config.withdrawalSettings : current.withdrawalSettings;
+            const platformFeePercent = config.platformFeePercent !== undefined ? config.platformFeePercent : current.platformFeePercent;
+
+            // Handle systemKeys partial update: preserve existing keys if not explicitly provided or if masked
+            let encryptedKeys: Record<string, string> = current.systemKeys || {};
+            if (config.systemKeys) {
+                // If current.systemKeys were already encrypted in DB, we merge
+                for (const key in config.systemKeys) {
+                    const val = config.systemKeys[key];
+                    // Skip masked keys like '••••1234'
+                    if (typeof val === 'string' && val.includes('••••')) {
+                        continue;
+                    }
+                    if (val) {
+                        encryptedKeys[key] = cryptoService.encrypt(val);
+                    } else if (val === '') {
+                        delete encryptedKeys[key];
+                    }
                 }
             }
-        }
 
-        try {
             const res = await pool.query(
                 'UPDATE system_config SET guest_message_limit = $1, template = $2, template_settings = $3, system_keys = $4, withdrawal_settings = $5, platform_fee_percent = $6 WHERE id = 1 RETURNING *',
                 [
@@ -95,13 +109,17 @@ export const systemModel = {
                 ]
             );
 
-            // After updating, return the decrypted version for immediate use on the client
+            // After updating, return the decrypted version for internal use
             const updatedConfig = mapRowToCamelCase(res.rows[0]);
             if (updatedConfig && updatedConfig.systemKeys) {
                 const decryptedKeys: Record<string, string> = {};
                 for (const key in updatedConfig.systemKeys) {
                     if (updatedConfig.systemKeys[key]) {
-                        decryptedKeys[key] = cryptoService.decrypt(updatedConfig.systemKeys[key]);
+                        try {
+                            decryptedKeys[key] = cryptoService.decrypt(updatedConfig.systemKeys[key]);
+                        } catch {
+                            decryptedKeys[key] = '';
+                        }
                     } else {
                         decryptedKeys[key] = '';
                     }

@@ -3,53 +3,27 @@ import { Request, Response, NextFunction } from 'express';
 import { spaceModel } from '../models/space.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { userModel } from '../models/user.model.js';
-import { isAdmin, getUserManagedSpaceIds, canAccessSpace } from '../middleware/authMiddleware.js';
+import { isAdmin, getUserManagedSpaceIds, canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
 import { pool } from '../db.js';
 
 
 
-// Add a local helper function to sanitize user data before sending it to the client.
-const mapAndSanitizeUser = (user: Record<string, unknown> | null) => {
-    if (!user) return null;
-    const { password, ...sanitizedUser } = user;
-    return sanitizedUser;
-};
-
-// Sanitize space data to remove sensitive info like API keys and SMTP passwords
-const mapAndSanitizeSpace = (space: any) => {
-    if (!space) return null;
-    const { apiKeys, smtpPass, payosApiKey, payosChecksumKey, ...sanitizedSpace } = space;
-    return sanitizedSpace;
-};
+import { toPublicUser } from '../utils/sanitizeUser.js';
+import { toPublicSpace, toAdminSpace } from '../utils/sanitizeSpace.js';
 
 export const spacesController = {
     async getAllSpaces(req: Request, res: Response) {
         try {
             const spaces = await spaceModel.findAll();
-
-            // Super admin sees everything
-            if (req.user && isAdmin(req.user as any)) {
-                return res.json(spaces);
-            }
-
-            // Authenticated non-admin: only spaces they own or are a member of
-            if (req.user && (req.user as any).id) {
-                const managedIds = await getUserManagedSpaceIds((req.user as any).id);
-                const mySpaces = spaces.filter(space => managedIds.includes(space.id as number));
-                // If they manage it, we assume they are allowed to see the keys for now 
-                // (this matches the existing multi-tenant ownership model)
-                return res.json(mySpaces);
-            }
-
-            // Unauthenticated: return all (public listing for homepage/landing)
-            res.json(spaces.map(mapAndSanitizeSpace));
+            // Never leak API keys, SMTP passwords, or PayOS credentials on public/general space lists
+            res.json(spaces.map(toPublicSpace));
         } catch (error: unknown) {
             console.error('Error fetching spaces:', error);
             res.status(500).json({ message: 'Failed to fetch spaces.' });
         }
     },
 
-    // FIX: Add controller method to get a space by its numeric ID.
+    // Get a space by its numeric ID.
     async getSpaceById(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
@@ -60,11 +34,11 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            // Only return full object (including keys) if superAdmin or space owner
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
-                return res.json(space);
+            // Only return admin-masked object (including masked keys) if superAdmin or authorized space manager
+            if (req.user && (isAdmin(req.user as any) || await hasSpacePermission(req.user as any, space.id as number, 'spaces'))) {
+                return res.json(toAdminSpace(space));
             }
-            res.json(mapAndSanitizeSpace(space));
+            res.json(toPublicSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with id ${req.params.id}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
@@ -78,10 +52,8 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
-                return res.json(space);
-            }
-            res.json(mapAndSanitizeSpace(space));
+            // Domain lookup is used for public portal loading — always strip secrets
+            res.json(toPublicSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with domain ${req.params.domain}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
@@ -95,10 +67,8 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            if (req.user && (isAdmin(req.user as any) || await canAccessSpace(req.user as any, space.id as number))) {
-                return res.json(space);
-            }
-            res.json(mapAndSanitizeSpace(space));
+            // Slug lookup is used for public space browsing — always strip secrets
+            res.json(toPublicSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with slug ${req.params.slug}:`, error);
             res.status(500).json({ message: 'Failed to fetch space.' });
@@ -305,15 +275,20 @@ export const spacesController = {
 
     async makeOffering(req: Request, res: Response) {
         const spaceId = parseInt(String(req.params.id), 10);
-        const { amount, userId } = req.body;
+        const { amount } = req.body;
+        const userId = req.user?.id;
 
-        if (isNaN(spaceId) || !amount || amount <= 0 || !userId) {
-            return res.status(400).json({ message: 'Valid Space ID, amount, and User ID are required.' });
+        if (!userId) {
+            return res.status(401).json({ message: 'Authentication required.' });
+        }
+
+        if (isNaN(spaceId) || !amount || amount <= 0) {
+            return res.status(400).json({ message: 'Valid Space ID and positive amount are required.' });
         }
 
         try {
             const { updatedUser } = await spaceModel.makeOffering(spaceId, userId, amount);
-            res.json({ updatedUser: mapAndSanitizeUser(updatedUser) });
+            res.json({ updatedUser: toPublicUser(updatedUser) });
         } catch (error: unknown) {
             res.status(400).json({ message: (error instanceof Error ? error.message : String(error)) });
         }
@@ -343,8 +318,9 @@ export const spacesController = {
             const existingSpace = await spaceModel.findById(id);
             if (!existingSpace) return res.status(404).json({ message: 'Space not found.' });
 
-            // Only admin or space owner can upload
-            if (req.user && !isAdmin(req.user as any) && existingSpace.userId !== (req.user as any).id) {
+            // Route guard enforces the permission in this Space; repeat it here
+            // so this controller stays safe if it is mounted elsewhere later.
+            if (!req.user || (!isAdmin(req.user as any) && !await hasSpacePermission(req.user as any, id, 'spaces'))) {
                 return res.status(403).json({ message: 'Forbidden.' });
             }
 
@@ -464,20 +440,21 @@ export const spacesController = {
                 return res.status(401).json({ message: 'Unauthorized.' });
             }
 
-            // Global admin sees all spaces
+            const allSpaces = await spaceModel.findAll();
+
+            // Global admin sees all spaces (with masked keys for safe admin management)
             if (user.isGlobalAdmin) {
-                const allSpaces = await spaceModel.findAll();
-                return res.json(allSpaces);
+                return res.json(allSpaces.map(toAdminSpace));
             }
 
-            // Scoped: only spaces the user owns or is a member of
-            const managedIds = await getUserManagedSpaceIds(user.id);
-            if (managedIds.length === 0) {
-                return res.json([]);
+            // Only spaces the user owns OR has explicit 'spaces' management permission in
+            const manageableSpaces: any[] = [];
+            for (const s of allSpaces) {
+                if (s.userId === user.id || await hasSpacePermission(user, s.id as number, 'spaces')) {
+                    manageableSpaces.push(toAdminSpace(s));
+                }
             }
-            const allSpaces = await spaceModel.findAll();
-            const mySpaces = allSpaces.filter((s: any) => managedIds.includes(s.id as number));
-            res.json(mySpaces);
+            res.json(manageableSpaces);
         } catch (error: unknown) {
             console.error('Error fetching my spaces:', error);
             res.status(500).json({ message: 'Lỗi khi tải danh sách không gian.' });

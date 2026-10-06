@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AIConfig, Message, User, TrainingDataSource, KoiiTask, Conversation, Document, Tag, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
-import { ExpandIcon, PaperclipIcon, BrainwaveIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon, ThumbsUpIcon, ThumbsDownIcon, ShareIcon, ChevronDownIcon } from '../Icons';
+import { ExpandIcon, PaperclipIcon, KoiiIcon, TrashIcon, InfoIcon, BookOpenIcon, PlusIcon, SpinnerIcon, CopyIcon, SpeakerWaveIcon, DownloadIcon, ChatBubbleIcon, SettingsIcon, ConversationIcon, ThumbsUpIcon, ThumbsDownIcon, ShareIcon, ChevronDownIcon } from '../Icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { normalizePostgresArray } from '../../utils/arrayUtils';
@@ -132,6 +132,9 @@ const translations = {
         koiiStatusFailed: 'Thất bại',
         lastUpdate: 'Cập nhật lần cuối',
         trainingDataSources: 'Nguồn dữ liệu huấn luyện',
+        trainingFileFormatsNote: 'Chỉ hỗ trợ file: Word (.docx), Excel (.xlsx, .xls, .csv), PDF (.pdf văn bản), Text (.txt, .json, .md). Không hỗ trợ tệp ảnh hoặc âm thanh/video.',
+        trainingFileFormatError: 'Định dạng tệp "{name}" không được hỗ trợ để huấn luyện AI. Chỉ chấp nhận: .docx, .xlsx, .xls, .csv, .pdf, .txt, .json, .md',
+        trainingImageFormatError: 'Tệp ảnh "{name}" chưa thể huấn luyện trực tiếp vào vector. Vui lòng thêm ảnh vào Thư viện và dùng tính năng OCR để bóc tách chữ trước.',
         filterByStatus: 'Lọc trạng thái',
         statusAll: 'Tất cả',
         statusIndexed: 'Đã index',
@@ -316,6 +319,9 @@ const translations = {
         koiiStatusFailed: 'Failed',
         lastUpdate: 'Last Updated',
         trainingDataSources: 'Training Data Sources',
+        trainingFileFormatsNote: 'Supported files: Word (.docx), Excel (.xlsx, .xls, .csv), PDF (.pdf text), Text (.txt, .json, .md). Images, audio, and videos are not supported.',
+        trainingFileFormatError: 'File format "{name}" is not supported for AI training. Only allowed: .docx, .xlsx, .xls, .csv, .pdf, .txt, .json, .md',
+        trainingImageFormatError: 'Image file "{name}" cannot be used directly for vector training. Please add it to Library and use OCR to extract text first.',
         filterByStatus: 'Filter by status',
         statusAll: 'All',
         statusIndexed: 'Indexed',
@@ -457,6 +463,18 @@ const KoiiTaskStatusDisplay: React.FC<{ status: KoiiTask | null, language: 'vi' 
     );
 }
 
+export const ALLOWED_TRAINING_EXTENSIONS = ['.docx', '.xlsx', '.xls', '.csv', '.pdf', '.txt', '.json', '.md'];
+
+export const isAllowedTrainingFile = (fileNameOrUrl: string): boolean => {
+    const cleanName = fileNameOrUrl.split('?')[0].toLowerCase();
+    return ALLOWED_TRAINING_EXTENSIONS.some(ext => cleanName.endsWith(ext));
+};
+
+export const isImageTrainingFile = (fileNameOrUrl: string): boolean => {
+    const cleanName = fileNameOrUrl.split('?')[0].toLowerCase();
+    return /\.(png|jpe?g|webp|gif|bmp|svg|tiff?)$/i.test(cleanName);
+};
+
 // New Modal Component for Training Data
 const TrainingDataModal: React.FC<{
     isOpen: boolean;
@@ -488,12 +506,31 @@ const TrainingDataModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-background-panel rounded-lg shadow-xl w-full max-w-5xl flex flex-col h-[90vh]" onClick={(e) => e.stopPropagation()}>
-                <div className="p-4 border-b border-border-color flex-shrink-0 flex justify-between items-center">
-                    <h2 className="text-xl font-bold">{title}</h2>
+                <div className="p-4 border-b border-border-color flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold">{title}</h2>
+                        {type === 'file' && (
+                            <p className="text-xs text-text-light mt-0.5">
+                                ℹ️ {t.trainingFileFormatsNote}
+                            </p>
+                        )}
+                    </div>
                     {type === 'file' && onFileChange && (
-                        <div className="flex items-center space-x-2">
-                            <input type="file" ref={modalFileInputRef} onChange={onFileChange} className="hidden" />
-                            <button type="button" onClick={() => modalFileInputRef.current?.click()} disabled={isUploading || isFormDisabled} className="px-3 py-2 text-sm font-medium text-text-on-primary bg-primary rounded-md hover:bg-primary-hover disabled:opacity-50">
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                            <input
+                                type="file"
+                                ref={modalFileInputRef}
+                                onChange={onFileChange}
+                                className="hidden"
+                                multiple
+                                accept=".docx,.xlsx,.xls,.csv,.pdf,.txt,.json,.md"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => modalFileInputRef.current?.click()}
+                                disabled={isUploading || isFormDisabled}
+                                className="px-3 py-2 text-sm font-medium text-text-on-primary bg-primary rounded-md hover:bg-primary-hover disabled:opacity-50 flex items-center gap-1.5"
+                            >
                                 {isUploading ? t.uploading : t.attachFile}
                             </button>
                         </div>
@@ -1702,13 +1739,31 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || !selectedAi || isFormDisabled) return;
-        const files = Array.from(e.target.files);
-        if (files.length === 0) return;
+        const allFiles = Array.from(e.target.files);
+        if (allFiles.length === 0) return;
+
+        const validFiles: File[] = [];
+        for (const file of allFiles) {
+            if (!isAllowedTrainingFile(file.name)) {
+                if (isImageTrainingFile(file.name) || file.type.startsWith('image/')) {
+                    showToast(t.trainingImageFormatError.replace('{name}', file.name), 'warning');
+                } else {
+                    showToast(t.trainingFileFormatError.replace('{name}', file.name), 'error');
+                }
+            } else {
+                validFiles.push(file);
+            }
+        }
+
+        if (e.target) e.target.value = "";
+        if (fileInputRef.current) fileInputRef.current.value = "";
+
+        if (validFiles.length === 0) return;
+        const files = validFiles;
 
         // For new (unsaved) AI: stage all selected files
         if (typeof selectedAi.id === 'string' && selectedAi.id.startsWith('new-')) {
             setStagedFiles(prev => [...prev, ...files]);
-            if (fileInputRef.current) fileInputRef.current.value = "";
             return;
         }
 
@@ -2409,7 +2464,18 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex justify-between items-center mb-1"><label className="block text-sm font-medium text-text-main">{t.attachedFiles}</label><div className="flex items-center space-x-2"><button type="button" onClick={handleSummarizeAll} disabled={isFormDisabled || isSummarizingAll || filesNeedingSummaryCount === 0} className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-text-main bg-background-panel border border-border-color rounded-md shadow-sm hover:bg-background-light disabled:opacity-50 disabled:cursor-not-allowed" title={t.summarizeAllFiles}>{isSummarizingAll ? (<><div className="w-3 h-3 border-2 border-dashed rounded-full animate-spin border-primary"></div><span>{t.summarizingAll}</span></>) : (<><BrainwaveIcon className="w-4 h-4" /><span>{`${t.summarizeAllFiles} (${filesNeedingSummaryCount})`}</span></>)}</button><button onClick={() => setIsTrainingDataModalOpen(true)} title={t.expand} className="p-1 text-text-light hover:text-primary"><ExpandIcon className="w-4 h-4" /></button></div></div>
+                                        <div className="text-xs px-3 py-1.5 mb-2 rounded-md bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-1.5">
+                                            <span className="flex-shrink-0 font-bold">ℹ️</span>
+                                            <span>{t.trainingFileFormatsNote}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-medium text-text-main">{t.attachedFiles}</label>
+                                            <div className="flex items-center space-x-2">
+                                                <button onClick={() => setIsTrainingDataModalOpen(true)} title={t.expand} className="p-1 text-text-light hover:text-primary">
+                                                    <ExpandIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
                                         <div className="border border-border-color rounded-lg p-2 h-56 flex flex-col mt-1">
                                             <div className="flex-grow min-h-0 overflow-y-auto space-y-1 pr-1">
                                                 {stagedFiles.map((file, index) => (<div key={index} className="flex justify-between items-center bg-blue-50 border border-blue-200 px-2 py-1 rounded-md text-sm"><span className="text-blue-800 truncate" title={file.name}>{file.name}</span><div className='flex items-center'><span className="text-xs text-blue-600 mr-2">{t.pendingUpload}</span><button onClick={() => handleRemoveStagedFile(index)} className="text-blue-700 hover:text-accent-red-hover flex-shrink-0 text-lg leading-none">&times;</button></div></div>))}
@@ -2903,7 +2969,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                                     )}
                                 </div>
                             </div>
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center mt-6 pb-6">
                                 <div className="space-y-2">
                                     {canEdit && (
                                         <div>
@@ -3196,9 +3262,73 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
             <MediaPickerModal
                 isOpen={isTrainingPickerOpen}
                 onClose={() => setIsTrainingPickerOpen(false)}
+                multiple={true}
+                onSelectMultiple={async (urls) => {
+                    setIsTrainingPickerOpen(false);
+                    if (!selectedAi || isFormDisabled) return;
+                    if (typeof selectedAi.id === 'string' && selectedAi.id.startsWith('new-')) {
+                        showToast(language === 'vi' ? 'Lưu AI trước khi thêm file training' : 'Save AI first before adding training files', 'info');
+                        return;
+                    }
+                    if (typeof selectedAi.id !== 'number') return;
+
+                    const validUrls: string[] = [];
+                    for (const url of urls) {
+                        const fileName = url.split('/').pop()?.split('?')[0] || url;
+                        if (!isAllowedTrainingFile(url)) {
+                            if (isImageTrainingFile(url)) {
+                                showToast(t.trainingImageFormatError.replace('{name}', fileName), 'warning');
+                            } else {
+                                showToast(t.trainingFileFormatError.replace('{name}', fileName), 'error');
+                            }
+                        } else {
+                            validUrls.push(url);
+                        }
+                    }
+
+                    if (validUrls.length === 0) return;
+
+                    setIsUploading(true);
+                    let successCount = 0;
+                    try {
+                        for (const url of validUrls) {
+                            try {
+                                const formData = new FormData();
+                                formData.append('fileUrl', url);
+                                formData.append('type', 'file');
+                                const res = await apiService.createTrainingDataSourceForAI(selectedAi.id, formData);
+                                setTrainingData(prev => [res, ...prev]);
+                                successCount++;
+                            } catch (e) {
+                                console.error('Error adding training file:', url, e);
+                            }
+                        }
+                        if (successCount > 0) {
+                            showToast(
+                                language === 'vi' 
+                                    ? `Đã thêm ${successCount} file vào dữ liệu huấn luyện` 
+                                    : `Added ${successCount} file(s) to training data`,
+                                'success'
+                            );
+                        } else {
+                            showToast(t.uploadError, 'error');
+                        }
+                    } finally {
+                        setIsUploading(false);
+                    }
+                }}
                 onSelect={async (url) => {
                     setIsTrainingPickerOpen(false);
                     if (!selectedAi || isFormDisabled) return;
+                    const fileName = url.split('/').pop()?.split('?')[0] || url;
+                    if (!isAllowedTrainingFile(url)) {
+                        if (isImageTrainingFile(url)) {
+                            showToast(t.trainingImageFormatError.replace('{name}', fileName), 'warning');
+                        } else {
+                            showToast(t.trainingFileFormatError.replace('{name}', fileName), 'error');
+                        }
+                        return;
+                    }
                     // For new/unsaved AI: we can't upload until saved; show info
                     if (typeof selectedAi.id === 'string' && selectedAi.id.startsWith('new-')) {
                         showToast(language === 'vi' ? 'Lưu AI trước khi thêm file training' : 'Save AI first before adding training files', 'info');
@@ -3221,7 +3351,7 @@ Authorization: Bearer ${(user.apiToken || 'YOUR_API_TOKEN')}`}
                 }}
                 space={manageableSpaces.find(s => String(s.id) === String(selectedAi?.spaceId)) ?? null}
                 language={language}
-                defaultFileType="all"
+                defaultFileType="document"
             />
 
             <MediaPickerModal

@@ -1195,44 +1195,83 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
             fontFamily: 'var(--sf-font, inherit)',
         }}>
             {/* Header */}
-            <div className="sf-post-header" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 10 }}>
+            <div className="sf-post-header">
                 <div
                     onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
                     style={{ cursor: onUserClick ? 'pointer' : 'default', flexShrink: 0 }}
                 >
                     <Avatar name={post.userName} url={post.userAvatarUrl} size={40} />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div className="sf-post-header-info" style={{ flex: 1, minWidth: 0 }}>
                     <div
                         onClick={() => onUserClick && post.userId && onUserClick(post.userId, post.userName, post.userAvatarUrl)}
-                        style={{ fontWeight: 600, fontSize: 14, color: 'var(--sf-text)', cursor: onUserClick ? 'pointer' : 'default', display: 'inline-block' }}
+                        className="sf-post-author-name"
+                        style={{
+                            fontWeight: 600,
+                            fontSize: 14,
+                            color: 'var(--sf-text)',
+                            cursor: onUserClick ? 'pointer' : 'default',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: 'block',
+                            lineHeight: 1.3,
+                        }}
+                        title={post.userName}
                     >{post.userName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sf-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>{timeAgo(post.createdAt, language || 'vi')}</span>
+                    <div className="sf-post-meta" style={{
+                        fontSize: 11,
+                        color: 'var(--sf-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        flexWrap: 'wrap',
+                        rowGap: 2,
+                        marginTop: 2,
+                        lineHeight: 1.3,
+                    }}>
+                        <span className="sf-post-time" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {timeAgo(post.createdAt, language || 'vi')}
+                        </span>
                         {post.isPinned && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: '#8b4513', fontWeight: 700, fontSize: 10 }}>
+                            <span className="sf-post-pinned-badge" style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                color: '#8b4513',
+                                fontWeight: 700,
+                                fontSize: 10,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                background: 'rgba(139, 69, 19, 0.08)',
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                lineHeight: 1.2,
+                            }}>
                                 📌 {translations[language || 'vi'].pinned}
                             </span>
                         )}
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="sf-post-actions-right" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     {(!currentUser || currentUser.id !== post.userId) && (
                         <button
                             onClick={handleFollowToggle}
                             disabled={followLoading}
+                            className="sf-follow-btn"
                             style={{
                                 background: 'none',
                                 border: isFollowed ? '1px solid var(--sf-border)' : '1px solid currentColor',
                                 borderRadius: 14,
-                                padding: '3px 10px',
+                                padding: '2px 8px',
                                 fontSize: 11,
                                 cursor: followLoading ? 'default' : 'pointer',
                                 color: isFollowed ? 'var(--sf-muted)' : '#8b4513',
                                 fontWeight: 500,
                                 opacity: followLoading ? 0.7 : 1,
-                                whiteSpace: 'nowrap'
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
                             }}
                         >
                             {isFollowed ? 'Đang theo dõi' : 'Theo dõi'}
@@ -1243,7 +1282,8 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                         <div style={{ position: 'relative' }} ref={menuRef}>
                             <button
                                 onClick={() => setMenuOpen(v => !v)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', padding: '4px 8px', borderRadius: 6, fontSize: 20, lineHeight: 1 }}
+                                className="sf-post-menu-btn"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sf-muted)', padding: '4px 6px', borderRadius: 6, fontSize: 20, lineHeight: 1, flexShrink: 0 }}
                             >···</button>
                             {menuOpen && (
                                 <div style={{
@@ -1589,15 +1629,15 @@ function PostCard({ post, currentUser, spaceId, onDelete, onRepost, onUserClick,
                     padding: '8px 12px 10px',
                 }}>
                     {/* Original author */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, minWidth: 0 }}>
                         <div
                             onClick={() => onUserClick && post.quotedPost?.userId != null && onUserClick(post.quotedPost.userId as number, post.quotedPost.userName, post.quotedPost.userAvatarUrl)}
-                            style={{ cursor: onUserClick ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 8 }}
+                            style={{ cursor: onUserClick ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}
                         >
                             <Avatar name={post.quotedPost.userName} url={post.quotedPost.userAvatarUrl} size={22} />
-                            <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--sf-text)' }}>{post.quotedPost.userName}</span>
+                            <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--sf-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.quotedPost.userName}</span>
                         </div>
-                        <span style={{ fontSize: 11, color: 'var(--sf-muted)' }}>{timeAgo(post.quotedPost.createdAt, language || 'vi')}</span>
+                        <span style={{ fontSize: 11, color: 'var(--sf-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{timeAgo(post.quotedPost.createdAt, language || 'vi')}</span>
                     </div>
                     {/* Original content — rendered with same format as original post */}
                     <QuotedPostBody post={post.quotedPost} onImageClick={(i) => {
@@ -2919,6 +2959,45 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                     transform: scale(0.95);
                 }
 
+                /* ── Post Header Responsive Layout ── */
+                .sf-post-header {
+                    display: flex;
+                    align-items: center;
+                    padding: 12px 16px;
+                    gap: 10px;
+                }
+                .sf-feed-container {
+                    max-width: 680px;
+                    margin: 0 auto;
+                    padding: 0 12px;
+                }
+                @media (max-width: 640px) {
+                    .sf-feed-container {
+                        padding: 0 8px !important;
+                    }
+                    .sf-post-header {
+                        padding: 10px 12px !important;
+                        gap: 8px !important;
+                    }
+                    .sf-post-author-name {
+                        font-size: 13.5px !important;
+                    }
+                    .sf-post-meta {
+                        font-size: 10.5px !important;
+                        gap: 4px !important;
+                    }
+                    .sf-post-actions-right {
+                        gap: 4px !important;
+                    }
+                    .sf-follow-btn {
+                        padding: 2px 6px !important;
+                        font-size: 10.5px !important;
+                    }
+                    .sf-post-menu-btn {
+                        padding: 4px 4px !important;
+                    }
+                }
+
                 /* ── Mobile / Tablet responsive: image on top, comments below ── */
                 @media (max-width: 768px) {
                     .sf-lightbox-container {
@@ -2954,7 +3033,7 @@ export const SocialFeed: React.FC<{ spaceId: number; currentUser: User | null; f
                 }
             `}</style>
 
-            <div ref={feedContainerRef} style={{ maxWidth: 680, margin: '0 auto', padding: '0 12px' }}>
+            <div ref={feedContainerRef} className="sf-feed-container">
                 {/* #5 Pull to refresh indicator */}
                 {pullRefreshing && (
                     <div style={{ textAlign: 'center', padding: '12px 0' }}>

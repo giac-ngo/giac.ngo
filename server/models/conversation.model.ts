@@ -1,4 +1,4 @@
-﻿// server/models/conversation.model.ts
+// server/models/conversation.model.ts
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 
@@ -34,6 +34,14 @@ export interface PaginatedConversations {
 }
 
 export const conversationModel = {
+    async findById(id: number | string): Promise<Conversation | null> {
+        const res = await pool.query('SELECT * FROM conversations WHERE id = $1', [id]);
+        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+    },
+    async findByIdForUser(id: number | string, userId: number | string): Promise<Conversation | null> {
+        const res = await pool.query('SELECT * FROM conversations WHERE id = $1 AND user_id = $2', [id, userId]);
+        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+    },
     async findAllByUserId(userId: number | string): Promise<Conversation[]> {
         const res = await pool.query('SELECT * FROM conversations WHERE user_id = $1 ORDER BY start_time DESC', [userId]);
         return res.rows.map(mapRowToCamelCase);
@@ -103,7 +111,14 @@ export const conversationModel = {
         return mapRowToCamelCase(res.rows[0]);
     },
 
-    async update(id: number | string, messages: ConversationMessage[]): Promise<Conversation> {
+    async update(id: number | string, messages: ConversationMessage[], userId?: number | string): Promise<Conversation | null> {
+        if (userId !== undefined) {
+            const res = await pool.query(
+                'UPDATE conversations SET messages = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
+                [JSON.stringify(messages), id, userId]
+            );
+            return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+        }
         const res = await pool.query(
             'UPDATE conversations SET messages = $1 WHERE id = $2 RETURNING *',
             [JSON.stringify(messages), id]
@@ -111,15 +126,20 @@ export const conversationModel = {
         return mapRowToCamelCase(res.rows[0]);
     },
 
-    async delete(id: number | string): Promise<void> {
-        await pool.query('DELETE FROM conversations WHERE id = $1', [id]);
+    async delete(id: number | string, userId?: number | string): Promise<boolean> {
+        const res = userId === undefined
+            ? await pool.query('DELETE FROM conversations WHERE id = $1', [id])
+            : await pool.query('DELETE FROM conversations WHERE id = $1 AND user_id = $2', [id, userId]);
+        return (res.rowCount || 0) > 0;
     },
     
-    async rename(id: number | string, newTitle: string): Promise<Conversation> {
+    async rename(id: number | string, newTitle: string, userId?: number | string): Promise<Conversation | null> {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const convoRes = await client.query('SELECT messages FROM conversations WHERE id = $1', [id]);
+            const convoRes = userId === undefined
+                ? await client.query('SELECT messages FROM conversations WHERE id = $1 FOR UPDATE', [id])
+                : await client.query('SELECT messages FROM conversations WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
             if (convoRes.rows.length === 0) throw new Error('Conversation not found.');
             
             const messages = convoRes.rows[0].messages;
@@ -139,12 +159,11 @@ export const conversationModel = {
         }
     },
     
-    async updateTrainingStatus(id: number | string, isTrained: boolean): Promise<Conversation> {
-         const res = await pool.query(
-            'UPDATE conversations SET is_trained = $1 WHERE id = $2 RETURNING *',
-            [isTrained, id]
-        );
-        return mapRowToCamelCase(res.rows[0]);
+    async updateTrainingStatus(id: number | string, isTrained: boolean, userId?: number | string): Promise<Conversation | null> {
+         const res = userId === undefined
+            ? await pool.query('UPDATE conversations SET is_trained = $1 WHERE id = $2 RETURNING *', [isTrained, id])
+            : await pool.query('UPDATE conversations SET is_trained = $1 WHERE id = $2 AND user_id = $3 RETURNING *', [isTrained, id, userId]);
+        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
     },
 
     async findTestMessagesByAiId(aiId: number | string, userId: number | string, page: number, limit: number): Promise<ConversationMessage[]> {

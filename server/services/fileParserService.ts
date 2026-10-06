@@ -24,50 +24,66 @@ export const invalidateTrainingTextCache = (aiConfigId: number) => {
     trainingTextCache.delete(aiConfigId);
 };
 
-async function findFileInUploads(fileName: string, baseDir?: string): Promise<string | null> {
-    const targetDir = baseDir || path.join(projectRoot, 'uploads');
-    try {
-        const entries = await fs.readdir(targetDir, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = path.join(targetDir, entry.name);
-            if (entry.isDirectory()) {
-                const found = await findFileInUploads(fileName, fullPath);
-                if (found) return found;
-            } else if (entry.isFile() && entry.name === fileName) {
-                return fullPath;
-            }
-        }
-    } catch (_) { }
-    return null;
+const uploadsDir = path.resolve(projectRoot, 'uploads');
+
+export class FileAccessDeniedError extends Error {
+    statusCode: number;
+    constructor(message: string, statusCode = 403) {
+        super(message);
+        this.name = 'FileAccessDeniedError';
+        this.statusCode = statusCode;
+    }
 }
 
 export const fileParserService = {
-    async extractText(fileUrl: string, originalFileName: string): Promise<string> {
-        // fileUrl is typically /uploads/filename.pdf
-        // Construct absolute path based on project root
-        // Remove leading slash if present to avoid path.join issues
-        const cleanUrl = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl;
-        const filePath = path.join(projectRoot, cleanUrl);
-        const extension = path.extname(originalFileName).toLowerCase();
+    async extractText(fileUrl: string, originalFileName: string, userContext?: { userId?: number | null; isAdmin?: boolean }): Promise<string> {
+        if (!fileUrl || typeof fileUrl !== 'string') {
+            throw new Error('Invalid file URL.');
+        }
 
-        try {
-            let dataBuffer: Buffer;
-            try {
-                dataBuffer = await fs.readFile(filePath);
-            } catch (readErr: any) {
-                if (readErr.code === 'ENOENT') {
-                    const targetFileName = path.basename(cleanUrl);
-                    const fallbackPath = await findFileInUploads(targetFileName);
-                    if (fallbackPath) {
-                        logger.info(`[FileParser] File ${cleanUrl} not found at exact path, located fallback at ${fallbackPath}`);
-                        dataBuffer = await fs.readFile(fallbackPath);
-                    } else {
-                        throw readErr;
-                    }
-                } else {
-                    throw readErr;
+        // Prevent null byte injections or obvious path traversal
+        if (fileUrl.includes('\0') || fileUrl.includes('..')) {
+            logger.warn(`[FileParser] Path traversal attempt detected: ${fileUrl}`);
+            throw new FileAccessDeniedError('Access denied: Invalid file path.', 403);
+        }
+
+        // Strip any protocol and domain if present
+        let relativePath = fileUrl.replace(/^https?:\/\/[^\/]+/i, '');
+        relativePath = relativePath.replace(/^[\/\\]+/, '');
+        if (relativePath.toLowerCase().startsWith('uploads/') || relativePath.toLowerCase().startsWith('uploads\\')) {
+            relativePath = relativePath.slice(8);
+        }
+
+        // Resolve strictly within uploads directory
+        const filePath = path.resolve(uploadsDir, relativePath);
+        if (!filePath.startsWith(uploadsDir + path.sep) && filePath !== uploadsDir) {
+            logger.warn(`[FileParser] Path traversal attempt blocked: ${fileUrl} -> ${filePath}`);
+            throw new FileAccessDeniedError('Access denied: File must reside within the uploads directory.', 403);
+        }
+
+        // Enforce user ownership verification when userContext is passed
+        if (userContext !== undefined) {
+            if (!userContext.userId) {
+                logger.warn(`[FileParser] Unauthenticated attempt to parse file: ${fileUrl}`);
+                throw new FileAccessDeniedError('Access denied: Authentication required to parse files.', 401);
+            }
+            if (!userContext.isAdmin) {
+                const relativeToUploads = path.relative(uploadsDir, filePath);
+                const segments = relativeToUploads.split(/[\\/]/);
+                const isUserOwned = segments.includes(`user-${userContext.userId}`);
+                if (!isUserOwned) {
+                    logger.warn(`[FileParser] User ${userContext.userId} attempted unauthorized access to file: ${filePath}`);
+                    throw new FileAccessDeniedError('Access denied: You do not have permission to access this file.', 403);
                 }
             }
+        }
+
+        const extension = path.extname(originalFileName || fileUrl).toLowerCase();
+
+        try {
+            // Strictly read file from its exact resolved path.
+            // NEVER search other folders across users or spaces.
+            const dataBuffer = await fs.readFile(filePath);
 
             if (extension === '.pdf') {
                 const data = await pdf(dataBuffer);

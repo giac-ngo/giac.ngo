@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import sharp from 'sharp';
+import { canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,7 @@ const storage = multer.memoryStorage(); // Use memory storage to process with sh
 
 export const upload = multer({
     storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB max file size
+    limits: { fileSize: 10 * 1024 * 1024, files: 10, parts: 20 }
 });
 
 interface MediaFile {
@@ -73,9 +74,9 @@ export const mediaController = {
             try {
                 const { pool } = await import('../db.js');
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [parseInt(safeSpaceId, 10)]);
-                if (spaceRes.rows.length > 0 && spaceRes.rows[0].user_id === userId) {
-                    isSpaceOwner = true;
-                }
+                const hasMediaPermission = await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, safeSpaceId, permission))).then(results => results.some(Boolean));
+                isSpaceOwner = !!spaceRes.rows.length && (String(spaceRes.rows[0].user_id) === String(userId)
+                    || (!!hasMediaPermission && await canAccessSpace(requestingUser, safeSpaceId)));
             } catch (e: unknown) {
                 logger.error('mediaController: failed to check space ownership', (e instanceof Error ? e.message : String(e)));
             }
@@ -213,6 +214,16 @@ export const mediaController = {
         // - userScoped=true in body → user personal folder (social, avatar)
         // - Otherwise → space-level (admin uploads)
         const userScoped = req.body?.userScoped === 'true' || req.body?.userScoped === true;
+        if (!/^\d+$/.test(String(spaceId)) && !(isSuperAdmin && ['global', 'system'].includes(String(spaceId)))) {
+            return res.status(400).json({ message: 'Invalid space ID.' });
+        }
+        if (!userId) return res.status(401).json({ message: 'Unauthorized.' });
+        if (['global', 'system'].includes(String(spaceId)) && !isSuperAdmin) return res.status(403).json({ message: 'Access denied.' });
+        if (!isSuperAdmin && !await canAccessSpace(requestingUser, String(spaceId))) return res.status(403).json({ message: 'Access denied.' });
+        const hasSpaceMediaPermission = isSuperAdmin || (await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, String(spaceId), permission)))).some(Boolean);
+        if (!userScoped && !hasSpaceMediaPermission) {
+            return res.status(403).json({ message: 'Space-level upload permission is required.' });
+        }
         const targetUserId = userScoped ? userId : null;
 
         const dir = getSpaceUploadDir(String(spaceId), targetUserId);
@@ -228,6 +239,16 @@ export const mediaController = {
 
                 let finalBuffer = file.buffer;
                 const ext = path.extname(safeOriginalName).toLowerCase();
+
+                const allowedMimeByExtension: Record<string, string[]> = {
+                    '.jpg': ['image/jpeg'], '.jpeg': ['image/jpeg'], '.png': ['image/png'], '.webp': ['image/webp'], '.gif': ['image/gif'], '.avif': ['image/avif'],
+                    '.mp4': ['video/mp4'], '.webm': ['video/webm'], '.mov': ['video/quicktime'],
+                    '.mp3': ['audio/mpeg', 'audio/mp3'], '.wav': ['audio/wav', 'audio/x-wav'], '.ogg': ['audio/ogg'], '.m4a': ['audio/mp4', 'audio/x-m4a'], '.aac': ['audio/aac'], '.flac': ['audio/flac', 'audio/x-flac'],
+                    '.pdf': ['application/pdf'], '.doc': ['application/msword'], '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+                };
+                if (!allowedMimeByExtension[ext]?.includes(file.mimetype.toLowerCase())) {
+                    return res.status(400).json({ message: `Unsupported file type: ${ext || 'unknown'}` });
+                }
 
                 // Process Images with Sharp
                 if (file.mimetype.startsWith('image/')) {
@@ -279,9 +300,9 @@ export const mediaController = {
             try {
                 const { pool } = await import('../db.js');
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [parseInt(safeSpaceId, 10)]);
-                if (spaceRes.rows.length > 0 && spaceRes.rows[0].user_id === userId) {
-                    isSpaceOwner = true;
-                }
+                const hasMediaPermission = await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, safeSpaceId, permission))).then(results => results.some(Boolean));
+                isSpaceOwner = !!spaceRes.rows.length && (String(spaceRes.rows[0].user_id) === String(userId)
+                    || (!!hasMediaPermission && await canAccessSpace(requestingUser, safeSpaceId)));
             } catch (e: unknown) {
                 logger.error('mediaController deleteMedia: space ownership check failed', (e instanceof Error ? e.message : String(e)));
             }

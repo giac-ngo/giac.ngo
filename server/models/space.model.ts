@@ -200,22 +200,44 @@ export const spaceModel = {
             guestDailyLimit: 'guest_daily_limit',
         };
 
+        const currentSpace = await this.findById(id);
+
         for (const [key, value] of Object.entries(data)) {
             const columnName = keyMap[key];
             if (columnName) {
-                fields.push(`${columnName} = $${index++}`);
-                if (key === 'apiKeys' && value) {
+                // If a masked credential is sent back from the frontend, NEVER overwrite the real key in DB
+                if (['payosApiKey', 'payosChecksumKey', 'smtpPass'].includes(key) && typeof value === 'string' && value.includes('••')) {
+                    continue;
+                }
+
+                if (key === 'apiKeys' && value && typeof value === 'object') {
+                    const existingApiKeys = currentSpace?.apiKeys || {};
                     const encryptedKeys: Record<string, string> = {};
                     const incomingApiKeys = value as Record<string, string>;
+
+                    // Retain existing decrypted keys if not updated or if incoming is masked
+                    for (const k in existingApiKeys) {
+                        if (existingApiKeys[k]) {
+                            encryptedKeys[k] = cryptoService.encrypt(existingApiKeys[k]);
+                        }
+                    }
+
                     for (const k in incomingApiKeys) {
-                        if (incomingApiKeys[k]) {
-                            encryptedKeys[k] = cryptoService.encrypt(incomingApiKeys[k]);
+                        const rawVal = incomingApiKeys[k];
+                        if (typeof rawVal === 'string' && rawVal.includes('••')) {
+                            // Masked key sent back by UI! Preserve current key in DB
+                            continue;
+                        }
+                        if (rawVal) {
+                            encryptedKeys[k] = cryptoService.encrypt(rawVal);
                         } else {
                             encryptedKeys[k] = '';
                         }
                     }
+                    fields.push(`${columnName} = $${index++}`);
                     values.push(encryptedKeys);
                 } else {
+                    fields.push(`${columnName} = $${index++}`);
                     values.push(value);
                 }
             }
@@ -284,11 +306,8 @@ export const spaceModel = {
         try {
             await client.query('BEGIN');
 
-            await client.query(
-                'UPDATE spaces SET merits = merits + $1 WHERE id = $2',
-                [amount, spaceId]
-            );
-
+            // Do NOT increment spaces.merits upon unverified client/guest request.
+            // Record transaction as pending verification for space owner/admin review.
             await client.query(
                 `INSERT INTO transactions (user_id, merits, type, destination_space_id, details)
                  VALUES ($1, $2, $3, $4, $5)`,
@@ -297,7 +316,13 @@ export const spaceModel = {
                     amount,
                     'qr_offering',
                     spaceId,
-                    JSON.stringify({ note: note || null, billImageUrl: billImageUrl || null, isGuest: !userId })
+                    JSON.stringify({
+                        declaredAmount: amount,
+                        note: note || null,
+                        billImageUrl: billImageUrl || null,
+                        isGuest: !userId,
+                        status: 'pending_verification'
+                    })
                 ]
             );
 

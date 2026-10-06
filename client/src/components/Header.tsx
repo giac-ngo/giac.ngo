@@ -157,6 +157,13 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
         }
     }
 
+    const handleLanguageChange = (lang: 'vi' | 'en') => {
+        try {
+            localStorage.setItem('language', lang);
+        } catch (e) {}
+        setLanguage(lang);
+    };
+
     return (
         <header className="main-header">
             <div className="container">
@@ -210,8 +217,8 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
                     <div className="header-actions">
                         <div className="user-menu-language-switcher">
                             <div className="user-menu-language-switcher-pill">
-                                <button onClick={() => setLanguage('vi')} className={language === 'vi' ? 'active' : ''}>VIE</button>
-                                <button onClick={() => setLanguage('en')} className={language === 'en' ? 'active' : ''}>ENG</button>
+                                <button onClick={() => handleLanguageChange('vi')} className={language === 'vi' ? 'active' : ''}>VIE</button>
+                                <button onClick={() => handleLanguageChange('en')} className={language === 'en' ? 'active' : ''}>ENG</button>
                             </div>
                         </div>
                         {user ? (
@@ -272,8 +279,8 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
                     <div className="flex items-center gap-2">
                         <div className="user-menu-language-switcher">
                             <div className="user-menu-language-switcher-pill">
-                                <button onClick={() => setLanguage('vi')} className={language === 'vi' ? 'active' : ''}>VIE</button>
-                                <button onClick={() => setLanguage('en')} className={language === 'en' ? 'active' : ''}>ENG</button>
+                                <button onClick={() => handleLanguageChange('vi')} className={language === 'vi' ? 'active' : ''}>VIE</button>
+                                <button onClick={() => handleLanguageChange('en')} className={language === 'en' ? 'active' : ''}>ENG</button>
                             </div>
                         </div>
                         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2">

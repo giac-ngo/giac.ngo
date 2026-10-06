@@ -1,4 +1,4 @@
-﻿// server/services/ocrService.ts
+// server/services/ocrService.ts
 import { logger } from '../utils/logger.js';
 import { fileParserService } from './fileParserService.js';
 import { geminiService } from './geminiService.js';
@@ -22,12 +22,16 @@ export const ocrService = {
             }
             textContent = (await geminiService.extractTextFromImage(file.buffer, mimeType, apiKey, model)) || '';
         } else {
-            // For other files (PDF, DOCX), write to a temp file to use fileParserService
-            const tempFilePath = path.join(os.tmpdir(), `${Date.now()}-${file.originalname}`);
+            // For other files (PDF, DOCX, TXT), write to a temp file to use fileParserService
+            const tempDir = os.tmpdir();
+            await fs.mkdir(tempDir, { recursive: true });
+            const tempFilePath = path.join(tempDir, `${Date.now()}-${file.originalname}`);
             try {
                 await fs.writeFile(tempFilePath, file.buffer);
-                // fileParserService expects a relative path from the server root, but it can also handle absolute paths.
                 textContent = await fileParserService.extractText(tempFilePath, file.originalname);
+            } catch (err: any) {
+                logger.error(`Error parsing temp file ${file.originalname}:`, err);
+                throw new Error("Không đọc được tệp, vui lòng thử lại.");
             } finally {
                 // Clean up the temporary file
                 try {

@@ -211,7 +211,7 @@ export const aiConfigModel = {
         return res.rows[0] ? res.rows[0].requests_remaining : null;
     },
 
-    async decrementUserRequestCount(userId: number | string, aiConfigId: number | string): Promise<number> {
+    async decrementUserRequestCount(userId: number | string, aiConfigId: number | string): Promise<{ success: boolean; remaining: number }> {
         const res = await pool.query(
             `UPDATE user_owned_ais 
              SET requests_remaining = requests_remaining - 1 
@@ -219,6 +219,9 @@ export const aiConfigModel = {
              RETURNING requests_remaining`,
             [userId, aiConfigId]
         );
-        return res.rows.length > 0 ? res.rows[0].requests_remaining : 0;
+        return {
+            success: res.rows.length > 0,
+            remaining: res.rows.length > 0 ? res.rows[0].requests_remaining : 0
+        };
     }
 };

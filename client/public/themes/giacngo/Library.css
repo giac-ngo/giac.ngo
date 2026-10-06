@@ -27,9 +27,26 @@ html[data-theme="giacngo"] .doc-card {
     display: flex;
     flex-direction: column;
 }
-html[data-theme="giacngo"] .doc-card:hover { transform: translateY(-4px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); border-color: var(--color-primary); }
-html[data-theme="giacngo"] .doc-card-thumb { width: 100%; aspect-ratio: 4 / 3; background-color: var(--color-background-light); display: flex; align-items: center; justify-content: center; color: var(--color-text-light); }
-html[data-theme="giacngo"] .doc-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+html[data-theme="giacngo"] .doc-card-thumb { 
+    width: 100%; 
+    aspect-ratio: 1 / 1; 
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    background-color: var(--color-background-light); 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: var(--color-text-light); 
+}
+html[data-theme="giacngo"] .doc-card-thumb img { 
+    position: absolute;
+    inset: 0;
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+    object-position: center;
+}
 html[data-theme="giacngo"] .doc-card-thumb svg { width: 3rem; height: 3rem; }
 html[data-theme="giacngo"] .doc-card-content { 
     padding: 1rem; 
@@ -217,7 +234,7 @@ html[data-theme="giacngo"] .library-topic-list button.active {
 
 
 /* Skeleton Styles */
-html[data-theme="giacngo"] .skeleton-doc-thumb { width: 100%; aspect-ratio: 4 / 3; }
+html[data-theme="giacngo"] .skeleton-doc-thumb { width: 100%; aspect-ratio: 1 / 1; flex-shrink: 0; }
 html[data-theme="giacngo"] .doc-card.skeleton-card { border-color: transparent; box-shadow: none; }
 html[data-theme="giacngo"] .doc-card.skeleton-card .doc-card-content { display: flex; flex-direction: column; gap: 0.5rem; }
 html[data-theme="giacngo"] .doc-card.skeleton-card .skeleton-title { margin-bottom: 0; }

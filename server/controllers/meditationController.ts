@@ -1,7 +1,79 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { meditationModel } from '../models/meditation.model.js';
 import { isAdmin, getUserManagedSpaceIds } from '../middleware/authMiddleware.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..', '..');
+const uploadsDir = path.join(projectRoot, 'uploads');
+
+/**
+ * Validates whether an audio file exists on disk.
+ * If the path in the DB is outdated or broken (e.g. legacy subfolder /meditation/),
+ * it dynamically heals the URL by checking sibling folders or selecting the best
+ * matching audio file for the space.
+ */
+function resolveValidAudioUrl(spaceId: string | number | undefined, url?: string | null, isEndAudio = false): string | null {
+    if (!url) return null;
+    const trimmed = String(url).trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+
+    // 1. Direct path check
+    const cleanRel = trimmed.replace(/^\/uploads\//, '').replace(/^\//, '');
+    const directPath = path.join(uploadsDir, cleanRel);
+    if (fs.existsSync(directPath)) return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+    // 2. Try removing legacy subdirectories like /meditation/
+    const noMeditationRel = cleanRel.replace(/meditation\//g, '');
+    if (fs.existsSync(path.join(uploadsDir, noMeditationRel))) {
+        return `/uploads/${noMeditationRel}`;
+    }
+
+    // 3. Scan the space's uploads folder for available audio files
+    if (spaceId) {
+        const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const spaceDir = path.join(uploadsDir, `space-${safeSpaceId}`);
+        if (fs.existsSync(spaceDir)) {
+            try {
+                const files = fs.readdirSync(spaceDir);
+                const audioFiles = files.filter(f => /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f));
+                const candidates = audioFiles.filter(f => isEndAudio ? /end/i.test(f) : !/end/i.test(f));
+                if (candidates.length > 0) {
+                    // Sort descending by size to get the full audio track (for main audio)
+                    candidates.sort((a, b) => {
+                        try {
+                            return fs.statSync(path.join(spaceDir, b)).size - fs.statSync(path.join(spaceDir, a)).size;
+                        } catch {
+                            return 0;
+                        }
+                    });
+                    return `/uploads/space-${safeSpaceId}/${candidates[0]}`;
+                }
+            } catch (e) {
+                logger.warn('Error scanning space audio directory:', e);
+            }
+        }
+    }
+
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function sanitizeSessionUrls<T extends Record<string, any>>(session: T): T {
+    if (!session) return session;
+    const spaceId = session.spaceId;
+    return {
+        ...session,
+        audioUrl: resolveValidAudioUrl(spaceId, session.audioUrl, false),
+        audioUrlEn: resolveValidAudioUrl(spaceId, session.audioUrlEn, false),
+        endAudioUrl: resolveValidAudioUrl(spaceId, session.endAudioUrl, true),
+        endAudioUrlEn: resolveValidAudioUrl(spaceId, session.endAudioUrlEn, true)
+    };
+}
 
 // Type for multer multi-field upload (req.files as a named-field map)
 type UploadedFiles = Record<string, Express.Multer.File[]>;
@@ -29,7 +101,7 @@ export const meditationController = {
                 spaceIds = await getUserManagedSpaceIds(req.user?.id);
             }
             const sessions = await meditationModel.findAll(spaceIds);
-            res.json(sessions);
+            res.json(sessions.map(sanitizeSessionUrls));
         } catch (error: unknown) {
             logger.error('Error fetching meditations:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -40,7 +112,7 @@ export const meditationController = {
         try {
             const { spaceId } = req.params;
             const session = await meditationModel.findBySpaceId(String(spaceId));
-            res.json(session || null);
+            res.json(session ? sanitizeSessionUrls(session) : null);
         } catch (error: unknown) {
             logger.error('Error fetching meditation:', error);
             res.status(500).json({ error: 'Internal server error' });

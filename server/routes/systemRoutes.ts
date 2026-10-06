@@ -4,21 +4,33 @@ import { logger } from '../utils/logger.js';
 import { systemController, upload } from '../controllers/systemController.js';
 import { documentController } from '../controllers/documentController.js';
 import { spacePageController } from '../controllers/spacePageController.js';
-import { checkPermission, isAuthenticated } from '../middleware/authMiddleware.js';
+import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
 import weaviateService from '../services/weaviateService.js';
 
 const router = Router();
 
-router.get('/system-config', systemController.getSystemConfig);
-router.get('/config', systemController.getSystemConfig);         // alias: frontend calls /api/system/config
-router.put('/system-config', checkPermission('settings'), systemController.updateSystemConfig);
-router.put('/config', checkPermission('settings'), systemController.updateSystemConfig); // alias
+router.get('/system-config', optionalAuth, systemController.getSystemConfig);
+router.get('/config', optionalAuth, systemController.getSystemConfig);         // alias: frontend calls /api/system/config
+router.get('/admin-config', isAuthenticated, systemController.getAdminConfig);
+router.put('/system-config', isAuthenticated, systemController.updateSystemConfig);
+router.put('/config', isAuthenticated, systemController.updateSystemConfig); // alias
 router.post('/upload', isAuthenticated, upload.single('file'), systemController.uploadFiles);
 router.post('/upload-multiple', isAuthenticated, upload.single('file'), systemController.uploadFiles); // alias
 router.get('/models/:provider', isAuthenticated, systemController.getAvailableModels);
 
 // Public stats endpoint - no auth required, safe aggregated data only
 router.get('/public/stats', systemController.getPublicStats);
+
+// Public USD/VND exchange rate endpoint
+router.get('/exchange-rate', async (_req: Request, res: Response) => {
+    try {
+        const { getUsdVndRate } = await import('../utils/exchangeRate.js');
+        const rate = await getUsdVndRate();
+        res.json({ rate, base: 'USD', target: 'VND', success: true });
+    } catch {
+        res.json({ rate: 25000, base: 'USD', target: 'VND', fallback: true });
+    }
+});
 
 // Dashboard (requires 'dashboard' permission)
 router.get('/dashboard/stats', checkPermission('dashboard'), systemController.getDashboardStats);

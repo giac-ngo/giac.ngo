@@ -24,8 +24,8 @@ async function getPagesBySpace(spaceId) {
 }
 
 // @ts-ignore
-async function getPageById(pageId) {
-    const res = await pool.query('SELECT * FROM space_pages WHERE id = $1', [pageId]);
+async function getPageById(pageId, spaceId) {
+    const res = await pool.query('SELECT * FROM space_pages WHERE id = $1 AND space_id = $2', [pageId, spaceId]);
     return mapRowToCamelCase(res.rows[0]);
 }
 
@@ -230,9 +230,9 @@ document.querySelector('.gc-contact-form').addEventListener('submit', async (e) 
                 <p class="gn-donate-title">Gieo Duyên</p>
                 <p class="gn-donate-sub">Planting the Seed</p>
                 <img src="/themes/giacngo/nhang.png" style="height: 72px; margin-bottom: 20px;" alt="nhang"/>
-                <p class="gn-donate-price">$2</p>
-                <p class="gn-donate-detail">50 yêu cầu AI chat</p>
-                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Gieo Duyên', amount: 2}, '*')">Cúng dường ngay</button>
+                <p class="gn-donate-price">50.000đ</p>
+                <p class="gn-donate-detail">50 yêu cầu AI chat (~$2)</p>
+                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Gieo Duyên', amount: 50000}, '*')">Cúng dường ngay</button>
             </div>
             
             <div class="gn-donate-card featured">
@@ -240,9 +240,9 @@ document.querySelector('.gc-contact-form').addEventListener('submit', async (e) 
                 <p class="gn-donate-title">Phật Sự</p>
                 <p class="gn-donate-sub">The Work of Awakening</p>
                 <img src="/themes/giacngo/sach.png" style="height: 72px; margin-bottom: 20px; filter: brightness(1.2);" alt="sách"/>
-                <p class="gn-donate-price">$8</p>
-                <p class="gn-donate-detail" style="color: rgba(255,255,255,0.6)">250 + tặng 50 yêu cầu</p>
-                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Phật Sự', amount: 8}, '*')">Cúng dường ngay</button>
+                <p class="gn-donate-price">200.000đ</p>
+                <p class="gn-donate-detail" style="color: rgba(255,255,255,0.8)">250 + tặng 50 yêu cầu (~$8)</p>
+                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Phật Sự', amount: 200000}, '*')">Cúng dường ngay</button>
             </div>
 
             <div class="gn-donate-card">
@@ -250,8 +250,8 @@ document.querySelector('.gc-contact-form').addEventListener('submit', async (e) 
                 <p class="gn-donate-sub">Custom Amount</p>
                 <img src="/themes/giacngo/hoasen.png" style="height: 72px; margin-bottom: 20px;" alt="hoa sen"/>
                 <p class="gn-donate-price">Tuỳ Tâm</p>
-                <p class="gn-donate-detail">25 yêu cầu mỗi $1</p>
-                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Từ Bi Hạnh', amount: 5}, '*')">Cúng dường ngay</button>
+                <p class="gn-donate-detail">25 yêu cầu mỗi 25.000đ (~$1)</p>
+                <button class="gn-btn" onclick="window.parent.postMessage({type: 'OPEN_DONATION_MODAL', title: 'Từ Bi Hạnh', amount: 50000}, '*')">Cúng dường ngay</button>
             </div>
         </div>
         `;
@@ -280,6 +280,12 @@ async function buildHtmlPage(page, space, assets) {
     // Process shortcodes
     html = await renderShortcodes(html, space);
 
+    // Normalize legacy hardcoded USD prices if present in published page
+    html = html.replace(/<p class="npc-price" id="plan1-price">\s*\$2\s*<\/p>/g, '<p class="npc-price" id="plan1-price">50.000đ</p>');
+    html = html.replace(/<p class="npc-price-hint" id="plan1-hint">\s*50 câu hỏi\s*<\/p>/g, '<p class="npc-price-hint" id="plan1-hint">50 câu hỏi (~$2)</p>');
+    html = html.replace(/<p class="npc-price featured" id="plan2-price">\s*\$8\s*<\/p>/g, '<p class="npc-price featured" id="plan2-price">200.000đ</p>');
+    html = html.replace(/<p class="npc-price-hint featured" id="plan2-hint">\s*250 câu hỏi \(tặng 50 câu\)\s*<\/p>/g, '<p class="npc-price-hint featured" id="plan2-hint">250 câu hỏi (tặng 50 câu) (~$8)</p>');
+
     // @ts-ignore
     const cssLinks = cssAssets.map(a => `<link rel="stylesheet" href="${a.url}">`).join('\n    ');
     // @ts-ignore
@@ -291,6 +297,143 @@ async function buildHtmlPage(page, space, assets) {
     // Build absolute og:image URL
     const ogImageUrl = ogImage.startsWith('http') ? ogImage : `https://${space.customDomain || 'giac.ngo'}${ogImage}`;
     const canonicalUrl = space.customDomain ? `https://${space.customDomain}/` : `https://giac.ngo/`;
+
+    const langBridgeScript = `<script>
+(function() {
+    function getStoredLang() {
+        try {
+            return localStorage.getItem('language') || 'vi';
+        } catch (e) {
+            return 'vi';
+        }
+    }
+
+    function persistLang(lang) {
+        if (!lang) return;
+        try {
+            localStorage.setItem('language', lang);
+        } catch (e) {}
+        try {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'SET_LANGUAGE', language: lang, lang: lang }, '*');
+            }
+        } catch (e) {}
+    }
+
+    function hookLanguage() {
+        if (typeof window.setLang === 'function' && !window.setLang._persisted) {
+            var rawSetLang = window.setLang;
+            var wrapped = function(lang) {
+                persistLang(lang);
+                return rawSetLang(lang);
+            };
+            wrapped._persisted = true;
+            window.setLang = wrapped;
+
+            // Apply currently stored language
+            var saved = getStoredLang();
+            if (saved && (saved === 'en' || saved === 'vi')) {
+                rawSetLang(saved);
+            }
+        }
+    }
+
+    hookLanguage();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hookLanguage);
+    }
+    window.addEventListener('load', hookLanguage);
+
+    var count = 0;
+    var timer = setInterval(function() {
+        count++;
+        if (typeof window.setLang === 'function') {
+            if (!window.setLang._persisted) {
+                hookLanguage();
+            }
+        }
+        if (count > 50) clearInterval(timer);
+    }, 100);
+
+    // Re-apply language after async agents have loaded
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            var saved = getStoredLang();
+            if (saved && typeof window.setLang === 'function') {
+                window.setLang(saved);
+            }
+        }, 400);
+    });
+
+    window.addEventListener('message', function(ev) {
+        if (ev.data && (ev.data.type === 'SYNC_LANGUAGE' || ev.data.type === 'SET_LANGUAGE' || ev.data.type === 'SET_LANG')) {
+            var lang = ev.data.language || ev.data.lang;
+            if (lang && (lang === 'en' || lang === 'vi')) {
+                persistLang(lang);
+                if (typeof window.setLang === 'function') {
+                    window.setLang(lang);
+                }
+            }
+        }
+    });
+})();
+</script>`;
+
+    const donationBridgeScript = `<script>
+(function() {
+    function triggerDonation(planTitle, amount) {
+        var amt = 50000;
+        var title = planTitle || 'Cúng dường';
+        if (amount === 2 || amount === 50000 || (title && title.indexOf('Gieo Duyên') !== -1)) {
+            amt = 50000;
+            title = 'Gieo Duyên';
+        } else if (amount === 8 || amount === 200000 || (title && title.indexOf('Phật Sự') !== -1)) {
+            amt = 200000;
+            title = 'Phật Sự';
+        } else if (amount) {
+            amt = Number(amount);
+        }
+
+        // Post message to parent React App so MeritPaymentModal opens directly on the current page
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'OPEN_DONATION_MODAL',
+                title: title,
+                amount: amt
+            }, '*');
+        } else {
+            var spaceSlug = (typeof SPACE_SLUG !== 'undefined' && SPACE_SLUG) ? SPACE_SLUG : 'giac-ngo';
+            window.location.href = '/' + spaceSlug + '/chat?donation=true&amount=' + amt + '&title=' + encodeURIComponent(title);
+        }
+    }
+
+    // Override global openDonation so any inline onclick="openDonation(...)" triggers the unified modal
+    window.openDonation = function(planTitle, amountUsd) {
+        triggerDonation(planTitle, amountUsd);
+    };
+
+    function attachDonationInterceptors() {
+        var buttons = document.querySelectorAll('.npc-btn, .donate-btn, [onclick*="openDonation"]');
+        buttons.forEach(function(btn, idx) {
+            if (btn._donationHooked) return;
+            btn._donationHooked = true;
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (idx === 0) triggerDonation('Gieo Duyên', 50000);
+                else if (idx === 1) triggerDonation('Phật Sự', 200000);
+                else triggerDonation('Từ Bi Hạnh', 50000);
+            }, true);
+        });
+    }
+
+    attachDonationInterceptors();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachDonationInterceptors);
+    }
+    window.addEventListener('load', attachDonationInterceptors);
+})();
+</script>`;
 
     return `<!DOCTYPE html>
 <html lang="vi">
@@ -322,6 +465,8 @@ async function buildHtmlPage(page, space, assets) {
 <body>
     ${html}
     ${jsScripts}
+    ${langBridgeScript}
+    ${donationBridgeScript}
 </body>
 </html>`;
 }
@@ -347,9 +492,12 @@ export const spacePageController = {
     async getPage(req: Request, res: Response) {
         try {
             // @ts-ignore
+            const spaceId = parseInt(String(req.params.id), 10);
+            // @ts-ignore
             const pageId = parseInt(String(req.params.pageId), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID.' });
             if (isNaN(pageId)) return res.status(400).json({ message: 'Invalid page ID.' });
-            const page = await getPageById(pageId);
+            const page = await getPageById(pageId, spaceId);
             if (!page) return res.status(404).json({ message: 'Page not found.' });
             res.json(page);
         } catch (err: unknown) {
@@ -386,7 +534,10 @@ export const spacePageController = {
     async updatePage(req: Request, res: Response) {
         try {
             // @ts-ignore
+            const spaceId = parseInt(String(req.params.id), 10);
+            // @ts-ignore
             const pageId = parseInt(String(req.params.pageId), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID.' });
             if (isNaN(pageId)) return res.status(400).json({ message: 'Invalid page ID.' });
             const { title, slug, html, isPublished, pageType } = req.body;
 
@@ -399,9 +550,9 @@ export const spacePageController = {
             if (isPublished !== undefined) { fields.push(`is_published = $${i++}`); values.push(isPublished); }
             if (pageType !== undefined) { fields.push(`page_type = $${i++}`); values.push(pageType); }
             fields.push(`updated_at = NOW()`);
-            values.push(pageId);
+            values.push(pageId, spaceId);
 
-            const query = `UPDATE space_pages SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`;
+            const query = `UPDATE space_pages SET ${fields.join(', ')} WHERE id = $${i} AND space_id = $${i + 1} RETURNING *`;
             const result = await pool.query(query, values);
             if (!result.rows[0]) return res.status(404).json({ message: 'Page not found.' });
             res.json(mapRowToCamelCase(result.rows[0]));
@@ -418,9 +569,12 @@ export const spacePageController = {
     async deletePage(req: Request, res: Response) {
         try {
             // @ts-ignore
+            const spaceId = parseInt(String(req.params.id), 10);
+            // @ts-ignore
             const pageId = parseInt(String(req.params.pageId), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID.' });
             if (isNaN(pageId)) return res.status(400).json({ message: 'Invalid page ID.' });
-            await pool.query('DELETE FROM space_pages WHERE id = $1', [pageId]);
+            await pool.query('DELETE FROM space_pages WHERE id = $1 AND space_id = $2', [pageId, spaceId]);
             res.status(204).send();
         } catch (err: unknown) {
             logger.error('deletePage error:', err);
@@ -457,10 +611,13 @@ export const spacePageController = {
     async deleteAsset(req: Request, res: Response) {
         try {
             // @ts-ignore
+            const spaceId = parseInt(String(req.params.id), 10);
+            // @ts-ignore
             const assetId = parseInt(String(req.params.assetId), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID.' });
             if (isNaN(assetId)) return res.status(400).json({ message: 'Invalid asset ID.' });
 
-            const assetRes = await pool.query('SELECT * FROM space_page_assets WHERE id = $1', [assetId]);
+            const assetRes = await pool.query('SELECT * FROM space_page_assets WHERE id = $1 AND space_id = $2', [assetId, spaceId]);
             if (!assetRes.rows[0]) return res.status(404).json({ message: 'Asset not found.' });
             const asset = mapRowToCamelCase(assetRes.rows[0]);
 
@@ -472,7 +629,7 @@ export const spacePageController = {
                 // File might already be deleted, ignore
             }
 
-            await pool.query('DELETE FROM space_page_assets WHERE id = $1', [assetId]);
+            await pool.query('DELETE FROM space_page_assets WHERE id = $1 AND space_id = $2', [assetId, spaceId]);
             res.status(204).send();
         } catch (err: unknown) {
             logger.error('deleteAsset error:', err);

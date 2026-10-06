@@ -6,19 +6,33 @@ import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { verifyPassword, pool, mapRowToCamelCase } from '../db.js';
 import { User } from '../types/index.js';
 import { getUserManagedSpaceIds, isAdmin as checkIsGlobalAdmin } from '../middleware/authMiddleware.js';
-
-const mapAndSanitizeUser = (user: User | null) => {
-    if (!user) return null;
-    const { password, ...sanitizedUser } = user;
-    return sanitizedUser;
-};
+import { toPublicUser, toMinimalUser } from '../utils/sanitizeUser.js';
 
 export const userController = {
     async getProfile(req: Request, res: Response) {
         try {
-            res.json(mapAndSanitizeUser(req.user as User));
+            res.json(toPublicUser(req.user as User));
         } catch (error: unknown) {
             res.status(500).json({ message: 'Không thể tải thông tin hồ sơ.' });
+        }
+    },
+    async updateProfile(req: Request, res: Response) {
+        try {
+            const user = req.user as User;
+            if (!user || !user.id) {
+                return res.status(401).json({ message: 'Authentication required.' });
+            }
+            const { name, avatarUrl, bio } = req.body;
+            const payload: Record<string, any> = {};
+            if (typeof name === 'string' && name.trim().length > 0) payload.name = name.trim();
+            if (typeof avatarUrl === 'string') payload.avatarUrl = avatarUrl.trim();
+            if (typeof bio === 'string') payload.bio = bio;
+
+            const updatedUser = await userModel.update(user.id, payload);
+            res.json(toPublicUser(updatedUser));
+        } catch (error: unknown) {
+            logger.error('Error updating user profile:', error);
+            res.status(500).json({ message: 'Không thể cập nhật hồ sơ cá nhân.' });
         }
     },
     async getAllUsers(req: Request, res: Response) {
@@ -34,11 +48,11 @@ export const userController = {
                     limit: parseInt(limit as string, 10),
                     search: search as string,
                 });
-                return res.json(users.map(mapAndSanitizeUser));
+                return res.json(users.map(toPublicUser));
             } else if (user && user.permissions && (user.permissions.includes('spaces') || user.permissions.includes('ai'))) {
                 // Other management roles (like Content Manager): can only see a list of space owners
                 const users = await userModel.findSpaceOwners();
-                return res.json(users.map(mapAndSanitizeUser));
+                return res.json(users.map(toMinimalUser));
             }
             // If user has none of these permissions, they are forbidden.
             return res.status(403).json({ message: 'Forbidden: You do not have permission to view users.' });
@@ -50,7 +64,7 @@ export const userController = {
     async getSpaceOwners(req: Request, res: Response) {
         try {
             const users = await userModel.findSpaceOwners();
-            res.json(users.map(mapAndSanitizeUser));
+            res.json(users.map(toMinimalUser));
         } catch (error: unknown) {
             logger.error('Error fetching space owners:', error);
             res.status(500).json({ message: 'Could not fetch space owners.' });
@@ -112,8 +126,13 @@ export const userController = {
 
     async createUser(req: Request, res: Response) {
         try {
+            const user = req.user as User;
+            const isGloballyAdmin = checkIsGlobalAdmin(user) || Boolean(user?.permissions?.includes('users'));
+            if (!isGloballyAdmin) {
+                return res.status(403).json({ message: 'Forbidden: You do not have permission to create users.' });
+            }
             const newUser = await userModel.create(req.body);
-            res.status(201).json(mapAndSanitizeUser(newUser));
+            res.status(201).json(toPublicUser(newUser));
         } catch (error: unknown) {
             res.status(500).json({ message: `Lỗi khi tạo người dùng: ${(error instanceof Error ? error.message : String(error))}` });
         }
@@ -125,10 +144,12 @@ export const userController = {
             if (isNaN(id)) return res.status(400).json({ message: 'User ID không hợp lệ.' });
 
             const user = req.user as User;
-            const isGloballyAdmin = checkIsGlobalAdmin(user) || (user && user.permissions && user.permissions.includes('users'));
+            const isGloballyAdmin = checkIsGlobalAdmin(user);
+            const hasUsersPermission = Boolean(user && user.permissions && user.permissions.includes('users'));
+            const isSelf = user && user.id === id;
 
             let isSpaceManagerForUser = false;
-            if (!isGloballyAdmin) {
+            if (!isGloballyAdmin && !hasUsersPermission && !isSelf) {
                 const managedSpaceIds = await getUserManagedSpaceIds(user?.id);
                 if (managedSpaceIds.length > 0) {
                     const targetUserSpaces = await spaceMemberModel.getSpacesByUser(id);
@@ -136,7 +157,10 @@ export const userController = {
                 }
             }
 
-            const canManage = isGloballyAdmin || isSpaceManagerForUser;
+            const canManage = isGloballyAdmin || hasUsersPermission || isSpaceManagerForUser;
+            if (!canManage && !isSelf) {
+                return res.status(403).json({ message: 'Forbidden: You cannot modify this user.' });
+            }
 
             const payload = { ...req.body };
             if (payload.password === '') delete payload.password;
@@ -148,21 +172,30 @@ export const userController = {
                 return res.status(403).json({ message: 'Không thể tự bỏ quyền Global Admin của chính mình.' });
             }
 
-            // Prevent non-admins from escalating privileges or changing sensitive fields
-            if (!canManage) {
+            // Merits: only Global Admin can directly modify merits
+            if (!isGloballyAdmin) {
+                delete payload.merits;
+            }
+
+            // Roles & status: only admins (Global or 'users' permission) can change roles / status
+            if (!isGloballyAdmin && !hasUsersPermission) {
                 delete payload.roleIds;
                 delete payload.isActive;
-                delete payload.merits;
-                delete payload.email;
+            }
+
+            // Prevent changing password without current password verification:
+            // Self-updates must ALWAYS use the changePassword endpoint which verifies oldPassword.
+            if (isSelf || (!isGloballyAdmin && !hasUsersPermission)) {
                 delete payload.password;
-            } else if (!isGloballyAdmin) {
-                // Space Managers cannot edit global fields like email
+            }
+
+            if (!isGloballyAdmin && !hasUsersPermission) {
                 delete payload.email;
             }
 
-            logger.info('UPDATE USER CALLED', { id, payload });
+            // DO NOT log payload containing raw password!
             const updatedUser = await userModel.update(id, payload);
-            res.json(mapAndSanitizeUser(updatedUser));
+            res.json(toPublicUser(updatedUser));
         } catch (error: unknown) {
             logger.error("Lỗi khi cập nhật người dùng:", error);
             res.status(500).json({ message: `Lỗi khi cập nhật người dùng: ${error instanceof Error ? error.message : String(error)}` });
@@ -175,6 +208,10 @@ export const userController = {
             if (isNaN(id)) return res.status(400).json({ message: 'User ID không hợp lệ.' });
             
             const user = req.user as User;
+            const isGloballyAdmin = checkIsGlobalAdmin(user);
+            if (!isGloballyAdmin) {
+                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền xóa người dùng.' });
+            }
             if (user && user.id === id) {
                 return res.status(400).json({ message: 'Bạn không thể xóa chính mình.' });
             }
@@ -189,8 +226,17 @@ export const userController = {
         try {
             const id = parseInt(String(req.params.id), 10);
             if (isNaN(id)) return res.status(400).json({ message: 'User ID không hợp lệ.' });
+            const user = req.user as User;
+            const isGloballyAdmin = checkIsGlobalAdmin(user);
+            const isSelf = user && user.id === id;
+            if (!isGloballyAdmin && !isSelf) {
+                return res.status(403).json({ message: 'Forbidden: You can only regenerate your own API token.' });
+            }
             const updatedUser = await userModel.regenerateApiToken(id);
-            res.json(mapAndSanitizeUser(updatedUser));
+            res.json({
+                ...toPublicUser(updatedUser),
+                apiToken: updatedUser?.apiToken
+            });
         } catch (error: unknown) {
             res.status(500).json({ message: `Lỗi khi tạo token mới: ${(error instanceof Error ? error.message : String(error))}` });
         }
@@ -221,8 +267,15 @@ export const userController = {
 
     async getUserSpaces(req: Request, res: Response) {
         try {
-            const userId = parseInt(String(req.params.id), 10);
+            const userId = parseInt(String(req.params.userId || req.params.id), 10);
             if (isNaN(userId)) return res.status(400).json({ message: 'User ID không hợp lệ.' });
+            const user = req.user as User;
+            const isGloballyAdmin = checkIsGlobalAdmin(user);
+            const isSelf = user && user.id === userId;
+            const hasPermission = Boolean(user?.permissions && (user.permissions.includes('users') || user.permissions.includes('spaces')));
+            if (!isGloballyAdmin && !isSelf && !hasPermission) {
+                return res.status(403).json({ message: 'Forbidden: Access denied to user spaces.' });
+            }
             const spaces = await spaceMemberModel.getSpacesByUser(userId);
             res.json(spaces);
         } catch (error: unknown) {

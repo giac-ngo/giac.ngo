@@ -1,4 +1,4 @@
-﻿// server/models/billing.model.ts
+// server/models/billing.model.ts
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { userModel, enrichUserWithPermissions } from './user.model.js';
@@ -175,11 +175,8 @@ export const billingModel = {
     // Get or create a user_subscriptions record
     async getUserSubscription(userId: number | string): Promise<UserSubscription> {
         const res = await pool.query(
-            `INSERT INTO user_subscriptions (id, user_id)
-             VALUES (
-               COALESCE((SELECT MAX(id) FROM user_subscriptions), 0) + 1,
-               $1
-             )
+            `INSERT INTO user_subscriptions (user_id)
+             VALUES ($1)
              ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
              RETURNING *`,
             [userId]
@@ -190,11 +187,8 @@ export const billingModel = {
     // Increment daily usage, auto-reset if new day
     async incrementDailyUsage(userId: number | string): Promise<UserSubscription> {
         const res = await pool.query(
-            `INSERT INTO user_subscriptions (id, user_id, daily_msg_used, daily_reset_date)
-             VALUES (
-               COALESCE((SELECT MAX(id) FROM user_subscriptions), 0) + 1,
-               $1, 1, CURRENT_DATE
-             )
+            `INSERT INTO user_subscriptions (user_id, daily_msg_used, daily_reset_date)
+             VALUES ($1, 1, CURRENT_DATE)
              ON CONFLICT (user_id) DO UPDATE SET
                daily_msg_used = CASE
                  WHEN user_subscriptions.daily_reset_date < CURRENT_DATE THEN 1
@@ -207,14 +201,75 @@ export const billingModel = {
         return mapRowToCamelCase(res.rows[0]);
     },
 
-    // Apply donate bonus to user subscription
+    // Atomically check daily limit and increment daily usage in a single conditional DB operation
+    async checkAndIncrementDailyUsage(userId: number | string, baseDailyLimit: number): Promise<{
+        allowed: boolean;
+        dailyUsed: number;
+        baseDailyLimit: number;
+        bonusLimit: number;
+    }> {
+        const res = await pool.query(
+            `WITH ins AS (
+                INSERT INTO user_subscriptions (user_id, daily_msg_used, daily_reset_date)
+                SELECT
+                    $1, 1, CURRENT_DATE
+                WHERE $2 > 0
+                ON CONFLICT (user_id) DO UPDATE SET
+                    daily_msg_used = CASE
+                        WHEN user_subscriptions.daily_reset_date < CURRENT_DATE THEN 1
+                        ELSE user_subscriptions.daily_msg_used + 1
+                    END,
+                    daily_reset_date = CURRENT_DATE
+                WHERE (
+                    CASE
+                        WHEN user_subscriptions.daily_reset_date < CURRENT_DATE THEN 0
+                        ELSE COALESCE(user_subscriptions.daily_msg_used, 0)
+                    END
+                ) < ($2 + CASE
+                    WHEN user_subscriptions.expires_at > NOW() THEN COALESCE(user_subscriptions.daily_limit_bonus, 0)
+                    ELSE 0
+                END)
+                RETURNING daily_msg_used, daily_limit_bonus, expires_at, false AS exceeded
+            )
+            SELECT daily_msg_used, daily_limit_bonus, expires_at, exceeded FROM ins
+            UNION ALL
+            SELECT daily_msg_used, daily_limit_bonus, expires_at, true AS exceeded
+            FROM user_subscriptions
+            WHERE user_id = $1 AND NOT EXISTS (SELECT 1 FROM ins)`,
+            [userId, baseDailyLimit]
+        );
+
+        if (res.rows.length === 0) {
+            return { allowed: false, dailyUsed: baseDailyLimit, baseDailyLimit, bonusLimit: 0 };
+        }
+
+        const row = res.rows[0];
+        const isBonusActive = row.expires_at && new Date(row.expires_at) > new Date();
+        const bonusLimit = isBonusActive ? Number(row.daily_limit_bonus || 0) : 0;
+        const dailyUsed = Number(row.daily_msg_used || 0);
+        const allowed = !row.exceeded;
+
+        return {
+            allowed,
+            dailyUsed,
+            baseDailyLimit,
+            bonusLimit
+        };
+    },
+
+    // Decrement daily usage on error/refund (cannot go below 0)
+    async decrementDailyUsage(userId: number | string): Promise<void> {
+        await pool.query(
+            `UPDATE user_subscriptions
+             SET daily_msg_used = GREATEST(0, daily_msg_used - 1)
+             WHERE user_id = $1 AND daily_reset_date = CURRENT_DATE AND daily_msg_used > 0`,
+            [userId]
+        );
+    },
     async addDonateBonus(userId: number | string, bonus: number, days: number): Promise<UserSubscription> {
         const res = await pool.query(
-            `INSERT INTO user_subscriptions (id, user_id, daily_limit_bonus, expires_at)
-             VALUES (
-               COALESCE((SELECT MAX(id) FROM user_subscriptions), 0) + 1,
-               $1, $2, NOW() + ($3 || ' days')::INTERVAL
-             )
+            `INSERT INTO user_subscriptions (user_id, daily_limit_bonus, expires_at)
+             VALUES ($1, $2, NOW() + ($3 || ' days')::INTERVAL)
              ON CONFLICT (user_id) DO UPDATE SET
                daily_limit_bonus = $2,
                expires_at = NOW() + ($3 || ' days')::INTERVAL`,
@@ -363,6 +418,16 @@ export const billingModel = {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            if (stripeChargeId) {
+                await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [stripeChargeId]);
+                const existing = await client.query('SELECT 1 FROM transactions WHERE stripe_charge_id = $1 LIMIT 1', [stripeChargeId]);
+                if (existing.rows.length) {
+                    await client.query('COMMIT');
+                    const unchangedUser = await userModel.findById(userId);
+                    if (unchangedUser) Object.defineProperty(unchangedUser, 'paymentAlreadyProcessed', { value: true, enumerable: false });
+                    return unchangedUser;
+                }
+            }
             const res = await client.query(
                 'UPDATE users SET merits = COALESCE(merits, 0) + $1 WHERE id = $2 RETURNING *',
                 [merits, userId]
@@ -378,7 +443,9 @@ export const billingModel = {
                 [userId, merits, adminId, type, stripeChargeId, details, spaceId]
             );
             await client.query('COMMIT');
-            return enrichUserWithPermissions(mapRowToCamelCase(res.rows[0]));
+            const updatedUser = await enrichUserWithPermissions(mapRowToCamelCase(res.rows[0]));
+            if (updatedUser && stripeChargeId) Object.defineProperty(updatedUser, 'paymentAlreadyProcessed', { value: false, enumerable: false });
+            return updatedUser;
         } catch (error: unknown) {
             await client.query('ROLLBACK');
             throw error;
@@ -415,11 +482,8 @@ export const billingModel = {
             const durationDays = plan.durationDays || 30;
             const bonus = plan.dailyLimitBonus || 0;
             await client.query(
-                `INSERT INTO user_subscriptions (id, user_id, daily_limit_bonus, expires_at)
-                 VALUES (
-                   COALESCE((SELECT MAX(id) FROM user_subscriptions), 0) + 1,
-                   $1, $2, NOW() + ($3 || ' days')::INTERVAL
-                 )
+                `INSERT INTO user_subscriptions (user_id, daily_limit_bonus, expires_at)
+                 VALUES ($1, $2, NOW() + ($3 || ' days')::INTERVAL)
                  ON CONFLICT (user_id) DO UPDATE SET
                    daily_limit_bonus = $2,
                    expires_at = NOW() + ($3 || ' days')::INTERVAL`,

@@ -4,11 +4,26 @@ import { logger } from '../utils/logger.js';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { cmsArticleModel, cmsSocialConnectionModel, cmsPublishLogModel } from '../models/cmsArticle.model.js';
 import { fbAlbumModel } from '../models/fbAlbum.model.js';
-import { canAccessSpace } from '../middleware/authMiddleware.js';
+import { canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
+import crypto from 'crypto';
 
 const N8N_WEBHOOK_URL = process.env.N8N_CMS_WEBHOOK_URL || '';
-const CMS_CALLBACK_SECRET = process.env.CMS_CALLBACK_SECRET || '';
 const CMS_OAUTH_DOMAIN = process.env.CMS_OAUTH_DOMAIN || 'apiv2.phoai.vn';
+
+function cmsCallbackSecret(): string {
+    return process.env.CMS_CALLBACK_SECRET?.trim() || '';
+}
+
+function validCmsSecret(candidate: unknown, secret: string): boolean {
+    if (typeof candidate !== 'string' || !secret) return false;
+    const candidateBuffer = Buffer.from(candidate);
+    const secretBuffer = Buffer.from(secret);
+    return candidateBuffer.length === secretBuffer.length && crypto.timingSafeEqual(candidateBuffer, secretBuffer);
+}
+
+function deriveSpaceCmsSecret(masterSecret: string, spaceId: number | string): string {
+    return crypto.createHmac('sha256', masterSecret).update(`cms-space:${spaceId}`).digest('hex');
+}
 
 export const cmsController = {
     // ═══════════════════════════════════════════════════════════
@@ -291,7 +306,7 @@ export const cmsController = {
                 articleId: article.id,
                 spaceId: parseInt(spaceId, 10),
                 callbackUrl,
-                callbackSecret: CMS_CALLBACK_SECRET,
+                callbackSecret: cmsCallbackSecret() ? deriveSpaceCmsSecret(cmsCallbackSecret(), spaceId) : '',
                 platforms: platformsPayload,
                 content: {
                     title: article.title,
@@ -411,9 +426,12 @@ export const cmsController = {
 
             logger.info(`CMS webhook received body: ${JSON.stringify({ articleId, platform, status, externalPostId, externalUrl, errorMessage })}`);
 
-            const secret = apiKey || callbackSecret;
-            if (CMS_CALLBACK_SECRET && secret !== CMS_CALLBACK_SECRET) {
-                logger.warn(`CMS webhook: invalid secret. Got "${secret}", expected "${CMS_CALLBACK_SECRET}"`);
+            const masterSecret = cmsCallbackSecret();
+            if (!masterSecret) return res.status(503).json({ message: 'CMS callback authentication is not configured.' });
+            const spaceResult = await pool.query('SELECT id FROM spaces WHERE slug = $1', [req.params.slug]);
+            const spaceId = spaceResult.rows[0]?.id;
+            if (!spaceId || !validCmsSecret(apiKey || callbackSecret, deriveSpaceCmsSecret(masterSecret, spaceId))) {
+                logger.warn('CMS webhook rejected: invalid callback secret.');
                 return res.status(401).json({ message: 'Invalid callback secret.' });
             }
             if (!articleId || !platform || !status) {
@@ -486,13 +504,15 @@ export const cmsController = {
 
     async getPendingArticlesForN8n(req: Request, res: Response) {
         try {
+            const secret = cmsCallbackSecret();
+            if (!secret) return res.status(503).json({ message: 'CMS callback authentication is not configured.' });
             const slug = String(req.params.slug);
             const spaceRes = await pool.query('SELECT id FROM spaces WHERE slug = $1', [slug]);
             const spaceId = spaceRes.rows[0]?.id;
             if (!spaceId) return res.status(404).json({ message: 'Space not found' });
 
             const { apiKey } = req.query;
-            if (CMS_CALLBACK_SECRET && apiKey !== CMS_CALLBACK_SECRET) {
+            if (!validCmsSecret(apiKey, deriveSpaceCmsSecret(secret, spaceId))) {
                 return res.status(401).json({ message: 'Invalid API key.' });
             }
 
@@ -558,7 +578,7 @@ export const cmsController = {
                     fbAlbumId: resolvedFbAlbumId,
                     platforms: article.targetPlatforms,
                     callbackUrl: `${req.protocol}://${req.get('host')}/api/cms/${slug}/webhook/publish-result`,
-                    callbackSecret: CMS_CALLBACK_SECRET,
+                    callbackSecret: deriveSpaceCmsSecret(secret, article.spaceId),
                     connections: articleConns.map(c => {
                         let pageAlbumId = null;
                         if (article.fbAlbumId) {
@@ -600,14 +620,16 @@ export const cmsController = {
             if (!await canAccessSpace(req.user, spaceId)) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+            const canManageCms = await Promise.all(['cms_write', 'cms_approve', 'settings'].map(permission => hasSpacePermission(req.user, spaceId, permission))).then(results => results.some(Boolean));
+            if (!canManageCms) return res.status(403).json({ message: 'CMS management permission is required.' });
             const connections = await cmsSocialConnectionModel.findBySpaceId(spaceId);
             const safe = connections.map((c: any) => ({
                 ...c,
-                accessToken: c.accessToken
+                accessToken: undefined
             }));
             res.json({
                 connections: safe,
-                apiKey: CMS_CALLBACK_SECRET || 'YOUR_SECRET'
+                apiKey: cmsCallbackSecret() ? deriveSpaceCmsSecret(cmsCallbackSecret(), spaceId) : 'CONFIGURE_CMS_CALLBACK_SECRET_ON_SERVER'
             });
         } catch (error: unknown) {
             logger.error('CMS getConnections error:', error);

@@ -8,7 +8,10 @@ interface MediaLibraryProps {
     space: Space | null;
     language: 'vi' | 'en';
     onSelect?: (url: string) => void;
+    onSelectMultiple?: (urls: string[]) => void;
+    onCancel?: () => void;
     selectable?: boolean;
+    multiple?: boolean;
     defaultFileType?: string;  // pre-select file type tab: 'all' | 'image' | 'audio' | 'video' | 'document'
 }
 
@@ -22,7 +25,16 @@ interface MediaFile {
     ext: string;
 }
 
-export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onSelect, selectable = false, defaultFileType }) => {
+export const MediaLibrary: React.FC<MediaLibraryProps> = ({ 
+    space, 
+    language, 
+    onSelect, 
+    onSelectMultiple,
+    onCancel,
+    selectable = false, 
+    multiple = false,
+    defaultFileType 
+}) => {
     const { showToast } = useToast();
     const [files, setFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -136,9 +148,24 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
         }
     };
 
+    const handleToggleMultiSelect = (file: MediaFile, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedFiles(prev => {
+            const next = new Set(prev);
+            if (next.has(file.url)) {
+                next.delete(file.url);
+            } else {
+                next.add(file.url);
+            }
+            return next;
+        });
+        setActiveFile(file);
+    };
+
     const handleThumbnailClick = (file: MediaFile, e: React.MouseEvent) => {
         if (selectable) {
-            onSelect?.(file.url);
+            // Clicking card body inspects this single file
+            setActiveFile(file);
             return;
         }
         if (e.ctrlKey || e.metaKey) {
@@ -231,7 +258,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                     <h1 className="text-xl font-bold font-serif text-text-main">
                         {language === 'vi' ? 'Thư viện Media' : 'Media Library'}
                     </h1>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
                         {(selectedFiles.size > 0 || activeFile) && !selectable && (
                             <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red text-white text-sm rounded-lg hover:bg-red-700 transition">
                                 <TrashIcon className="w-4 h-4" />
@@ -305,7 +332,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                             {filteredFiles.map((file) => {
                                 const isActive = activeFile?.url === file.url;
                                 const isSelected = selectedFiles.has(file.url);
@@ -325,39 +352,52 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                                             }
                                         `}
                                     >
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                                        <div className="w-full h-full bg-[#f8f6f0] flex flex-col items-center justify-center p-2 text-center overflow-hidden">
                                             {file.type === 'image' ? (
                                                 <img src={file.url} alt={file.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                             ) : (
-                                                <FileTypeIcon ext={file.ext} size="w-10 h-10" />
+                                                <div className="flex flex-col items-center justify-center w-full h-full gap-1">
+                                                    <FileTypeIcon ext={file.ext} size="w-8 h-8" />
+                                                    <span 
+                                                        className="text-[11px] font-semibold text-text-main line-clamp-2 leading-tight break-all px-1 select-none"
+                                                        title={file.name}
+                                                    >
+                                                        {file.name}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
-                                        {/* File name label at bottom */}
-                                        <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-1 py-0.5 text-white text-[9px] truncate leading-tight opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {file.name}
-                                        </div>
-                                        {/* Active indicator */}
-                                        {isActive && (
-                                            <div style={{
-                                                position: 'absolute', top: 4, right: 4,
-                                                width: 18, height: 18, borderRadius: '50%',
-                                                background: 'hsl(0, 55%, 42%)', border: '2px solid #fff',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: 10, color: '#fff', fontWeight: 700,
-                                                pointerEvents: 'none',
-                                            }}>✓</div>
+                                        {/* File name label at bottom for images */}
+                                        {file.type === 'image' && (
+                                            <div 
+                                                className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-[2px] px-1 py-1 text-white text-[10px] truncate leading-tight transition-opacity text-center opacity-0 group-hover:opacity-100"
+                                                title={file.name}
+                                            >
+                                                {file.name}
+                                            </div>
                                         )}
-                                        {/* Multi-select badge */}
-                                        {isSelected && !isActive && (
-                                            <div style={{
-                                                position: 'absolute', top: 4, right: 4,
-                                                width: 18, height: 18, borderRadius: '50%',
-                                                background: '#3b82f6', border: '2px solid #fff',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: 10, color: '#fff', fontWeight: 700,
-                                                pointerEvents: 'none',
-                                            }}>✓</div>
+                                        {/* Multi-select Checkbox in TOP-LEFT: Click here to select / deselect multiple files */}
+                                        {selectable && multiple && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleToggleMultiSelect(file, e)}
+                                                title={isSelected ? (language === 'vi' ? 'Bỏ chọn file này' : 'Deselect') : (language === 'vi' ? 'Chọn nhiều file này' : 'Select for batch')}
+                                                className={`
+                                                    absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded-md flex items-center justify-center
+                                                    transition-all duration-150 cursor-pointer shadow-sm
+                                                    ${isSelected 
+                                                        ? 'bg-blue-600 text-white border-2 border-white ring-1 ring-blue-600' 
+                                                        : 'bg-white/85 text-transparent hover:text-gray-400 hover:bg-white border border-gray-300'
+                                                    }
+                                                `}
+                                            >
+                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
                                         )}
+
+
                                     </div>
                                 );
                             })}
@@ -375,7 +415,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                 </div>
 
                 {/* Detail Panel */}
-                {activeFile && !selectable && (
+                {activeFile && (
                     <div className="w-64 flex-shrink-0 border-l border-border-color bg-background-panel flex flex-col overflow-y-auto">
                         {/* Panel Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-border-color">
@@ -484,24 +524,90 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ space, language, onS
                         {/* Actions */}
                         <div className="p-4 border-t border-border-color space-y-2">
                             {selectable && (
+                                <div className="flex items-center gap-2">
+                                    {onCancel && (
+                                        <button
+                                            type="button"
+                                            onClick={onCancel}
+                                            className="px-3.5 py-2 border border-border-color bg-background-light text-text-main text-sm font-medium rounded-lg hover:bg-black/5 transition shrink-0"
+                                        >
+                                            {language === 'vi' ? 'Hủy' : 'Cancel'}
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (multiple) {
+                                                const urls = Array.from(selectedFiles);
+                                                if (urls.length === 0 && activeFile) {
+                                                    urls.push(activeFile.url);
+                                                }
+                                                if (urls.length > 0) {
+                                                    onSelectMultiple ? onSelectMultiple(urls) : onSelect?.(urls[0]);
+                                                }
+                                            } else if (activeFile) {
+                                                onSelect?.(activeFile.url);
+                                            }
+                                        }}
+                                        className="flex-1 px-3 py-2 bg-primary text-text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-hover transition shadow-sm text-center"
+                                    >
+                                        {multiple && selectedFiles.size > 1
+                                            ? (language === 'vi' ? `Chọn ${selectedFiles.size} tệp` : `Select ${selectedFiles.size} files`)
+                                            : (language === 'vi' ? 'Chọn tệp này' : 'Select this file')}
+                                    </button>
+                                </div>
+                            )}
+                            {!selectable && (
                                 <button
-                                    onClick={() => onSelect?.(activeFile.url)}
-                                    className="w-full px-3 py-2 bg-primary text-text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-hover transition"
+                                    onClick={handleDelete}
+                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-accent-red border border-accent-red/40 rounded-lg hover:bg-accent-red hover:text-white transition"
                                 >
-                                    {language === 'vi' ? 'Chọn ảnh này' : 'Select this image'}
+                                    <TrashIcon className="w-4 h-4" />
+                                    {language === 'vi' ? 'Xóa file' : 'Delete file'}
                                 </button>
                             )}
-                            <button
-                                onClick={handleDelete}
-                                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-accent-red border border-accent-red/40 rounded-lg hover:bg-accent-red hover:text-white transition"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                                {language === 'vi' ? 'Xóa file' : 'Delete file'}
-                            </button>
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* Bottom bar when selectable mode is on but detail panel is closed */}
+            {selectable && !activeFile && (
+                <div className="px-5 py-3 border-t border-border-color bg-background-panel flex justify-between items-center shrink-0">
+                    <div className="text-sm text-text-secondary">
+                        {selectedFiles.size > 0
+                            ? (language === 'vi' ? `Đã chọn ${selectedFiles.size} tệp` : `${selectedFiles.size} files selected`)
+                            : (language === 'vi' ? 'Nhấp ô vuông góc trên bên trái để chọn nhiều tệp' : 'Click top-left checkbox to select files')}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {onCancel && (
+                            <button
+                                type="button"
+                                onClick={onCancel}
+                                className="px-4 py-1.5 border border-border-color bg-background-light text-text-main text-sm font-medium rounded-lg hover:bg-black/5 transition"
+                            >
+                                {language === 'vi' ? 'Hủy' : 'Cancel'}
+                            </button>
+                        )}
+                        {multiple && selectedFiles.size > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const urls = Array.from(selectedFiles);
+                                    if (urls.length > 0) {
+                                        onSelectMultiple ? onSelectMultiple(urls) : onSelect?.(urls[0]);
+                                    }
+                                }}
+                                className="px-4 py-1.5 bg-primary text-text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-hover transition shadow-sm"
+                            >
+                                {selectedFiles.size > 1
+                                    ? (language === 'vi' ? `Chọn ${selectedFiles.size} tệp` : `Select ${selectedFiles.size} files`)
+                                    : (language === 'vi' ? 'Chọn 1 tệp' : 'Select 1 file')}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

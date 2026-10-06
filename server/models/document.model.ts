@@ -88,7 +88,7 @@ export const documentModel = {
         // Removed hardcoded type filter to allow all document types in library view
         // if (isLibrary) { whereClauses.push(`dt.name IN ('Kệ', 'Câu Chuyện')`); }
         if (title) {
-            whereClauses.push(`(d.title ILIKE $${paramIndex} OR d.title_en ILIKE $${paramIndex} OR d.content ILIKE $${paramIndex} OR d.content_en ILIKE $${paramIndex} OR d.summary ILIKE $${paramIndex} OR d.summary_en ILIKE $${paramIndex})`);
+            whereClauses.push(`(d.title ILIKE $${paramIndex} OR d.title_en ILIKE $${paramIndex} OR d.content ILIKE $${paramIndex} OR d.content_en ILIKE $${paramIndex} OR d.summary ILIKE $${paramIndex} OR d.summary_en ILIKE $${paramIndex} OR da.name ILIKE $${paramIndex} OR da.name_en ILIKE $${paramIndex} OR dt.name ILIKE $${paramIndex} OR dt.name_en ILIKE $${paramIndex} OR d_topics.name ILIKE $${paramIndex} OR d_topics.name_en ILIKE $${paramIndex} OR EXISTS (SELECT 1 FROM document_tags search_tags JOIN tags search_tag ON search_tag.id = search_tags.tag_id WHERE search_tags.document_id = d.id AND search_tag.name ILIKE $${paramIndex}))`);
             params.push(`%${title}%`);
             paramIndex++;
         }
@@ -133,7 +133,17 @@ export const documentModel = {
 
         let dataQuery = selectClause + fromClause + whereClauseString + ` GROUP BY d.id, s.id, da.id, dt.id, d_topics.id`;
 
-        if (sortBy && sortOrder) {
+        if (title) {
+            // Search results should surface title matches before documents that
+            // only mention the query somewhere in their body.
+            dataQuery += ` ORDER BY CASE
+                WHEN d.title ILIKE $1 OR d.title_en ILIKE $1 THEN 0
+                WHEN da.name ILIKE $1 OR da.name_en ILIKE $1 THEN 1
+                WHEN dt.name ILIKE $1 OR dt.name_en ILIKE $1 THEN 2
+                WHEN d_topics.name ILIKE $1 OR d_topics.name_en ILIKE $1 THEN 3
+                ELSE 4
+            END, d.created_at DESC`;
+        } else if (sortBy && sortOrder) {
             if (sortBy === 'views') { // Special case for homepage library, sort by multiple criteria
                 dataQuery += ` ORDER BY d.views DESC, d.likes DESC, d.rating DESC`;
             } else {

@@ -1,8 +1,8 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 // server/routes/billingRoutes.js
 import { Router } from 'express';
 import { billingController } from '../controllers/billingController.js';
-import { checkPermission, isAuthenticated } from './../middleware/authMiddleware.js';
+import { checkPermission, isAuthenticated, requireGlobalAdmin } from './../middleware/authMiddleware.js';
 
 const router = Router();
 
@@ -45,11 +45,11 @@ router.post('/stripe/connect/account', isAuthenticated, billingController.create
 router.post('/stripe/connect/account-link', isAuthenticated, billingController.createAccountLink);
 router.post('/stripe/connect/login-link', isAuthenticated, billingController.createLoginLink);
 router.post('/stripe/connect/disconnect', isAuthenticated, billingController.disconnectConnectAccount);
-router.get('/stripe/connect/account/:accountId', isAuthenticated, billingController.getConnectAccountStatus);
+router.get('/stripe/connect/space/:spaceId/status', isAuthenticated, billingController.getConnectAccountStatus);
 
 // Withdrawal Requests
-router.get('/admin/withdrawals', checkPermission('withdrawals'), billingController.getWithdrawalRequests);
-router.put('/admin/withdrawals/:id/process', checkPermission('withdrawals'), billingController.processWithdrawalRequest);
+router.get('/admin/withdrawals', requireGlobalAdmin, billingController.getWithdrawalRequests);
+router.put('/admin/withdrawals/:id/process', requireGlobalAdmin, billingController.processWithdrawalRequest);
 
 router.post('/withdrawals', isAuthenticated, (req: Request, res: Response) => billingController.createWithdrawalRequest(req, res));
 

@@ -9,13 +9,8 @@ import { billingModel } from '../models/billing.model.js';
 import { spaceModel } from '../models/space.model.js';
 import { AIConfig, User } from '../types/index.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
-import { getUserManagedSpaceIds } from '../middleware/authMiddleware.js';
-
-const mapAndSanitizeUser = (user: User | null) => {
-    if (!user) return null;
-    const { password, ...sanitizedUser } = user;
-    return sanitizedUser;
-};
+import { getUserManagedSpaceIds, hasSpacePermission } from '../middleware/authMiddleware.js';
+import { toPublicUser } from '../utils/sanitizeUser.js';
 
 export const aiConfigController = {
     async getVisibleAiConfigs(req: Request, res: Response) {
@@ -99,8 +94,7 @@ export const aiConfigController = {
             let isSpaceManager = false;
 
             if (aiConfig.spaceId) {
-                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
-                isSpaceManager = managedSpaceIds.includes(Number(aiConfig.spaceId)) && req.user.permissions.includes('ai');
+                isSpaceManager = await hasSpacePermission(req.user, aiConfig.spaceId, 'ai');
             }
 
             if (!isSuperAdmin && !isOwner && !isSpaceManager) {
@@ -147,8 +141,7 @@ export const aiConfigController = {
             let isSpaceManager = false;
 
             if (aiConfig.spaceId) {
-                const managedSpaceIds = await getUserManagedSpaceIds(req.user.id);
-                isSpaceManager = managedSpaceIds.includes(Number(aiConfig.spaceId)) && req.user.permissions.includes('ai');
+                isSpaceManager = await hasSpacePermission(req.user, aiConfig.spaceId, 'ai');
             }
 
             if (!isSuperAdmin && !isOwner && !isSpaceManager) {
@@ -175,15 +168,15 @@ export const aiConfigController = {
 
     async purchaseAi(req: Request, res: Response) {
         const aiId = parseInt(String(req.params.id), 10);
-        const { userId } = req.body;
+        const userId = req.user?.id;
 
         if (isNaN(aiId) || !userId) {
-            return res.status(400).json({ message: 'Valid AI ID and User ID are required.' });
+            return res.status(401).json({ message: 'Authentication required.' });
         }
 
         try {
             const result = await billingModel.purchaseAi(userId, aiId);
-            res.json({ updatedUser: mapAndSanitizeUser(result.updatedUser) });
+            res.json({ updatedUser: toPublicUser(result.updatedUser) });
         } catch (error: any) {
             res.status(400).json({ message: error.message });
         }
@@ -191,15 +184,15 @@ export const aiConfigController = {
 
     async claimFreeAi(req: Request, res: Response) {
         const aiId = parseInt(String(req.params.id), 10);
-        const { userId } = req.body;
+        const userId = req.user?.id;
 
         if (isNaN(aiId) || !userId) {
-            return res.status(400).json({ message: 'Valid AI ID and User ID are required.' });
+            return res.status(401).json({ message: 'Authentication required.' });
         }
 
         try {
             const result = await billingModel.claimFreeAi(userId, aiId);
-            res.json({ updatedUser: mapAndSanitizeUser(result.updatedUser) });
+            res.json({ updatedUser: toPublicUser(result.updatedUser) });
         } catch (error: any) {
             res.status(400).json({ message: error.message });
         }
@@ -210,7 +203,7 @@ export const aiConfigController = {
             const aiId = parseInt(String(req.params.id), 10);
             if (isNaN(aiId)) return res.status(400).json({ message: 'Invalid AI ID.' });
             const users = await aiConfigModel.getAccessList(aiId);
-            res.json(users.map(mapAndSanitizeUser));
+            res.json(users.map(toPublicUser));
         } catch (error: any) {
             res.status(500).json({ message: 'Failed to fetch access list.' });
         }

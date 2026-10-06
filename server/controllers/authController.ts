@@ -10,11 +10,13 @@ import { spaceMemberModel } from '../models/spaceMember.model.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { User } from '../types/index.js';
+import { getJwtSecret } from '../utils/jwtSecret.js';
+import { verifyOAuthState } from '../utils/oauthState.js';
 
 const generateAccessToken = (user: User) => {
     return jwt.sign(
         { id: user.id },
-        process.env.JWT_SECRET || 'fallback_secret_giacngo123',
+        getJwtSecret(),
         { expiresIn: '7d' } // 7 days
     );
 };
@@ -59,7 +61,17 @@ export const authController = {
                 }
             } else if (context === 'space' && spaceSlug) {
                 // Space domain login: chỉ cho phép Owner hoặc Member đã đăng ký
-                const space = await spaceModel.findBySlug(spaceSlug);
+                let space = await spaceModel.findBySlug(spaceSlug);
+                // The custom domain is the stable identifier for domain-based
+                // login links; recover if a stale URL slug was sent by the client.
+                if (!space) {
+                    const host = req.headers.host?.split(':')[0]?.toLowerCase();
+                    const mainDomain = (process.env.MAIN_DOMAIN || 'localhost').toLowerCase();
+                    const adminHost = (process.env.ADMIN_HOST || `login.${mainDomain}`).toLowerCase();
+                    if (host && host !== mainDomain && host !== adminHost && host !== 'localhost' && host !== '127.0.0.1') {
+                        space = await spaceModel.findByCustomDomain(host);
+                    }
+                }
                 if (!space) {
                     return res.status(404).json({ message: 'Không tìm thấy không gian này.' });
                 }
@@ -91,30 +103,7 @@ export const authController = {
             }
             const existingUser = await userModel.findByEmail(email);
             if (existingUser) {
-                // Email đã tồn tại → verify password → auto-add vào space → login luôn
-                const isMatch = await verifyPassword(password, existingUser.password);
-                if (!isMatch) {
-                    return res.status(401).json({ message: 'Email đã được đăng ký. Vui lòng đăng nhập hoặc kiểm tra lại mật khẩu.' });
-                }
-                // Auto-add to space (resolve from hostname)
-                try {
-                    const host = req.headers.host?.split(':')[0];
-                    const mainDomain = process.env.MAIN_DOMAIN || 'localhost';
-                    if (host && host !== mainDomain && !host.endsWith('.' + mainDomain) && host !== 'localhost') {
-                        const space = await spaceModel.findByCustomDomain(host);
-                        if (space) await spaceMemberModel.add(space.id, existingUser.id);
-                    } else {
-                        await spaceMemberModel.add(1, existingUser.id);
-                    }
-                } catch (memberErr) {
-                    logger.error('Auto-membership on register (non-fatal):', memberErr);
-                }
-                // Return existing user as logged-in
-                let returnUser = existingUser;
-                if (!returnUser.apiToken) {
-                    returnUser = await userModel.regenerateApiToken(returnUser.id) || returnUser;
-                }
-                return res.status(200).json(mapAndSanitizeUser(returnUser));
+                return res.status(409).json({ message: 'Email này đã được đăng ký. Vui lòng đăng nhập.' });
             }
             const newUserPayload = {
                 name, email, password,
@@ -156,14 +145,16 @@ export const authController = {
         try {
             const { email, language } = req.body;
             const user = await userModel.findByEmail(email);
-            if (!user) {
-                return res.status(404).json({ message: language === 'en' ? 'Account with this email does not exist.' : 'Không tìm thấy tài khoản với email này.' });
+            if (user) {
+                const token = crypto.randomBytes(32).toString('hex');
+                await userModel.saveResetToken(user.id, token);
+                try {
+                    await mailService.sendPasswordResetEmail(user.email, token, language, { host: req.headers.host });
+                } catch (mailError) {
+                    logger.error('Password reset email could not be sent.', mailError);
+                }
             }
-            const token = crypto.randomBytes(32).toString('hex');
-            await userModel.saveResetToken(user.id, token);
-            await mailService.sendPasswordResetEmail(user.email, token, language, { host: req.headers.host });
-            
-            res.status(200).json({ message: language === 'en' ? 'A password reset email has been sent.' : 'Một email đặt lại mật khẩu đã được gửi đi.' });
+            return res.status(200).json({ message: language === 'en' ? 'If the account exists, a password reset email has been sent.' : 'Nếu tài khoản tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi qua email.' });
         } catch (error: unknown) {
             logger.error('Forgot password error:', error);
             res.status(500).json({ message: 'Lỗi server khi xử lý yêu cầu.' });
@@ -176,6 +167,9 @@ export const authController = {
             if (!token || !password) {
                 return res.status(400).json({ message: 'Token and new password are required.' });
             }
+            if (typeof password !== 'string' || password.length < 8 || password.length > 256) {
+                return res.status(400).json({ message: 'Password must be between 8 and 256 characters.' });
+            }
             const user = await userModel.findByResetToken(token);
             if (!user) {
                 return res.status(400).json({ message: 'Password reset token is invalid or has expired.' });
@@ -185,6 +179,8 @@ export const authController = {
                 resetToken: null,
                 resetTokenExpires: null
             });
+            // Revoke persistent refresh/API tokens issued before the password reset.
+            await userModel.regenerateApiToken(user.id);
             res.status(200).json({ message: 'Password has been reset successfully.' });
         } catch (error: unknown) {
             logger.error('Reset password error:', error);
@@ -214,6 +210,8 @@ export const authController = {
     googleCallback: (oauth2Client: any) => async (req: Request, res: Response) => {
         const { code, state } = req.query;
         try {
+            const oauthState = verifyOAuthState(state);
+            if (!oauthState) return res.redirect('/#/login?error=auth_failed');
             const { tokens } = await oauth2Client.getToken(code);
             oauth2Client.setCredentials(tokens);
             const ticket = await oauth2Client.verifyIdToken({
@@ -268,10 +266,7 @@ export const authController = {
             const userJson = JSON.stringify(sanitizedUser);
             const base64User = Buffer.from(userJson).toString('base64');
             
-            let redirectBase = '';
-            if (state && typeof state === 'string' && state.startsWith('http')) {
-                redirectBase = state;
-            }
+            const redirectBase = oauthState.returnTo;
             res.redirect(`${redirectBase}/#/auth/callback?user=${base64User}`);
         } catch (error: unknown) {
             logger.error('Google auth callback error:', error);

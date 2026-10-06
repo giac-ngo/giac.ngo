@@ -42,7 +42,7 @@ const translations = {
 
 const DocumentCardSkeleton = () => (
     <div className="doc-card skeleton-card">
-        <div className="skeleton skeleton-doc-thumb"></div>
+        <div className="skeleton skeleton-doc-thumb w-full aspect-square flex-shrink-0"></div>
         <div className="doc-card-content">
             <div className="skeleton skeleton-title small"></div>
             <div className="skeleton skeleton-text short"></div>
@@ -384,8 +384,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ filters, onFiltersChan
                         <Link to={`/${spaceSlug || doc.spaceSlug || 'giac-ngo'}/library/${doc.id}`} key={doc.id} className="doc-card" onClick={() => {
                             sessionStorage.setItem('libraryFilters', JSON.stringify(filters));
                         }}>
-                            <div className="doc-card-thumb">
-                                {doc.thumbnailUrl && doc.thumbnailUrl !== '' ? <img src={doc.thumbnailUrl} alt={doc.title} loading="lazy" /> : <BookOpenIcon />}
+                            <div className="doc-card-thumb relative w-full aspect-square overflow-hidden flex-shrink-0 bg-background-light flex items-center justify-center">
+                                {doc.thumbnailUrl && doc.thumbnailUrl !== '' ? (
+                                    <img 
+                                        src={doc.thumbnailUrl} 
+                                        alt={doc.title} 
+                                        loading="lazy" 
+                                        className="absolute inset-0 w-full h-full object-cover object-center" 
+                                    />
+                                ) : (
+                                    <BookOpenIcon className="w-12 h-12 text-text-light" />
+                                )}
                             </div>
                             <div className="doc-card-content">
                                 <span className="doc-card-type">{language === 'en' && doc.typeEn ? doc.typeEn : doc.type}</span>

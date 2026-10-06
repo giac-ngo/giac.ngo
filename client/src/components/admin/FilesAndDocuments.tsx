@@ -53,6 +53,10 @@ const translations = {
         saving: 'Đang lưu...',
         cancel: 'Hủy',
         removeFormat: 'Xóa định dạng',
+        cleanSpacing: 'Chuẩn hóa dòng',
+        cleanSpacingTitle: 'Chuẩn hóa khoảng cách dòng & dọn sạch định dạng rác',
+        cleanSpacingSuccess: 'Đã chuẩn hóa khoảng cách dòng & định dạng thành công!',
+        pasteNotice: '✨ Tự động chuẩn hóa & chống giãn dòng khi dán (Ctrl+V)',
         titleEn: 'Tiêu đề (EN)',
         summaryEn: 'Tóm tắt (EN)',
         addTagPlaceholder: 'Thêm thẻ và nhấn Enter...',
@@ -113,7 +117,11 @@ const translations = {
         explanationPlaceholder: 'Nhập lời diễn giải ý nghĩa của bài kinh/kệ...',
         explainBtn: 'Diễn giải AI',
         explaining: 'Đang diễn giải...',
-        translateAll: 'Dịch toàn bộ (VI - EN)',
+        translateAll: 'Dịch toàn bộ',
+        translateTitle: 'Dịch tiêu đề',
+        translateSummary: 'Dịch tóm tắt',
+        translateContent: 'Dịch nội dung',
+        translateExplanation: 'Dịch diễn giải',
         systemPromptLabel: 'System Prompt Dịch thuật',
         systemPromptPlaceholder: 'Ví dụ: Dịch với văn phong giác ngộ, sử dụng ngôn từ Phật giáo trang trọng...',
     },
@@ -160,6 +168,10 @@ const translations = {
         saving: 'Saving...',
         cancel: 'Cancel',
         removeFormat: 'Clear formatting',
+        cleanSpacing: 'Fix Spacing',
+        cleanSpacingTitle: 'Normalize line spacing & remove extra blank lines',
+        cleanSpacingSuccess: 'Line spacing and formatting normalized successfully!',
+        pasteNotice: '✨ Auto-sanitizes & fixes line spacing on paste (Ctrl+V)',
         titleEn: 'Title (EN)',
         summaryEn: 'Summary (EN)',
         addTagPlaceholder: 'Add a tag and press Enter...',
@@ -219,7 +231,11 @@ const translations = {
         explanationPlaceholder: 'Enter explanation or commentary for this scripture/verse...',
         explainBtn: 'AI Explain',
         explaining: 'Explaining...',
-        translateAll: 'Translate All (VI - EN)',
+        translateAll: 'Translate All',
+        translateTitle: 'Translate Title',
+        translateSummary: 'Translate Summary',
+        translateContent: 'Translate Content',
+        translateExplanation: 'Translate Explanation',
         systemPromptLabel: 'Translation System Prompt',
         systemPromptPlaceholder: 'e.g. Translate with an enlightened, formal Buddhist style...',
     }
@@ -300,6 +316,153 @@ function pcmToWav(pcmData: Uint8Array, numChannels: number, sampleRate: number, 
 }
 
 
+/**
+ * Làm sạch mã HTML từ Word, Google Docs, Website khi paste
+ * Giữ nguyên các định dạng quan trọng: bold, italic, underline, list, table, align...
+ * Loại bỏ triệt để: inline line-height, margin, padding, font-family, font-size rác, thẻ rỗng liên tiếp
+ */
+const cleanPastedHtml = (rawHtml: string): string => {
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+
+        // 1. Loại bỏ các thẻ rác và scripts/styles nhúng
+        const trashSelectors = 'script, style, link, meta, xml, o\\:p, noscript, iframe, frame, object, embed, applet, title';
+        doc.querySelectorAll(trashSelectors).forEach(el => el.remove());
+
+        // 2. Xóa các comment nodes (đặc biệt là MSO comments từ Word: <!--[if gte mso 9]>...)
+        const cleanComments = (node: Node) => {
+            const childNodes = Array.from(node.childNodes);
+            for (const child of childNodes) {
+                if (child.nodeType === Node.COMMENT_NODE) {
+                    child.remove();
+                } else if (child.nodeType === Node.ELEMENT_NODE) {
+                    cleanComments(child);
+                }
+            }
+        };
+        cleanComments(doc.body);
+
+        // 3. Chuẩn hóa tất cả các elements
+        const allElements = Array.from(doc.body.querySelectorAll('*'));
+        for (const el of allElements) {
+            const tagName = el.tagName.toLowerCase();
+
+            // Xóa toàn bộ class, id, dir, lang từ nguồn copy
+            el.removeAttribute('class');
+            el.removeAttribute('id');
+            el.removeAttribute('lang');
+            el.removeAttribute('dir');
+
+            // Xóa các attribute rác của Word & trình duyệt
+            Array.from(el.attributes).forEach(attr => {
+                const name = attr.name.toLowerCase();
+                if (
+                    name.startsWith('data-') ||
+                    name.startsWith('mso-') ||
+                    name.startsWith('v:') ||
+                    name.startsWith('o:') ||
+                    name.startsWith('aria-') ||
+                    name === 'face' ||
+                    name === 'size' ||
+                    name === 'color' ||
+                    name === 'clear'
+                ) {
+                    el.removeAttribute(attr.name);
+                }
+            });
+
+            // Xử lý styles inline:
+            // LOẠI BỎ: font-family, font-size, line-height, margin, padding, height, color, background...
+            // GIỮ LẠI: text-align (center/right/justify/left), font-weight, font-style, text-decoration
+            const style = el.getAttribute('style');
+            if (style) {
+                const keptStyles: string[] = [];
+                const textAlign = (el as HTMLElement).style.textAlign;
+                if (textAlign && ['left', 'center', 'right', 'justify'].includes(textAlign.toLowerCase())) {
+                    keptStyles.push(`text-align: ${textAlign.toLowerCase()}`);
+                }
+
+                const fontWeight = (el as HTMLElement).style.fontWeight;
+                if (fontWeight === 'bold' || parseInt(fontWeight, 10) >= 600) {
+                    if (!['b', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+                        keptStyles.push('font-weight: bold');
+                    }
+                }
+
+                const fontStyle = (el as HTMLElement).style.fontStyle;
+                if (fontStyle === 'italic') {
+                    if (!['i', 'em'].includes(tagName)) {
+                        keptStyles.push('font-style: italic');
+                    }
+                }
+
+                const textDec = (el as HTMLElement).style.textDecoration;
+                if (textDec && textDec.includes('underline')) {
+                    if (tagName !== 'u') {
+                        keptStyles.push('text-decoration: underline');
+                    }
+                }
+
+                if (keptStyles.length > 0) {
+                    el.setAttribute('style', keptStyles.join('; '));
+                } else {
+                    el.removeAttribute('style');
+                }
+            }
+
+            // Unwrap các thẻ span rỗng style
+            if (tagName === 'span' && (!el.getAttribute('style') || el.getAttribute('style') === '')) {
+                const parent = el.parentNode;
+                if (parent) {
+                    while (el.firstChild) {
+                        parent.insertBefore(el.firstChild, el);
+                    }
+                    parent.removeChild(el);
+                }
+            }
+
+            // Unwrap thẻ font cũ
+            if (tagName === 'font') {
+                const parent = el.parentNode;
+                if (parent) {
+                    while (el.firstChild) {
+                        parent.insertBefore(el.firstChild, el);
+                    }
+                    parent.removeChild(el);
+                }
+            }
+        }
+
+        // 4. Giữ nguyên toàn bộ cách giãn dòng và cấu trúc đoạn của người dùng
+        const result = doc.body.innerHTML;
+        return result.trim();
+    } catch (err) {
+        console.error('Error cleaning HTML:', err);
+        return rawHtml;
+    }
+};
+
+/**
+ * Xử lý dán Plain Text: giữ nguyên toàn bộ cách giãn dòng và ngắt dòng của người dùng
+ */
+const cleanPlainText = (text: string): string => {
+    if (!text) return '';
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    const escaped = lines.map(line => {
+        if (!line.trim()) {
+            return '<br>';
+        }
+        return line
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    });
+    return `<p>${escaped.join('<br>')}</p>`;
+};
+
 const TextEditor: React.FC<{
     initialHtml: string;
     onContentChange: (html: string) => void;
@@ -320,24 +483,141 @@ const TextEditor: React.FC<{
     heightClass = 'min-h-[250px] h-[250px]'
 }) => {
     const editorRef = useRef<HTMLDivElement>(null);
+    const lastHtmlRef = useRef<string>(initialHtml || '');
+    const isMountedRef = useRef<boolean>(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'rich' | 'html'>('rich');
     const t = translations[language];
+    const { showToast } = useToast();
 
+    // Cấu hình ngắt đoạn chuẩn khi bấm Enter
     useEffect(() => {
-        if (viewMode === 'rich' && editorRef.current && editorRef.current.innerHTML !== initialHtml) {
-            editorRef.current.innerHTML = initialHtml;
+        try {
+            document.execCommand('defaultParagraphSeparator', false, 'p');
+        } catch (e) {
+            // Ignore if unsupported
+        }
+    }, []);
+
+    // Khởi tạo và cập nhật khi initialHtml thay đổi từ bên ngoài (Dịch thuật, load dữ liệu mới, v.v.)
+    useEffect(() => {
+        if (!editorRef.current || viewMode !== 'rich') return;
+        if (!isMountedRef.current || initialHtml !== lastHtmlRef.current) {
+            isMountedRef.current = true;
+            lastHtmlRef.current = initialHtml || '';
+            if (editorRef.current.innerHTML !== (initialHtml || '')) {
+                editorRef.current.innerHTML = initialHtml || '';
+            }
         }
     }, [initialHtml, viewMode]);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-        onContentChange(e.currentTarget.innerHTML);
+        const currentHtml = e.currentTarget.innerHTML;
+        lastHtmlRef.current = currentHtml;
+        onContentChange(currentHtml);
     };
 
     const execCmd = (command: string, value: any = undefined) => {
         if (disabled) return;
         document.execCommand(command, false, value);
+        if (editorRef.current) {
+            editorRef.current.focus();
+            const currentHtml = editorRef.current.innerHTML;
+            lastHtmlRef.current = currentHtml;
+            onContentChange(currentHtml);
+        }
+    };
+
+    const insertHtmlAtCursor = (html: string) => {
+        if (!html) return;
         editorRef.current?.focus();
+
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            let range = sel.getRangeAt(0);
+
+            // Đảm bảo selection nằm trong editor
+            if (!editorRef.current?.contains(range.commonAncestorContainer)) {
+                range = document.createRange();
+                range.selectNodeContents(editorRef.current!);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+
+            let inserted = false;
+            try {
+                inserted = document.execCommand('insertHTML', false, html);
+            } catch (err) {
+                inserted = false;
+            }
+
+            if (!inserted) {
+                range.deleteContents();
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const frag = document.createDocumentFragment();
+                let node: Node | null;
+                let lastNode: Node | null = null;
+                while ((node = tempDiv.firstChild)) {
+                    lastNode = frag.appendChild(node);
+                }
+                range.insertNode(frag);
+                if (lastNode) {
+                    const newRange = range.cloneRange();
+                    newRange.setStartAfter(lastNode);
+                    newRange.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                }
+            }
+        } else if (editorRef.current) {
+            editorRef.current.innerHTML += html;
+        }
+
+        if (editorRef.current) {
+            const currentHtml = editorRef.current.innerHTML;
+            lastHtmlRef.current = currentHtml;
+            onContentChange(currentHtml);
+        }
+    };
+
+    /**
+     * Bắt sự kiện Paste: Làm sạch triệt để HTML rác, margin rác, line-height rác
+     */
+    const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+        if (disabled || isExtracting) return;
+        e.preventDefault();
+
+        const clipboardData = e.clipboardData;
+        const htmlData = clipboardData.getData('text/html');
+        const textData = clipboardData.getData('text/plain');
+
+        let cleaned = '';
+        if (htmlData && htmlData.trim()) {
+            cleaned = cleanPastedHtml(htmlData);
+        }
+
+        if (!cleaned || cleaned.trim() === '') {
+            cleaned = cleanPlainText(textData);
+        }
+
+        insertHtmlAtCursor(cleaned);
+    };
+
+    /**
+     * Nút Chuẩn hóa khoảng cách dòng: Quét toàn bộ nội dung hiện tại và dọn sạch các kiểu giãn dòng rác
+     */
+    const handleNormalizeSpacing = () => {
+        if (disabled || isExtracting || !editorRef.current) return;
+        const currentHtml = editorRef.current.innerHTML;
+        if (!currentHtml || !currentHtml.trim()) return;
+
+        const cleaned = cleanPastedHtml(currentHtml);
+        lastHtmlRef.current = cleaned;
+        editorRef.current.innerHTML = cleaned;
+        onContentChange(cleaned);
+        showToast(t.cleanSpacingSuccess, 'success');
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,9 +627,9 @@ const TextEditor: React.FC<{
     };
 
     return (
-        <div className="border border-border-color rounded-md overflow-hidden bg-white">
-            {/* View Mode Tabs */}
-            <div className="flex border-b border-border-color bg-gray-50 text-xs px-2 py-1 gap-2 items-center justify-between">
+        <div className="border border-border-color rounded-md overflow-hidden bg-white shadow-sm">
+            {/* View Mode Tabs & Helpful Notice */}
+            <div className="flex border-b border-border-color bg-gray-50 text-xs px-2.5 py-1.5 gap-2 items-center justify-between flex-wrap">
                 <div className="flex gap-1">
                     <button
                         type="button"
@@ -371,9 +651,9 @@ const TextEditor: React.FC<{
             {viewMode === 'rich' ? (
                 <>
                     <div className="flex items-center gap-1 p-2 border-b border-border-color bg-background-light flex-wrap text-sm">
-                        <button type="button" onClick={() => execCmd('bold')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><BoldIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('italic')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ItalicIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('underline')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><UnderlineIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('bold')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="In đậm (Bold)"><BoldIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('italic')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="In nghiêng (Italic)"><ItalicIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('underline')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Gạch chân (Underline)"><UnderlineIcon className="w-4 h-4" /></button>
                         
                         <select
                             onChange={(e) => {
@@ -397,13 +677,27 @@ const TextEditor: React.FC<{
 
                         <span className="w-px h-4 bg-gray-300 mx-1"></span>
 
-                        <button type="button" onClick={() => execCmd('insertOrderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListOrderedIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('insertUnorderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><ListIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('justifyLeft')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignLeftIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('justifyCenter')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignCenterIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => execCmd('justifyRight')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50"><AlignRightIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('insertOrderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Danh sách số"><ListOrderedIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('insertUnorderedList')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Danh sách chấm"><ListIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyLeft')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Căn trái"><AlignLeftIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyCenter')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Căn giữa"><AlignCenterIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => execCmd('justifyRight')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title="Căn phải"><AlignRightIcon className="w-4 h-4" /></button>
                         <button type="button" onClick={() => execCmd('removeFormat')} disabled={disabled || isExtracting} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-50" title={t.removeFormat}><EraserIcon className="w-4 h-4" /></button>
                         
+                        <span className="w-px h-4 bg-gray-300 mx-1"></span>
+
+                        {/* Nút Chuẩn hóa khoảng cách dòng */}
+                        <button
+                            type="button"
+                            onClick={handleNormalizeSpacing}
+                            disabled={disabled || isExtracting}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded transition-colors disabled:opacity-50 shadow-xs"
+                            title={t.cleanSpacingTitle}
+                        >
+                            <SparkleIcon className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{t.cleanSpacing}</span>
+                        </button>
+
                         {onFileExtract && (
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
@@ -417,9 +711,16 @@ const TextEditor: React.FC<{
                     <div
                         ref={editorRef}
                         contentEditable={!disabled && !isExtracting}
+                        suppressContentEditableWarning={true}
                         onInput={handleInput}
-                        className={`p-3 prose max-w-none focus:outline-none overflow-y-auto ${heightClass} ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
-                        dangerouslySetInnerHTML={{ __html: initialHtml }}
+                        onPaste={handlePaste}
+                        className={`p-3.5 prose max-w-none focus:outline-none overflow-y-auto ${heightClass} ${
+                            disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
+                        } text-gray-800 text-[15px] leading-relaxed [&>p]:my-1.5 [&>p]:leading-relaxed [&>div]:my-1 [&>div]:leading-relaxed [&>ul]:my-2 [&>ol]:my-2 [&>li]:my-0.5 [&_p]:my-1.5 [&_p]:leading-relaxed [&_div]:my-0.5 [&_div]:leading-relaxed`}
+                        style={{
+                            lineHeight: '1.7',
+                            fontSize: '15px'
+                        }}
                         data-placeholder={placeholder}
                     />
                 </>
@@ -917,7 +1218,6 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
     const [isAudioEnPickerOpen, setIsAudioEnPickerOpen] = useState(false);
 
         // State for translation and extraction
-    const [translatingField, setTranslatingField] = useState<string | null>(null);
     const [extractingFor, setExtractingFor] = useState<'vi' | 'en' | null>(null);
     const [isGeneratingAudioFor, setIsGeneratingAudioFor] = useState<'vi' | 'en' | null>(null);
     const [isTranslatingAll, setIsTranslatingAll] = useState(false);
@@ -945,11 +1245,27 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFilters(prev => ({
-            ...prev,
-            [name]: value,
-        }));
+        setFilters(prev => {
+            const next: Filters = { ...prev, [name]: value };
+            // Reset topicId khi đổi authorId hoặc typeId
+            if (name === 'authorId' || name === 'typeId') {
+                next.topicId = '';
+            }
+            return next;
+        });
     };
+
+    // Lọc topics theo author và type đang được chọn trong filter
+    const filteredTopics = useMemo(() => {
+        let topics = documentTopics;
+        if (filters.authorId) {
+            topics = topics.filter(t => String(t.authorId) === filters.authorId);
+        }
+        if (filters.typeId) {
+            topics = topics.filter(t => String(t.typeId) === filters.typeId);
+        }
+        return topics;
+    }, [documentTopics, filters.authorId, filters.typeId]);
 
     const fetchInitialData = useCallback(async () => {
         try {
@@ -1167,7 +1483,14 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
             setAudioFile(null);
             setAudioEnFile(null);
         } catch (error: any) {
-            showToast(t.saveError.replace('{message}', error.message), 'error');
+            const errMsg = error.message || '';
+            let displayMsg = errMsg;
+            if (errMsg.includes('spaces you own') || errMsg.includes('spaces you own or manage')) {
+                displayMsg = 'Bạn không có quyền tạo hoặc chỉnh sửa tài liệu ở Không gian này.';
+            } else if (errMsg.includes('/tmp') || errMsg.includes('ENOENT')) {
+                displayMsg = 'Không đọc được tệp, vui lòng thử lại.';
+            }
+            showToast(t.saveError.replace('{message}', displayMsg), 'error');
         } finally {
             setIsSaving(false);
         }
@@ -1189,46 +1512,38 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
         }
     };
 
-    const handleTranslate = async (field: 'title' | 'summary' | 'content' | 'explanation', sourceLang: 'vi' | 'en', targetLang: 'vi' | 'en') => {
-        if (!editingDocument || !documentConfig) return;
-
-        const sourceField = sourceLang === 'en' ? `${field}En` as keyof Document : field;
-        const targetField = targetLang === 'en' ? `${field}En` as keyof Document : field;
-
-        const sourceText = String(editingDocument[sourceField] || '').trim();
-
-        if (!sourceText) {
-            showToast(sourceLang === 'vi' ? 'Nội dung Tiếng Việt trống để dịch.' : 'English content is empty to translate from.', 'error');
-            return;
-        }
-
-        const contextPrompt = documentConfig.systemPrompt || "Dịch với văn phong 'giác ngộ', sử dụng ngôn từ trang trọng, sâu sắc, phù hợp với các văn bản Phật giáo.";
-
-        setTranslatingField(field);
-        try {
-            const { translatedText } = await apiService.translateText(
-                documentConfig.translationProvider,
-                documentConfig.translationModel,
-                sourceText,
-                targetLang,
-                user.id as number,
-                contextPrompt,
-                editingDocument.spaceId || activeSpace?.id || undefined
-            );
-            setEditingDocument(prev => prev ? { ...prev, [targetField]: translatedText } : null);
-        } catch (error: any) {
-            showToast(t.generateError, 'error');
-            console.error(error);
-        } finally {
-            setTranslatingField(null);
-        }
-    };
-
     const handleTranslateAll = async (sourceLang: 'vi' | 'en', targetLang: 'vi' | 'en') => {
         if (!editingDocument || !documentConfig || isTranslatingAll) return;
 
+        const sourceTitle = String(editingDocument[sourceLang === 'en' ? 'titleEn' : 'title'] || '').trim();
+        const sourceSummary = String(editingDocument[sourceLang === 'en' ? 'summaryEn' : 'summary'] || '').trim();
+        const sourceContent = String(editingDocument[sourceLang === 'en' ? 'contentEn' : 'content'] || '').trim();
+        const sourceExplanation = String(editingDocument[sourceLang === 'en' ? 'explanationEn' : 'explanation'] || '').trim();
+
+        const hasContent = Boolean(
+            sourceTitle ||
+            sourceSummary ||
+            stripHtml(sourceContent).trim() ||
+            stripHtml(sourceExplanation).trim()
+        );
+
+        if (!hasContent) {
+            showToast(
+                sourceLang === 'en'
+                    ? 'Tab Tiếng Anh hiện chưa có dữ liệu để lấy và dịch.'
+                    : 'Tab Tiếng Việt hiện chưa có dữ liệu để lấy và dịch.',
+                'info'
+            );
+            return;
+        }
+
         setIsTranslatingAll(true);
-        showToast(targetLang === 'vi' ? 'Đang dịch toàn bộ sang Tiếng Việt...' : 'Translating all to English...', 'info');
+        showToast(
+            targetLang === 'vi'
+                ? 'Đang lấy dữ liệu từ Tab Tiếng Anh và dịch sang Tiếng Việt...'
+                : 'Đang lấy dữ liệu từ Tab Tiếng Việt và dịch sang Tiếng Anh...',
+            'info'
+        );
 
         const contextPrompt = documentConfig.systemPrompt || "Dịch với văn phong 'giác ngộ', sử dụng ngôn từ trang trọng, sâu sắc, phù hợp với các văn bản Phật giáo.";
 
@@ -1236,7 +1551,10 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
             const translateFieldHelper = async (field: 'title' | 'summary' | 'content' | 'explanation') => {
                 const sourceField = sourceLang === 'en' ? `${field}En` as keyof Document : field;
                 const sourceText = String(editingDocument[sourceField] || '').trim();
-                if (!sourceText) return '';
+                if (!sourceText) return null;
+                if ((field === 'content' || field === 'explanation') && !stripHtml(sourceText).trim()) {
+                    return null;
+                }
 
                 const { translatedText } = await apiService.translateText(
                     documentConfig.translationProvider,
@@ -1261,22 +1579,27 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 if (!prev) return null;
                 const newDoc = { ...prev };
                 if (targetLang === 'vi') {
-                    if (titleRes) newDoc.title = titleRes;
-                    if (summaryRes) newDoc.summary = summaryRes;
-                    if (contentRes) newDoc.content = contentRes;
-                    if (explanationRes) newDoc.explanation = explanationRes;
+                    if (titleRes !== null) newDoc.title = titleRes;
+                    if (summaryRes !== null) newDoc.summary = summaryRes;
+                    if (contentRes !== null) newDoc.content = contentRes;
+                    if (explanationRes !== null) newDoc.explanation = explanationRes;
                 } else {
-                    if (titleRes) newDoc.titleEn = titleRes;
-                    if (summaryRes) newDoc.summaryEn = summaryRes;
-                    if (contentRes) newDoc.contentEn = contentRes;
-                    if (explanationRes) newDoc.explanationEn = explanationRes;
+                    if (titleRes !== null) newDoc.titleEn = titleRes;
+                    if (summaryRes !== null) newDoc.summaryEn = summaryRes;
+                    if (contentRes !== null) newDoc.contentEn = contentRes;
+                    if (explanationRes !== null) newDoc.explanationEn = explanationRes;
                 }
                 return newDoc;
             });
 
-            showToast(t.saveSuccess, 'success');
+            showToast(
+                targetLang === 'vi'
+                    ? 'Đã lấy dữ liệu từ Tab Tiếng Anh và dịch sang Tiếng Việt thành công!'
+                    : 'Đã lấy dữ liệu từ Tab Tiếng Việt và dịch sang Tiếng Anh thành công!',
+                'success'
+            );
         } catch (error: any) {
-            showToast('Lỗi dịch toàn bộ: ' + error.message, 'error');
+            showToast('Lỗi dịch: ' + error.message, 'error');
             console.error(error);
         } finally {
             setIsTranslatingAll(false);
@@ -1329,7 +1652,11 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 handleFormChange({ target: { name: 'contentEn', value: htmlContent } } as any);
             }
         } catch (error: any) {
-            showToast(t.extractError.replace('{message}', error.message), 'error');
+            const rawMsg = error.message || '';
+            const safeMsg = (rawMsg.includes('ENOENT') || rawMsg.includes('/tmp') || rawMsg.includes('\\tmp'))
+                ? 'Không đọc được tệp, vui lòng thử lại.'
+                : rawMsg;
+            showToast(t.extractError.replace('{message}', safeMsg), 'error');
         } finally {
             setExtractingFor(null);
         }
@@ -1432,7 +1759,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 <div><label className="text-sm font-medium text-text-light">{t.titleHeader}</label><input type="text" name="title" value={filters.title} onChange={handleFilterChange} placeholder={t.filterByTitle} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1" /></div>
                 <div><label className="text-sm font-medium text-text-light">{t.author}</label><div className="flex items-center gap-1 mt-1"><select name="authorId" value={filters.authorId} onChange={handleFilterChange} className="flex-grow p-2 border border-border-color rounded-md bg-background-panel text-sm w-full"><option value="">{t.filterAll}</option>{documentAuthors.map(item => <option key={item.id} value={item.id}>{language === 'en' && item.nameEn ? item.nameEn : item.name}</option>)}</select>{(user.permissions?.includes('roles') || manageableSpaces.length > 0) && <button onClick={() => openCategoryManager('documentAuthor')} className="p-2 rounded-md hover:bg-gray-200"><PencilIcon className="w-4 h-4 text-text-light" /></button>}</div></div>
                 <div><label className="text-sm font-medium text-text-light">{t.type}</label><div className="flex items-center gap-1 mt-1"><select name="typeId" value={filters.typeId} onChange={handleFilterChange} className="flex-grow p-2 border border-border-color rounded-md bg-background-panel text-sm w-full"><option value="">{t.filterAll}</option>{documentTypes.map(item => <option key={item.id} value={item.id}>{language === 'en' && item.nameEn ? item.nameEn : item.name}</option>)}</select>{(user.permissions?.includes('roles') || manageableSpaces.length > 0) && <button onClick={() => openCategoryManager('type')} className="p-2 rounded-md hover:bg-gray-200"><PencilIcon className="w-4 h-4 text-text-light" /></button>}</div></div>
-                <div><label className="text-sm font-medium text-text-light">{t.topic}</label><div className="flex items-center gap-1 mt-1"><select name="topicId" value={filters.topicId} onChange={handleFilterChange} className="flex-grow p-2 border border-border-color rounded-md bg-background-panel text-sm w-full"><option value="">{t.filterAll}</option>{documentTopics.map(item => <option key={item.id} value={item.id}>{language === 'en' && item.nameEn ? item.nameEn : item.name}</option>)}</select>{(user.permissions?.includes('roles') || manageableSpaces.length > 0) && <button onClick={() => openCategoryManager('documentTopic')} className="p-2 rounded-md hover:bg-gray-200"><PencilIcon className="w-4 h-4 text-text-light" /></button>}</div></div>
+                <div><label className="text-sm font-medium text-text-light">{t.topic}</label><div className="flex items-center gap-1 mt-1"><select name="topicId" value={filters.topicId} onChange={handleFilterChange} className="flex-grow p-2 border border-border-color rounded-md bg-background-panel text-sm w-full"><option value="">{t.filterAll}</option>{filteredTopics.map(item => <option key={item.id} value={item.id}>{language === 'en' && item.nameEn ? item.nameEn : item.name}</option>)}</select>{(user.permissions?.includes('roles') || manageableSpaces.length > 0) && <button onClick={() => openCategoryManager('documentTopic')} className="p-2 rounded-md hover:bg-gray-200"><PencilIcon className="w-4 h-4 text-text-light" /></button>}</div></div>
                 <div><label className="text-sm font-medium text-text-light">{t.space}</label><select name="spaceId" value={filters.spaceId} onChange={handleFilterChange} className="p-2 border border-border-color rounded-md bg-background-panel text-sm w-full mt-1"><option value="">{t.filterAll}</option>{manageableSpaces.map(item => <option key={item.id as number} value={item.id as number}>{item.name}</option>)}</select></div>
                 <div><label className="text-sm font-medium text-text-light">{t.tags}</label><div className="flex items-center gap-1 mt-1"><select name="tagId" value={filters.tagId} onChange={handleFilterChange} className="flex-grow p-2 border border-border-color rounded-md bg-background-panel text-sm w-full"><option value="">{t.filterAll}</option>{tags.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div></div>
             </div>
@@ -1542,55 +1869,51 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                             {activeTab === 'vi' && (
                                 <div className="space-y-4">
                                     <div className="flex justify-end">
-                                        <button type="button" onClick={() => handleTranslateAll('en', 'vi')} disabled={isTranslatingAll} className="flex items-center gap-1.5 text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 disabled:opacity-50 font-semibold shadow-sm transition-all">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTranslateAll('en', 'vi')}
+                                            disabled={isTranslatingAll}
+                                            title="Lấy dữ liệu từ Tab Tiếng Anh và dịch sang Tiếng Việt"
+                                            className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm transition-all"
+                                        >
                                             {isTranslatingAll ? <SpinnerIcon className="w-4 h-4" /> : <RepeatIcon className="w-4 h-4" />}
-                                            <span>{t.translateAll} (EN {"->"} VI)</span>
+                                            <span>Lấy nguồn từ Tab Tiếng Anh</span>
                                         </button>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">{t.titleHeader}</label>
-                                        <div className="relative">
-                                            <input ref={titleInputRef} type="text" value={editingDocument.title || ''} onChange={e => handleFormChange({ target: { name: 'title', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'title' || isTranslatingAll} />
-                                            <button onClick={() => handleTranslate('title', 'en', 'vi')} disabled={translatingField === 'title' || isTranslatingAll} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
-                                                {translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                        <label className="block text-sm font-medium mb-1">{t.titleHeader}</label>
+                                        <input ref={titleInputRef} type="text" value={editingDocument.title || ''} onChange={e => handleFormChange({ target: { name: 'title', value: e.target.value } } as any)} className="w-full p-2 border rounded-md" disabled={isTranslatingAll} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">{t.summary}</label>
-                                        <div className="relative">
-                                            <textarea value={editingDocument.summary || ''} onChange={e => handleFormChange({ target: { name: 'summary', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'summary' || isTranslatingAll}></textarea>
-                                            <button onClick={() => handleTranslate('summary', 'en', 'vi')} disabled={translatingField === 'summary' || isTranslatingAll} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
-                                                {translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                        <label className="block text-sm font-medium mb-1">{t.summary}</label>
+                                        <textarea value={editingDocument.summary || ''} onChange={e => handleFormChange({ target: { name: 'summary', value: e.target.value } } as any)} rows={3} className="w-full p-2 border rounded-md" disabled={isTranslatingAll}></textarea>
                                     </div>
                                     <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="block text-sm font-medium">{t.dialogContentLabel}</label>
-                                            <button type="button" onClick={() => handleTranslate('content', 'en', 'vi')} disabled={translatingField === 'content' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all">
-                                                {translatingField === 'content' ? <SpinnerIcon className="w-3.5 h-3.5" /> : <LanguageIcon className="w-3.5 h-3.5" />}
-                                                <span>Dịch nội dung (EN {"->"} VI)</span>
-                                            </button>
-                                        </div>
-                                        <TextEditor initialHtml={editingDocument.content || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'content', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'vi')} isExtracting={extractingFor === 'vi'} language={language} disabled={translatingField === 'content' || isTranslatingAll} />
+                                        <label className="block text-sm font-medium mb-1">{t.dialogContentLabel}</label>
+                                        <TextEditor key="doc-editor-content-vi" initialHtml={editingDocument.content || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'content', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'vi')} isExtracting={extractingFor === 'vi'} language={language} disabled={isTranslatingAll} />
                                     </div>
                                     <div className="pt-2">
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="block text-sm font-medium">{t.explanationLabel}</label>
-                                            <button type="button" onClick={() => handleGenerateExplanation('vi')} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded hover:bg-purple-100 disabled:opacity-50 transition-all">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleGenerateExplanation('vi')}
+                                                disabled={isExplaining || isTranslatingAll}
+                                                title="Tự động tạo diễn giải ý nghĩa từ nội dung bài viết bằng AI"
+                                                className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all shadow-sm"
+                                            >
                                                 {isExplaining ? <SpinnerIcon className="w-3.5 h-3.5" /> : <SparkleIcon className="w-3.5 h-3.5" />}
                                                 <span>{t.explainBtn}</span>
                                             </button>
                                         </div>
-                                        <TextEditor initialHtml={editingDocument.explanation || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanation', value: html } } as any)} language={language} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} />
+                                        <TextEditor key="doc-editor-explanation-vi" initialHtml={editingDocument.explanation || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanation', value: html } } as any)} language={language} disabled={isExplaining || isTranslatingAll} />
                                     </div>
                                     <div className="pt-2">
                                         <label className="block text-sm font-medium mb-1">{t.uploadAudio}</label>
                                         <div className="flex items-center gap-4">
                                             <button type="button" onClick={() => setIsAudioPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudio}</button>
                                             {editingDocument.audioUrl && <audio controls src={editingDocument.audioUrl} className="max-w-xs" />}
-                                            <button onClick={() => handleGenerateAudio('vi')} disabled={isGeneratingAudioFor === 'vi' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">
+                                            <button onClick={() => handleGenerateAudio('vi')} disabled={isGeneratingAudioFor === 'vi' || !documentConfig} title="Tự động chuyển đổi văn bản thành âm thanh bằng AI" className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 shadow-sm">
                                                 {isGeneratingAudioFor === 'vi' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}
                                                 <span>{isGeneratingAudioFor === 'vi' ? t.generatingAudio : t.generateAudio}</span>
                                             </button>
@@ -1601,55 +1924,51 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                             {activeTab === 'en' && (
                                 <div className="space-y-4">
                                     <div className="flex justify-end">
-                                        <button type="button" onClick={() => handleTranslateAll('vi', 'en')} disabled={isTranslatingAll} className="flex items-center gap-1.5 text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 disabled:opacity-50 font-semibold shadow-sm transition-all">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTranslateAll('vi', 'en')}
+                                            disabled={isTranslatingAll}
+                                            title="Lấy dữ liệu từ Tab Tiếng Việt và dịch sang Tiếng Anh"
+                                            className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm transition-all"
+                                        >
                                             {isTranslatingAll ? <SpinnerIcon className="w-4 h-4" /> : <RepeatIcon className="w-4 h-4" />}
-                                            <span>{t.translateAll} (VI {"->"} EN)</span>
+                                            <span>Lấy nguồn từ Tab Tiếng Việt</span>
                                         </button>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">{t.titleEn}</label>
-                                        <div className="relative">
-                                            <input type="text" value={editingDocument.titleEn || ''} onChange={e => handleFormChange({ target: { name: 'titleEn', value: e.target.value } } as any)} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'title' || isTranslatingAll} />
-                                            <button onClick={() => handleTranslate('title', 'vi', 'en')} disabled={translatingField === 'title' || isTranslatingAll} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
-                                                {translatingField === 'title' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                        <label className="block text-sm font-medium mb-1">{t.titleEn}</label>
+                                        <input type="text" value={editingDocument.titleEn || ''} onChange={e => handleFormChange({ target: { name: 'titleEn', value: e.target.value } } as any)} className="w-full p-2 border rounded-md" disabled={isTranslatingAll} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">{t.summaryEn}</label>
-                                        <div className="relative">
-                                            <textarea value={editingDocument.summaryEn || ''} onChange={e => handleFormChange({ target: { name: 'summaryEn', value: e.target.value } } as any)} rows={3} className="mt-1 w-full p-2 border rounded-md" disabled={translatingField === 'summary' || isTranslatingAll}></textarea>
-                                            <button onClick={() => handleTranslate('summary', 'vi', 'en')} disabled={translatingField === 'summary' || isTranslatingAll} className="absolute right-2 top-2 p-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
-                                                {translatingField === 'summary' ? <SpinnerIcon className="w-4 h-4" /> : <GenerateIcon className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                        <label className="block text-sm font-medium mb-1">{t.summaryEn}</label>
+                                        <textarea value={editingDocument.summaryEn || ''} onChange={e => handleFormChange({ target: { name: 'summaryEn', value: e.target.value } } as any)} rows={3} className="w-full p-2 border rounded-md" disabled={isTranslatingAll}></textarea>
                                     </div>
                                     <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="block text-sm font-medium">{t.dialogContentLabelEn}</label>
-                                            <button type="button" onClick={() => handleTranslate('content', 'vi', 'en')} disabled={translatingField === 'content' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all">
-                                                {translatingField === 'content' ? <SpinnerIcon className="w-3.5 h-3.5" /> : <LanguageIcon className="w-3.5 h-3.5" />}
-                                                <span>Dịch nội dung (VI {"->"} EN)</span>
-                                            </button>
-                                        </div>
-                                        <TextEditor initialHtml={editingDocument.contentEn || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'contentEn', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'en')} isExtracting={extractingFor === 'en'} language={language} disabled={translatingField === 'content' || isTranslatingAll} />
+                                        <label className="block text-sm font-medium mb-1">{t.dialogContentLabelEn}</label>
+                                        <TextEditor key="doc-editor-content-en" initialHtml={editingDocument.contentEn || ''} placeholder={t.dialogContentPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'contentEn', value: html } } as any)} onFileExtract={(file) => handleFileExtract(file, 'en')} isExtracting={extractingFor === 'en'} language={language} disabled={isTranslatingAll} />
                                     </div>
                                     <div className="pt-2">
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="block text-sm font-medium">{t.explanationLabel}</label>
-                                            <button type="button" onClick={() => handleGenerateExplanation('en')} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} className="flex items-center gap-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded hover:bg-purple-100 disabled:opacity-50 transition-all">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleGenerateExplanation('en')}
+                                                disabled={isExplaining || isTranslatingAll}
+                                                title="Tự động tạo diễn giải ý nghĩa từ nội dung tiếng Anh bằng AI"
+                                                className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded hover:bg-blue-100 disabled:opacity-50 transition-all shadow-sm"
+                                            >
                                                 {isExplaining ? <SpinnerIcon className="w-3.5 h-3.5" /> : <SparkleIcon className="w-3.5 h-3.5" />}
                                                 <span>{t.explainBtn}</span>
                                             </button>
                                         </div>
-                                        <TextEditor initialHtml={editingDocument.explanationEn || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanationEn', value: html } } as any)} language={language} disabled={isExplaining || translatingField === 'explanation' || isTranslatingAll} />
+                                        <TextEditor key="doc-editor-explanation-en" initialHtml={editingDocument.explanationEn || ''} placeholder={t.explanationPlaceholder} onContentChange={html => handleFormChange({ target: { name: 'explanationEn', value: html } } as any)} language={language} disabled={isExplaining || isTranslatingAll} />
                                     </div>
                                     <div className="pt-2">
                                         <label className="block text-sm font-medium mb-1">{t.uploadAudioEn}</label>
                                         <div className="flex items-center gap-4">
                                             <button type="button" onClick={() => setIsAudioEnPickerOpen(true)} disabled={isSaving} className="px-4 py-2 text-sm border rounded-md">{isSaving ? t.saving : t.uploadAudioEn}</button>
                                             {editingDocument.audioUrlEn && <audio controls src={editingDocument.audioUrlEn} className="max-w-xs" />}
-                                            <button onClick={() => handleGenerateAudio('en')} disabled={isGeneratingAudioFor === 'en' || !documentConfig} className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50">
+                                            <button onClick={() => handleGenerateAudio('en')} disabled={isGeneratingAudioFor === 'en' || !documentConfig} title="Tự động chuyển đổi văn bản tiếng Anh thành âm thanh bằng AI" className="flex items-center gap-2 px-4 py-2 text-sm border rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 shadow-sm">
                                                 {isGeneratingAudioFor === 'en' ? <SpinnerIcon className="w-5 h-5" /> : <SoundWaveIcon className="w-5 h-5" />}
                                                 <span>{isGeneratingAudioFor === 'en' ? t.generatingAudio : t.generateAudio}</span>
                                             </button>

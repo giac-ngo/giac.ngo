@@ -11,6 +11,7 @@ import { verifyPassword } from '../db.js';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { documentModel } from '../models/document.model.js';
+import { getJwtSecret } from '../utils/jwtSecret.js';
 
 const router = Router();
 
@@ -171,7 +172,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
         // 5. Generate short-lived JWT access token
         const accessToken = jwt.sign(
             { id: user.id },
-            process.env.JWT_SECRET || 'fallback_secret_giacngo123',
+            getJwtSecret(),
             { expiresIn: '7d' }
         );
 

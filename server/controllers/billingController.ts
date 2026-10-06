@@ -2,20 +2,40 @@
 import { Request, Response, NextFunction } from 'express';
 import { billingModel } from '../models/billing.model.js';
 import { userModel } from '../models/user.model.js';
-import { pool } from '../db.js';
+import { pool, mapRowToCamelCase } from '../db.js';
 import Stripe from 'stripe';
+import { canAccessSpace, hasSpacePermission, isAdmin } from '../middleware/authMiddleware.js';
 
 const mapAndSanitizeUser = (user: Record<string, unknown> | null) => {
     if (!user) return null;
-    const { password, ...sanitizedUser } = user;
+    const { password, resetToken, resetTokenExpires, apiToken, refreshToken, ...sanitizedUser } = user;
     return sanitizedUser;
 };
 
-const getStripeClient = () => {
-    if (!process.env.STRIPE_SECRET_KEY) {
-        throw new Error('Stripe secret key is not configured on the server.');
+async function getAuthorizedConnectSpace(req: Request, spaceId: unknown) {
+    if (!spaceId || !/^\d+$/.test(String(spaceId))) return null;
+    const result = await pool.query('SELECT id, user_id, stripe_account_id FROM spaces WHERE id = $1', [spaceId]);
+    const space = result.rows[0];
+    if (!space) return null;
+    if (!req.user?.isGlobalAdmin) {
+        if (!await canAccessSpace(req.user, String(spaceId))) return null;
+        const canManageBilling = await Promise.all(['space-billing', 'payment-settings', 'settings'].map(permission => hasSpacePermission(req.user, String(spaceId), permission))).then(results => results.some(Boolean));
+        if (String(space.user_id) !== String(req.user?.id) && !canManageBilling) return null;
     }
-    return new Stripe(process.env.STRIPE_SECRET_KEY);
+    return space;
+}
+
+const isStripeConfigured = () => {
+    const key = (process.env.STRIPE_SECRET_KEY || '').trim();
+    return !!key;
+};
+
+const getStripeClient = () => {
+    const key = (process.env.STRIPE_SECRET_KEY || '').trim();
+    if (!key) {
+        throw new Error('STRIPE_SECRET_KEY_NOT_CONFIGURED');
+    }
+    return new Stripe(key);
 };
 
 const MERIT_PRICE_VND = 1000;
@@ -92,7 +112,10 @@ export const billingController = {
     },
     async getTransactionsByUserId(req: Request, res: Response) {
         try {
-            res.json(await billingModel.findTransactionsByUserId(parseInt(String(req.params.userId), 10)));
+            const requestedId = parseInt(String(req.params.userId), 10);
+            const canViewOthers = !!req.user?.isGlobalAdmin || !!req.user?.permissions?.includes('manual-billing');
+            if (!canViewOthers && requestedId !== Number(req.user?.id)) return res.status(404).json({ message: 'Transactions not found.' });
+            res.json(await billingModel.findTransactionsByUserId(requestedId));
         } catch (error: unknown) {
             res.status(500).json({ message: 'Không thể tải lịch sử giao dịch của người dùng.' });
         }
@@ -126,7 +149,9 @@ export const billingController = {
 
     // Subscriptions
     async purchaseSubscription(req: Request, res: Response) {
-        const { userId, planId } = req.body;
+        const { planId } = req.body;
+        const userId = req.user?.id;
+        if (!userId || !planId) return res.status(400).json({ message: 'planId is required.' });
         try {
             const updatedUser = await billingModel.purchaseSubscription(userId, planId);
             res.json(mapAndSanitizeUser(updatedUser));
@@ -147,10 +172,13 @@ export const billingController = {
 
     // Stripe
     getStripeConfig(req: Request, res: Response) {
-        if (!process.env.STRIPE_PUBLISHABLE_KEY) {
-            return res.status(500).json({ message: 'Stripe publishable key is not configured.' });
-        }
-        res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
+        const publishableKey = (process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
+        const configured = isStripeConfigured() && !!publishableKey;
+        res.json({
+            publishableKey: publishableKey || null,
+            configured,
+            enabled: configured
+        });
     },
 
     async getEnabledPaymentMethods(req: Request, res: Response) {
@@ -236,18 +264,25 @@ export const billingController = {
 
     // NEW: Create Stripe Checkout Session
     async createCheckoutSession(req: Request, res: Response) {
-        let { amount, userId, message, spaceId, planId, type, returnPath, returnUrl } = req.body; // Amount in USD
-        userId = userId || (req.user ? req.user.id : null);
+        let { amount, message, spaceId, planId, type, returnPath, returnUrl } = req.body; // Amount in USD
+        const userId = req.user?.id;
         returnPath = returnPath || returnUrl;
 
         if (!userId || !amount || amount <= 0) {
             return res.status(400).json({ message: 'User ID and valid amount are required.' });
         }
 
+        if (!isStripeConfigured()) {
+            return res.status(400).json({
+                message: 'Cổng thanh toán quốc tế Stripe hiện chưa được cấu hình Secret Key hoặc đang tạm bảo trì. Quý Phật tử vui lòng chọn hình thức "Quét mã QR VN" để hoàn tất cúng dường.',
+                code: 'STRIPE_NOT_CONFIGURED'
+            });
+        }
+
         try {
             const stripe = getStripeClient();
 
-            const origin = req.headers.origin || 'http://localhost:3000';
+            const origin = process.env.APP_BASE_URL || 'https://giac.ngo';
             const truncatedMessage = message ? message.substring(0, 500) : '';
 
             // Support returning to a specific path after payment (e.g. /giac-ngo)
@@ -297,6 +332,7 @@ export const billingController = {
                     dailyLimitBonus: String(dailyLimitBonus),
                     durationDays: String(durationDays),
                 },
+                client_reference_id: String(req.user?.id),
                 payment_intent_data: {
                     metadata: {
                         userId: userId,
@@ -314,7 +350,20 @@ export const billingController = {
             res.json({ url: session.url });
         } catch (error: unknown) {
             console.error("Error creating checkout session:", error);
-            res.status(500).json({ message: `Failed to create checkout session: ${(error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) : String(error)) : String(error)) : String(error))}` });
+            const errStr = (error instanceof Error ? error.message : String(error));
+            if (errStr.includes('STRIPE_SECRET_KEY_NOT_CONFIGURED')) {
+                return res.status(400).json({
+                    message: 'Cổng thanh toán quốc tế Stripe hiện chưa được cấu hình Secret Key hoặc đang tạm bảo trì. Quý Phật tử vui lòng chọn hình thức "Quét mã QR VN" để hoàn tất cúng dường.',
+                    code: 'STRIPE_NOT_CONFIGURED'
+                });
+            }
+            if (errStr.includes('Expired API Key') || errStr.includes('Invalid API Key') || errStr.includes('api_key_expired')) {
+                return res.status(400).json({
+                    message: 'Khóa kết nối Stripe (Secret Key) đã hết hạn hoặc không hợp lệ. Quý Phật tử vui lòng chọn hình thức "Quét mã QR VN" hoặc liên hệ quản trị viên.',
+                    code: 'STRIPE_KEY_EXPIRED'
+                });
+            }
+            res.status(500).json({ message: `Lỗi khởi tạo phiên thanh toán Stripe: ${errStr}` });
         }
     },
 
@@ -329,6 +378,10 @@ export const billingController = {
             const stripe = getStripeClient();
             const session = await stripe.checkout.sessions.retrieve(sessionId);
 
+            if (session.metadata?.userId !== String(req.user?.id)) {
+                return res.status(404).json({ message: 'Payment session not found.' });
+            }
+
             if (session.payment_status !== 'paid') {
                 return res.status(400).json({ message: 'Payment not successful.' });
             }
@@ -337,9 +390,8 @@ export const billingController = {
 
             const existingTx = await pool.query('SELECT id FROM transactions WHERE stripe_charge_id = $1', [paymentIntentId]);
             if (existingTx.rows.length > 0) {
-                const userId = session.metadata?.userId || "";
-                const user = await userModel.findById(parseInt(userId, 10));
-                return res.json(mapAndSanitizeUser(user));
+                const user = await userModel.findById(req.user!.id);
+                return res.json(mapAndSanitizeUser(user as unknown as Record<string, unknown> | null));
             }
 
             const { userId, merits, message, spaceId, dailyLimitBonus, durationDays } = session.metadata || ({} as Record<string, string>);
@@ -357,7 +409,7 @@ export const billingController = {
             const updatedUser = await billingModel.addMerits(userIdNum, meritsNum, null, donationType, String(paymentIntentId), details, spaceIdInt);
 
             // If AI limit donate → apply daily bonus
-            if (donationType === 'ai_limit_donate' && dailyLimitBonus) {
+            if (donationType === 'ai_limit_donate' && dailyLimitBonus && !(updatedUser as any)?.paymentAlreadyProcessed) {
                 const bonus = parseInt(dailyLimitBonus, 10);
                 const days = parseInt(durationDays || '30', 10);
                 await billingModel.addDonateBonus(userIdNum, bonus, days);
@@ -436,45 +488,52 @@ export const billingController = {
             return res.status(400).json({ message: 'Invalid action.' });
         }
 
+        if (!isAdmin(req.user)) {
+            return res.status(403).json({ message: 'Forbidden: Global Admin required to process withdrawals.' });
+        }
+
+        const client = await pool.connect();
         try {
-            // If approving, execute Stripe Transfer first
+            await client.query('BEGIN');
+            const requestRes = await client.query('SELECT * FROM withdrawal_requests WHERE id = $1 FOR UPDATE', [id]);
+            const request = requestRes.rows[0];
+
+            if (!request) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ message: 'Request not found.' });
+            }
+            if (request.status !== 'pending') {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: 'Request already processed or currently processing.' });
+            }
+
             if (action === 'approved') {
+                let destinationAccountId;
+                if (request.space_id) {
+                    const spaceRes = await client.query('SELECT stripe_account_id FROM spaces WHERE id = $1', [request.space_id]);
+                    destinationAccountId = spaceRes.rows[0]?.stripe_account_id;
+                } else {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ message: 'Personal withdrawals not fully supported yet.' });
+                }
+
+                if (!destinationAccountId) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ message: 'No linked Stripe account found for destination.' });
+                }
+
+                // Calculate Platform Fee
+                const { systemModel } = await import('../models/system.model.js');
+                const config = await systemModel.getConfig();
+                const feePercent = parseFloat(String((config as Record<string, unknown>)?.platformFeePercent || 0));
+                const feeAmount = request.amount * (feePercent / 100);
+                const netAmount = request.amount - feeAmount;
+                const amountInCents = Math.round(netAmount * 100);
+
                 const stripe = getStripeClient();
-                const client = await pool.connect();
+                let transfer;
                 try {
-                    // Check Request Details
-                    const requestRes = await client.query('SELECT * FROM withdrawal_requests WHERE id = $1', [id]);
-                    const request = requestRes.rows[0];
-
-                    if (!request) throw new Error('Request not found.');
-                    if (request.status !== 'pending') throw new Error('Request already processed.');
-
-                    let destinationAccountId;
-                    if (request.space_id) {
-                        const spaceRes = await client.query('SELECT stripe_account_id FROM spaces WHERE id = $1', [request.space_id]);
-                        destinationAccountId = spaceRes.rows[0]?.stripe_account_id;
-                    } else {
-                        // Legacy user withdrawal
-                        // You would need to fetch user's stripeAccountId here if supported
-                        // For now we focused on Space logic
-                        throw new Error('Personal withdrawals not fully supported yet.');
-                    }
-
-                    if (!destinationAccountId) throw new Error('No linked Stripe account found for destination.');
-
-                    // Calculate Platform Fee
-                    const { systemModel } = await import('../models/system.model.js');
-                    const config = await systemModel.getConfig();
-                    const feePercent = parseFloat(String((config as Record<string, unknown>)?.platformFeePercent || 0));
-                    const feeAmount = request.amount * (feePercent / 100);
-                    const netAmount = request.amount - feeAmount;
-
-                    // Execute Transfer
-                    // Amount is stored as number (Merits). Assuming 1 Merit = 1 USD for Transfer.
-                    // Stripe expects amount in cents.
-                    const amountInCents = Math.round(netAmount * 100);
-
-                    const transfer = await stripe.transfers.create({
+                    transfer = await stripe.transfers.create({
                         amount: amountInCents,
                         currency: 'usd',
                         destination: destinationAccountId,
@@ -484,23 +543,44 @@ export const billingController = {
                             feePercent: feePercent,
                             feeAmount: feeAmount
                         }
+                    }, {
+                        idempotencyKey: `payout_withdrawal_${id}_${request.amount}`
                     });
-
-                    console.log(`Transfer successful: ${transfer.id}. Fee deducted: $${feeAmount} (${feePercent}%)`);
-
-                } catch (err: unknown) {
-                    console.error('Stripe Transfer failed:', err);
-                    client.release();
-                    return res.status(500).json({ message: `Stripe Transfer failed: ${(err instanceof Error ? (err instanceof Error ? (err instanceof Error ? (err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err)) : String(err)) : String(err)) : String(err))}` });
+                } catch (stripeErr: any) {
+                    console.error('Stripe Transfer failed:', stripeErr);
+                    await client.query('ROLLBACK');
+                    return res.status(500).json({ message: `Stripe Transfer failed: ${stripeErr.message || String(stripeErr)}` });
                 }
-                client.release();
+
+                if (request.space_id) {
+                    await client.query(
+                        'UPDATE spaces SET merits = COALESCE(merits, 0) - $1 WHERE id = $2',
+                        [request.amount, request.space_id]
+                    );
+                    await client.query(
+                        'INSERT INTO transactions (user_id, merits, type, destination_space_id, details) VALUES ($1, $2, $3, $4, $5)',
+                        [request.user_id, -request.amount, 'withdrawal', request.space_id, JSON.stringify({ note: 'Space withdrawal approved', transferId: transfer?.id })]
+                    );
+                }
+
+                await client.query(
+                    "UPDATE withdrawal_requests SET status = 'approved', updated_at = NOW() WHERE id = $1",
+                    [id]
+                );
+            } else if (action === 'rejected') {
+                await client.query(
+                    "UPDATE withdrawal_requests SET status = 'rejected', updated_at = NOW() WHERE id = $1",
+                    [id]
+                );
             }
 
-            const updatedRequest = await billingModel.processWithdrawalRequest(String(id), action);
+            await client.query('COMMIT');
+
+            const updatedRes = await client.query('SELECT * FROM withdrawal_requests WHERE id = $1', [id]);
+            const updatedRequest = mapRowToCamelCase(updatedRes.rows[0]);
 
             // Send Email Notification
             try {
-                // Fetch owner email
                 const userRes = await pool.query('SELECT email, name FROM users WHERE id = $1', [updatedRequest.userId]);
                 const owner = userRes.rows[0];
                 if (owner) {
@@ -519,7 +599,10 @@ export const billingController = {
 
             res.json(updatedRequest);
         } catch (error: unknown) {
-            res.status(500).json({ message: `Failed to process withdrawal request: ${(error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) : String(error)) : String(error)) : String(error))}` });
+            await client.query('ROLLBACK').catch(() => {});
+            res.status(500).json({ message: `Failed to process withdrawal request: ${error instanceof Error ? error.message : String(error)}` });
+        } finally {
+            client.release();
         }
     },
 
@@ -608,6 +691,10 @@ export const billingController = {
         try {
             const stripe = getStripeClient();
             const email = req.user?.email || ''; // Use logged-in user's email or from request body
+            const { spaceId } = req.body;
+            const space = await getAuthorizedConnectSpace(req, spaceId);
+            if (!space) return res.status(404).json({ message: 'Space not found.' });
+            if (space.stripe_account_id) return res.json({ accountId: space.stripe_account_id });
 
             // Create an Express account
             const account = await stripe.accounts.create({
@@ -620,10 +707,7 @@ export const billingController = {
             });
 
             // Update space with stripe_account_id if spaceId is provided
-            const { spaceId } = req.body;
-            if (spaceId) {
-                await pool.query('UPDATE spaces SET stripe_account_id = $1 WHERE id = $2', [account.id, spaceId]);
-            }
+            await pool.query('UPDATE spaces SET stripe_account_id = $1 WHERE id = $2', [account.id, space.id]);
 
             res.json({ accountId: account.id });
         } catch (error: unknown) {
@@ -635,8 +719,17 @@ export const billingController = {
     async createAccountLink(req: Request, res: Response) {
         try {
             const stripe = getStripeClient();
-            const { accountId } = req.body;
-            const origin = req.headers.origin || 'http://localhost:3000';
+            const space = await getAuthorizedConnectSpace(req, req.body.spaceId);
+            if (!space?.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+            const accountId = space.stripe_account_id;
+            let origin = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://giac.ngo';
+            try {
+                const parsedOrigin = new URL(origin);
+                if (!['https:', 'http:'].includes(parsedOrigin.protocol)) throw new Error('Invalid frontend URL');
+                origin = parsedOrigin.origin;
+            } catch {
+                return res.status(500).json({ message: 'Frontend return URL is not configured correctly.' });
+            }
 
             const accountLink = await stripe.accountLinks.create({
                 account: accountId,
@@ -655,7 +748,9 @@ export const billingController = {
     async createLoginLink(req: Request, res: Response) {
         try {
             const stripe = getStripeClient();
-            const { accountId } = req.body;
+            const space = await getAuthorizedConnectSpace(req, req.body.spaceId);
+            if (!space?.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+            const accountId = space.stripe_account_id;
 
             const loginLink = await stripe.accounts.createLoginLink(accountId);
             res.json({ url: loginLink.url });
@@ -668,7 +763,6 @@ export const billingController = {
     async disconnectConnectAccount(req: Request, res: Response) {
         try {
             const { spaceId } = req.body;
-            const userId = req.user?.id || 0; // Verify ownership
 
             // Check if user owns the space
             const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
@@ -676,7 +770,9 @@ export const billingController = {
                 return res.status(404).json({ message: 'Space not found' });
             }
 
-            if (spaceRes.rows[0].user_id !== userId) {
+            const space = await getAuthorizedConnectSpace(req, spaceId);
+            const canManageBilling = await Promise.all(['space-billing', 'payment-settings', 'settings'].map(permission => hasSpacePermission(req.user, String(spaceId), permission))).then(results => results.some(Boolean));
+            if (!req.user?.isGlobalAdmin && String(spaceRes.rows[0].user_id) !== String(req.user?.id) && !(space && canManageBilling)) {
                 return res.status(403).json({ message: 'Unauthorized, you do not own this space.' });
             }
 
@@ -693,9 +789,11 @@ export const billingController = {
     async getConnectAccountStatus(req: Request, res: Response) {
         try {
             const stripe = getStripeClient();
-            const { accountId } = req.params;
-
-            const account = await stripe.accounts.retrieve(String(accountId));
+            const space = await getAuthorizedConnectSpace(req, req.params.spaceId);
+            if (!space?.stripe_account_id) {
+                return res.status(404).json({ message: 'Stripe account not found.' });
+            }
+            const account = await stripe.accounts.retrieve(String(space.stripe_account_id));
             res.json({
                 chargesEnabled: account.charges_enabled,
                 payoutsEnabled: account.payouts_enabled,

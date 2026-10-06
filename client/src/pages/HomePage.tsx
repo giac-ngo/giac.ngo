@@ -62,40 +62,40 @@ const translations = {
         loginRequired: 'Vui lòng đăng nhập để thực hiện cúng dường.',
         pricing: {
             title: 'Đóng Góp',
-            subtitle: 'Hộ Pháp — Nuôi dưỡng ứng dụng, dựng xây Ngôi Nhà Giác Ngô',
-            desc: '100% quyền góp của bạn trực tiếp hỗ trợ chi phí máy chủ và huấn luyện AI để duy trì không gian. Bằng việc đóng góp, bạn đang giúp hàng ngàn người khác được tiếp tục đặt câu hỏi miễn phí mỗi ngày. ($1 tương đương 25 câu hỏi)',
+            subtitle: 'Hộ Pháp — Nuôi dưỡng ứng dụng, dựng xây Ngôi Nhà Giác Ngộ',
+            desc: '100% quyên góp của bạn trực tiếp hỗ trợ chi phí máy chủ và huấn luyện AI để duy trì không gian. Bằng việc đóng góp, bạn đang giúp hàng ngàn người khác được tiếp tục đặt câu hỏi miễn phí mỗi ngày. (25.000đ ~ $1 tương đương 25 câu hỏi)',
             plans: [
                 {
                     id: 'gieo-duyen',
                     name: 'Gieo Duyên',
                     headerSubtitle: 'Planting the Seed',
-                    subtitle: '$2',
-                    subtext: '50 câu hỏi',
+                    subtitle: '50.000đ',
+                    subtext: '50 câu hỏi (~$2)',
                     features: ['Hỗ trợ nuôi dưỡng Tăng Đoàn', 'Gieo duyên với Chánh Pháp', 'Hồi hướng công đức cho chúng sinh'],
                     buttonTextKey: 'offering',
-                    suggestedAmount: 2
+                    suggestedAmount: 50000
                 },
                 {
                     id: 'phat-su',
                     name: 'Phật Sự',
                     headerSubtitle: 'The Work of Awakening',
-                    subtitle: '$8',
-                    subtext: '250 câu hỏi (tặng 50 câu)',
+                    subtitle: '200.000đ',
+                    subtext: '250 câu hỏi (tặng 50 câu) (~$8)',
                     isPopular: true,
                     topLabel: 'Hoằng Pháp Lợi Sinh',
                     features: ['Hoằng truyền Chánh Pháp', 'Phát triển tài liệu & giáo lý', 'Duy trì không gian tu tập', 'Hướng dẫn người tìm đường'],
                     buttonTextKey: 'offering',
-                    suggestedAmount: 8
+                    suggestedAmount: 200000
                 },
                 {
                     id: 'tu-bi-hanh',
                     name: 'Từ Bi Hạnh',
                     headerSubtitle: 'Acts of True Compassion',
                     subtitle: 'Tuỳ Tâm',
-                    subtext: '25 câu hỏi mỗi $1',
+                    subtext: '25 câu hỏi mỗi 25.000đ (~$1)',
                     features: ['Cứu giúp người khổ nạn', 'Hỗ trợ người tu tập', 'Dẫn dắt chúng sinh thoát khổ', 'Lan toả ánh sáng giác ngộ'],
                     buttonTextKey: 'offering',
-                    suggestedAmount: 5
+                    suggestedAmount: 50000
                 }
             ] as OfferingPlan[],
             footerText: 'Cúng dường tuỳ tâm — Đây không chỉ là quyên góp. Đây là thực hành cúng dường vô ngã.'
@@ -108,39 +108,39 @@ const translations = {
         aiChatButton: 'AI + Chat',
         suggested1: 'What is Enlightenment?',
         suggested2: 'How to become a Buddha?',
-        suggested3: 'How to escape all suffering?',
-        suggested4: 'How to find eternal happiness?',
-        suggested5: 'What is mindfulness?',
-        suggested6: 'How does karma work?',
-        agentsTitle: 'Agents from the Community',
-        agentsSubtitle: 'Discover AI Agents developed by pagodas, monasteries, and practice centers everywhere',
+        suggested3: 'Meditation to reduce stress',
+        suggested4: 'Core Buddhist concepts',
+        suggested5: 'Origin of suffering',
+        suggested6: 'Practicing mindfulness',
+        agentsTitle: 'Community Agents',
+        agentsSubtitle: 'Discover AI Agents developed by temples, monasteries, and practice centers worldwide',
         exploreAgent: 'Explore Agent',
         contactForAccess: 'Contact',
         viewMore: 'View More',
         communityTitle: 'Community Spaces',
-        communitySubtitle: 'Connect with pagodas, monasteries, and Buddhist practice centers around the world',
-        communitySearchPlaceholder: 'Search for communities, pagodas, monasteries...',
+        communitySubtitle: 'Connect with Buddhist temples, monasteries, and practice centers around the world',
+        communitySearchPlaceholder: 'Search space, monastery, temple...',
         all: 'All',
-        pagoda: 'Pagodas',
-        monastery: 'Monasteries',
-        temple: 'Temples',
-        practiceCenter: 'Practice Centers',
+        pagoda: 'Pagoda & Temple',
+        monastery: 'Monastery',
+        temple: 'Shrine & Pagoda',
+        practiceCenter: 'Practice Center',
         found: 'Found',
         communities: 'communities',
-        loadError: 'Could not load data. Please try again.',
-        offering: 'Donation',
+        loadError: 'Failed to load data. Please try again.',
+        offering: 'Offer Support',
         heroAgent: 'Enlightenment Agent',
         library: {
             title: 'Library',
-            description: 'Explore scriptures, verses, and inspiring stories for your practice.',
-            viewAll: 'Go to Library',
+            description: 'Explore scriptures, verses, and inspiring stories for practice.',
+            viewAll: 'Enter Library',
         },
         statsAgents: 'Buddhist AI Agents',
         statsConversations: 'Conversations',
         statsAvailable: 'Available',
         dharmaRadioTitle: 'Dharma Radio',
-        dharmaRadioSubtitle: 'Join live discussions about the Dharma',
-        dharmaLive: 'Now Live',
+        dharmaRadioSubtitle: 'Join live and scheduled Buddhist radio sessions with masters and practitioners',
+        dharmaLive: 'Live Now',
         dharmaUpcoming: 'Upcoming',
         host: 'Host',
         merits: 'merits',
@@ -150,16 +150,16 @@ const translations = {
         claimError: 'Could not claim free AI pack: {message}',
         loginRequired: 'Please login to make an offering.',
         pricing: {
-            title: 'Donation',
-            subtitle: 'Hộ Pháp — Sustaining the App, Building the House of Awakening',
-            desc: '100% of your offering directly supports server costs and AI training to maintain this space. By contributing, you help thousands of others continue asking questions for free every day. ($1 = 25 questions)',
+            title: 'Offerings',
+            subtitle: 'Sustaining the Application, Building the House of Awakening',
+            desc: '100% of your offerings directly support server costs and AI training to maintain this sacred space. By contributing, you help thousands of others continue asking questions for free every day. ($1 = 25 questions)',
             plans: [
                 {
                     id: 'gieo-duyen',
                     name: 'Planting the Seed',
                     headerSubtitle: 'Gieo Duyên',
                     subtitle: '$2',
-                    subtext: '50 questions',
+                    subtext: '50 questions (~50,000 VND)',
                     features: ['Supporting the Sangha', 'Connecting with Dharma', 'Dedicating merit to all beings'],
                     buttonTextKey: 'offering',
                     suggestedAmount: 2
@@ -169,7 +169,7 @@ const translations = {
                     name: 'The Work of Awakening',
                     headerSubtitle: 'Phật Sự',
                     subtitle: '$8',
-                    subtext: '250 questions (bonus 50)',
+                    subtext: '250 questions (bonus 50) (~200,000 VND)',
                     isPopular: true,
                     topLabel: 'Spreading the Dharma',
                     features: ['Propagating the True Dharma', 'Developing materials & teachings', 'Maintaining practice spaces', 'Guiding seekers'],
@@ -181,13 +181,13 @@ const translations = {
                     name: 'Acts of Compassion',
                     headerSubtitle: 'Từ Bi Hạnh',
                     subtitle: 'Custom',
-                    subtext: '25 questions per $1',
+                    subtext: '25 questions per $1 (~25,000 VND)',
                     features: ['Helping the suffering', 'Supporting practitioners', 'Guiding beings from suffering', 'Spreading the light of enlightenment'],
                     buttonTextKey: 'offering',
-                    suggestedAmount: 5
+                    suggestedAmount: 2
                 }
             ] as OfferingPlan[],
-            footerText: 'Cúng dường tuỳ tâm — This is more than a donation. It is a practice of selfless offering.'
+            footerText: 'Selfless offering — This is more than a donation. It is a practice of selfless offering.'
         }
     }
 };

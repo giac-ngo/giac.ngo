@@ -2,20 +2,45 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configure dotenv FIRST
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+const envPath = path.resolve(__dirname, '.env');
+dotenv.config({ path: envPath });
+
+// Ensure empty variables in process.env (e.g. from ecosystem.config) don't mask values in .env
+if (existsSync(envPath)) {
+    try {
+        const parsed = dotenv.parse(readFileSync(envPath));
+        for (const [key, val] of Object.entries(parsed)) {
+            if (val && (!process.env[key] || process.env[key]?.trim() === '')) {
+                process.env[key] = val;
+            }
+        }
+    } catch (e) {
+        // ignore
+    }
+}
 
 import logger from './utils/logger.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import jwt from 'jsonwebtoken';
+import { getJwtSecret } from './utils/jwtSecret.js';
+import { userModel } from './models/user.model.js';
+import { canAccessSpace } from './middleware/authMiddleware.js';
 
-logger.info(`JWT_SECRET is ${process.env.JWT_SECRET ? 'SET (starts with ' + process.env.JWT_SECRET.substring(0, 5) + '...)' : 'NOT SET'}`);
+try {
+    getJwtSecret();
+} catch (error) {
+    logger.error(error instanceof Error ? error.message : 'JWT_SECRET is not configured.');
+    process.exit(1);
+}
 
 if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
     process.env.NODE_ENV = 'development';
@@ -38,16 +63,57 @@ import apiRoutes from './routes/index.js';
 import { spaceModel } from './models/space.model.js';
 import { spacePageController } from './controllers/spacePageController.js';
 import { pool, mapRowToCamelCase } from './db.js';
+import { getUsdVndRate } from './utils/exchangeRate.js';
 
 const app = express();
-app.set('trust proxy', 1); // Trust 1 proxy hop (Nginx/Cloudflare) — avoids express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-    cors: {
-        origin: true,
-        credentials: true
+// Only trust reverse proxy if explicitly configured in TRUSTED_PROXIES, or local loopback (e.g., local Nginx/Caddy)
+const isLoopbackIp = (ip: string) => {
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+};
+
+const trustedProxiesEnv = process.env.TRUSTED_PROXIES
+    ? new Set(process.env.TRUSTED_PROXIES.split(',').map(s => s.trim()).filter(Boolean))
+    : null;
+
+app.set('trust proxy', (ip: string) => {
+    if (process.env.TRUST_PROXY === 'false' || process.env.TRUST_PROXY === '0') return false;
+    if (trustedProxiesEnv && trustedProxiesEnv.size > 0) {
+        return trustedProxiesEnv.has(ip) || isLoopbackIp(ip);
     }
+    return isLoopbackIp(ip);
 });
+const httpServer = createServer(app);
+const allowedOrigins = new Set((process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean));
+const customDomainCorsCache = new Map<string, { allowed: boolean; expiresAt: number }>();
+const mainDomainForCors = (process.env.MAIN_DOMAIN || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+if (mainDomainForCors) {
+    allowedOrigins.add(`https://${mainDomainForCors}`);
+    allowedOrigins.add(`https://login.${mainDomainForCors}`);
+}
+allowedOrigins.add('http://localhost:3000');
+allowedOrigins.add('http://127.0.0.1:3000');
+const checkCorsOrigin = (origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname.toLowerCase();
+        const isLocalHttp = parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(host);
+        if (parsed.protocol !== 'https:' && !isLocalHttp) return callback(null, false);
+        const cached = customDomainCorsCache.get(host);
+        if (cached && cached.expiresAt > Date.now()) return callback(null, cached.allowed);
+        pool.query('SELECT 1 FROM spaces WHERE custom_domain = $1 LIMIT 1', [host])
+            .then(result => {
+                const allowed = result.rows.length > 0;
+                customDomainCorsCache.set(host, { allowed, expiresAt: Date.now() + 5 * 60 * 1000 });
+                callback(null, allowed);
+            })
+            .catch(() => callback(null, false));
+    } catch {
+        callback(null, false);
+    }
+};
+
+const io = new Server(httpServer, { cors: { origin: checkCorsOrigin, credentials: true } });
 
 const port = process.env.PORT || 3002;
 const projectRoot = path.resolve(__dirname, '..');
@@ -69,16 +135,37 @@ const ttsLimiter = rateLimit({
     validate: false // Disable internal trust proxy validation
 });
 
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau.' } });
+const passwordResetLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau.' } });
+
 app.use('/api/conversations/chat', chatLimiter);
 app.use('/api/system/tts/generate', ttsLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', loginLimiter);
+app.use('/api/auth/forgot-password', passwordResetLimiter);
+app.use('/api/auth/reset-password', passwordResetLimiter);
 
 // --- Middleware & Static ---
-app.use(cors({ origin: true, credentials: true }));
+app.use(helmet({ contentSecurityPolicy: false, frameguard: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(cors({ origin: checkCorsOrigin, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', (_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Uploaded file not found' });
+});
 
 app.use(authenticateToken);
+
+// Public USD/VND exchange rate endpoint (accessible on all hosts & domains without 404)
+app.get(['/api/exchange-rate', '/exchange-rate'], async (_req: Request, res: Response) => {
+    try {
+        const rate = await getUsdVndRate();
+        res.json({ rate, base: 'USD', target: 'VND', success: true });
+    } catch {
+        res.json({ rate: 25000, base: 'USD', target: 'VND', fallback: true });
+    }
+});
 
 // --- Custom Domain Middleware ---
 // Known SPA view segments that React Router handles — must NOT be intercepted
@@ -119,12 +206,30 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 app.use('/api', apiRoutes);
 
 // --- Socket.io Handlers ---
+io.use(async (socket, next) => {
+    try {
+        const token = socket.handshake.auth?.token;
+        if (typeof token !== 'string') return next(new Error('Authentication required'));
+        const decoded = jwt.verify(token, getJwtSecret()) as { id?: number };
+        if (!decoded.id) return next(new Error('Authentication required'));
+        const user = await userModel.findById(decoded.id);
+        if (!user?.isActive) return next(new Error('Authentication required'));
+        socket.data.user = user;
+        next();
+    } catch {
+        next(new Error('Authentication required'));
+    }
+});
+
 io.on('connection', (socket) => {
-    socket.on('join-space', (spaceId) => {
-        socket.join(`space-${spaceId}`);
+    socket.on('join-space', async (spaceId) => {
+        if (!/^\d+$/.test(String(spaceId))) return;
+        if (await canAccessSpace(socket.data.user, String(spaceId))) {
+            socket.join(`space-${spaceId}`);
+        }
     });
     socket.on('join-user', (userId) => {
-        socket.join(`user-${userId}`);
+        if (String(userId) === String(socket.data.user?.id)) socket.join(`user-${userId}`);
     });
 });
 
@@ -148,7 +253,7 @@ app.use(express.static(publicPath, {
 }));
 
 app.get('*', async (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
     const indexFile = path.join(publicPath, 'index.html');
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     const isCrawler = /facebookexternalhit|twitterbot|telegrambot|whatsapp|zalo|linkedinbot|slackbot|discordbot|applebot|googlebot|bingbot|baiduspider|yandexbot|duckduckbot|rogerbot|pinterestbot|embedly|semrushbot|ahrefsbot/.test(ua);
@@ -164,9 +269,11 @@ app.get('*', async (req: Request, res: Response, next: NextFunction) => {
             const space = spaceRes.rows[0] ? mapRowToCamelCase(spaceRes.rows[0]) : null;
             if (space) {
                 let html = await fs.readFile(indexFile, 'utf8');
-                const spaceName = space.name || host;
-                const desc = space.description || spaceName;
-                const ogImg = space.imageUrl && space.imageUrl.startsWith('http') ? space.imageUrl : `https://${host}/themes/giacngo/og-image.png`;
+                const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
+                const spaceName = escapeHtml(space.name || host);
+                const desc = escapeHtml(space.description || spaceName);
+                const rawOgImg = space.imageUrl && /^https?:\/\//i.test(space.imageUrl) ? space.imageUrl : `https://${host}/themes/giacngo/og-image.png`;
+                const ogImg = escapeHtml(rawOgImg);
                 const ogTags = `
     <meta property="og:type" content="website"><meta property="og:url" content="https://${host}/">
     <meta property="og:site_name" content="${spaceName}"><meta property="og:title" content="${spaceName}">
@@ -187,7 +294,8 @@ app.get('*', async (req: Request, res: Response, next: NextFunction) => {
 
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     logger.error(`GLOBAL ERROR [${req.method} ${req.originalUrl}]`, err);
-    res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
+    const status = Number(err.status) >= 400 && Number(err.status) < 500 ? Number(err.status) : 500;
+    res.status(status).json({ message: status < 500 ? (err.message || 'Request failed.') : 'Internal Server Error' });
 });
 
 if (process.env.NODE_ENV !== 'test') {

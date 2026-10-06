@@ -3,11 +3,38 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { spaceModel } from '../models/space.model.js';
 import { billingModel } from '../models/billing.model.js';
-import { createPaymentLink, createPayOSClient } from '../services/payosService.js';
+import { createPaymentLink, createPayOSClient, verifyWebhook } from '../services/payosService.js';
 import { pool } from '../db.js';
 import { getUsdVndRate } from '../utils/exchangeRate.js';
+import crypto from 'crypto';
 
 const BASE_URL = process.env.APP_BASE_URL || 'https://giac.ngo';
+
+async function applyPendingOrder(orderCode: number | string): Promise<'applied' | 'already-processed' | 'not-found'> {
+    const claim = await pool.query(
+        `UPDATE payos_orders SET status = 'processing' WHERE order_code = $1 AND status = 'pending' RETURNING *`,
+        [orderCode]
+    );
+    const order = claim.rows[0];
+    if (!order) {
+        const exists = await pool.query('SELECT status FROM payos_orders WHERE order_code = $1', [orderCode]);
+        return exists.rows.length ? 'already-processed' : 'not-found';
+    }
+    try {
+        if (order.plan_id) {
+            await billingModel.purchaseSubscription(order.user_id, order.plan_id);
+        } else {
+            const merits = Math.round(Number(order.amount || 0));
+            if (!Number.isFinite(merits) || merits <= 0) throw new Error('Invalid donation amount on PayOS order.');
+            await billingModel.addMerits(order.user_id, merits, null, 'payos', String(orderCode), order.message || 'Cúng dường PayOS', order.space_id);
+        }
+        await pool.query(`UPDATE payos_orders SET status = 'paid' WHERE order_code = $1 AND status = 'processing'`, [orderCode]);
+        return 'applied';
+    } catch (error) {
+        await pool.query(`UPDATE payos_orders SET status = 'pending' WHERE order_code = $1 AND status = 'processing'`, [orderCode]);
+        throw error;
+    }
+}
 
 export const payosController = {
 
@@ -38,7 +65,7 @@ export const payosController = {
             }
 
             // Build numeric order code (PayOS requires int, max 9007199254740991)
-            const orderCode = Date.now() % 9007199254740991;
+            const orderCode = Date.now() * 1000 + crypto.randomInt(0, 1000);
 
             // Amount in VND (must be positive integer for PayOS)
             // plan.price: if < 1000 treat as USD, convert to VND with live rate
@@ -84,11 +111,10 @@ export const payosController = {
 
             // Save pending payment record for webhook matching
             await pool.query(
-                `INSERT INTO payos_orders (order_code, user_id, plan_id, space_id, status)
-                 VALUES ($1, $2, $3, $4, 'pending')
-                 ON CONFLICT (order_code) DO NOTHING`,
-                [orderCode, userId, planId, spaceId]
-            ).catch(() => {}); // Ignore if table doesn't exist yet – webhook will handle it
+                `INSERT INTO payos_orders (order_code, user_id, plan_id, space_id, amount_vnd, status)
+                 VALUES ($1, $2, $3, $4, $5, 'pending')`,
+                [orderCode, userId, planId, spaceId, amountVnd]
+            );
 
             res.json({ checkoutUrl: result.checkoutUrl, orderCode: result.orderCode });
         } catch (error: unknown) {
@@ -121,7 +147,7 @@ export const payosController = {
             const usdVndRate = await getUsdVndRate();
             const amountVnd = Math.max(10000, Math.round(Number(amount) * usdVndRate));
             
-            const orderCode = Date.now() % 9007199254740991;
+            const orderCode = Date.now() * 1000 + crypto.randomInt(0, 1000);
             const safePath = (returnPath && returnPath.startsWith('/')) ? returnPath : '/';
             const origin = req.headers.origin || BASE_URL;
 
@@ -145,11 +171,10 @@ export const payosController = {
 
             // Save pending donation record
             await pool.query(
-                `INSERT INTO payos_orders (order_code, user_id, space_id, status, amount, message)
-                 VALUES ($1, $2, $3, 'pending', $4, $5)
-                 ON CONFLICT (order_code) DO NOTHING`,
-                [orderCode, userId, spaceId, amount, message || ''] // Store amount in USD to reward merits later
-            ).catch(() => {});
+                `INSERT INTO payos_orders (order_code, user_id, space_id, status, amount, amount_vnd, message)
+                 VALUES ($1, $2, $3, 'pending', $4, $5, $6)`,
+                [orderCode, userId, spaceId, amount, amountVnd, message || ''] // Store USD and VND values for validation and Merit calculation
+            );
 
             res.json({ checkoutUrl: result.checkoutUrl, orderCode: result.orderCode });
         } catch (error: unknown) {
@@ -164,79 +189,26 @@ export const payosController = {
      */
     async handleWebhook(req: Request, res: Response) {
         try {
-            const { code, data } = req.body;
-
-            // PayOS sends code='00' for success
-            if (code !== '00' || !data) {
-                return res.status(200).send('OK'); // Acknowledge but ignore non-success
+            const untrustedOrderCode = req.body?.data?.orderCode;
+            if (!Number.isSafeInteger(Number(untrustedOrderCode))) return res.status(400).send('Invalid order');
+            const orderRes = await pool.query('SELECT * FROM payos_orders WHERE order_code = $1 LIMIT 1', [untrustedOrderCode]);
+            if (!orderRes.rows.length) return res.status(200).send('OK');
+            const order = orderRes.rows[0];
+            const space = await spaceModel.findById(order.space_id);
+            if (!space?.payosClientId || !space.payosApiKey || !space.payosChecksumKey) {
+                return res.status(503).send('Payment verification unavailable');
             }
-
-            const { orderCode, description } = data;
-
-            // Try to find from payos_orders table first
-            let planId, userId, spaceId;
-            let dbAmount, dbMessage;
-            try {
-                const orderRes = await pool.query(
-                    'SELECT * FROM payos_orders WHERE order_code = $1 LIMIT 1',
-                    [orderCode]
-                );
-                if (orderRes.rows.length > 0) {
-                    const order = orderRes.rows[0];
-                    planId = order.plan_id;
-                    userId = order.user_id;
-                    spaceId = order.space_id;
-                    dbAmount = order.amount;
-                    dbMessage = order.message;
-                }
-            } catch (e: unknown) {
-                logger.warn('payos_orders table not found or error, parsing from description');
+            const payos = createPayOSClient({ clientId: space.payosClientId, apiKey: space.payosApiKey, checksumKey: space.payosChecksumKey });
+            const verifiedData = await verifyWebhook(payos, req.body);
+            if (Number(verifiedData?.orderCode) !== Number(order.order_code)) return res.status(400).send('Order mismatch');
+            if (Number(verifiedData?.amount) !== Number(order.amount_vnd)) return res.status(400).send('Amount mismatch');
+            if (req.body.code === '00' && req.body.success === true && verifiedData.code === '00') {
+                await applyPendingOrder(order.order_code);
             }
-
-            // Fallback: parse from description
-            if (!userId && description) {
-                const match = description.match(/U(\d+)$/);
-                if (match) userId = parseInt(match[1], 10);
-            }
-
-            if (!userId) {
-                logger.error('PayOS webhook: cannot identify user from orderCode', orderCode);
-                return res.status(200).send('OK');
-            }
-
-            if (planId || (description && description.includes('P'))) {
-                // Subscription flow
-                try {
-                    // Activate user subscription
-                    logger.info(`PayOS webhook: User ${userId} successfully purchased plan ${planId}`);
-                    await billingModel.purchaseSubscription(userId, planId);
-                } catch (err: unknown) {
-                    logger.error('PayOS webhook: Failed to activate subscription', err);
-                }
-            } else if (description && description.startsWith('D')) {
-                // Donation flow
-                try {
-                    const usdAmountStr = dbAmount || '1';
-                    const message = dbMessage || 'Cúng dường PayOS';
-                    const meritsToAdd = Math.round(Number(usdAmountStr)); // e.g. 1 USD = 1 merit
-                    
-                    logger.info(`PayOS webhook: User ${userId} successfully donated ${usdAmountStr} USD`);
-                    await billingModel.addMerits(userId, meritsToAdd, null, 'payos', String(orderCode), message, spaceId);
-                } catch (err: unknown) {
-                    logger.error('PayOS webhook: Failed to add donation merits', err);
-                }
-            }
-
-            // Mark order as paid
-            await pool.query(
-                'UPDATE payos_orders SET status = $1 WHERE order_code = $2',
-                ['paid', orderCode]
-            ).catch(() => {});
-
-            res.status(200).send('OK');
+            return res.status(200).send('OK');
         } catch (error: unknown) {
             logger.error('PayOS webhook error:', error);
-            res.status(200).send('OK'); // Always return 200 to PayOS
+            res.status(400).send('Invalid webhook');
         }
     },
 
@@ -252,6 +224,11 @@ export const payosController = {
             const orderRes = await pool.query('SELECT * FROM payos_orders WHERE order_code = $1 LIMIT 1', [orderCode]);
             if (orderRes.rows.length === 0) return res.status(404).json({ message: 'Order not found' });
             const order = orderRes.rows[0];
+
+            const isAdmin = !!req.user?.isGlobalAdmin;
+            if (!isAdmin && String(order.user_id) !== String(req.user?.id)) {
+                return res.status(404).json({ message: 'Order not found' });
+            }
 
             if (order.status === 'paid') {
                 return res.json({ status: 'PAID', message: 'Order already verified.' });
@@ -279,20 +256,9 @@ export const payosController = {
             }
 
             if (linkInfo && linkInfo.status === 'PAID') {
-                const userId = order.user_id;
-                const planId = order.plan_id;
-                
-                if (planId) {
-                    await billingModel.purchaseSubscription(userId, planId);
-                } else {
-                    const usdAmountStr = order.amount || '1';
-                    const message = order.message || 'Cúng dường PayOS';
-                    const meritsToAdd = Math.round(Number(usdAmountStr));
-                    await billingModel.addMerits(userId, meritsToAdd, null, 'payos', String(orderCode), message, order.space_id);
-                }
-
-                await pool.query('UPDATE payos_orders SET status = $1 WHERE order_code = $2', ['paid', orderCode]);
-                return res.json({ status: 'PAID', message: 'Order verified and benefits applied.' });
+                if (Number(linkInfo.amount) !== Number(order.amount_vnd)) return res.status(400).json({ message: 'Payment amount mismatch.' });
+                const result = await applyPendingOrder(String(orderCode));
+                return res.json({ status: 'PAID', message: result === 'applied' ? 'Payment verified.' : 'Order already verified.' });
             }
 
             return res.json({ status: linkInfo ? linkInfo.status : 'UNKNOWN', message: 'Order not paid yet.' });
