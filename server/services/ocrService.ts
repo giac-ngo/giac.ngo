@@ -3,9 +3,6 @@ import { logger } from '../utils/logger.js';
 import { fileParserService } from './fileParserService.js';
 import { geminiService } from './geminiService.js';
 import { gptService } from './gptService.js';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
 
 export const ocrService = {
     async extractAndFormat(file: Express.Multer.File, provider: string, model: string, apiKey: string): Promise<string> {
@@ -22,23 +19,13 @@ export const ocrService = {
             }
             textContent = (await geminiService.extractTextFromImage(file.buffer, mimeType, apiKey, model)) || '';
         } else {
-            // For other files (PDF, DOCX, TXT), write to a temp file to use fileParserService
-            const tempDir = os.tmpdir();
-            await fs.mkdir(tempDir, { recursive: true });
-            const tempFilePath = path.join(tempDir, `${Date.now()}-${file.originalname}`);
+            // For other files (PDF, DOCX, TXT): parse the uploaded buffer directly.
+            // (fileParserService.extractText only accepts paths inside uploads/, so no temp files.)
             try {
-                await fs.writeFile(tempFilePath, file.buffer);
-                textContent = await fileParserService.extractText(tempFilePath, file.originalname);
+                textContent = await fileParserService.extractTextFromBuffer(file.buffer, file.originalname);
             } catch (err: any) {
-                logger.error(`Error parsing temp file ${file.originalname}:`, err);
+                logger.error(`Error parsing uploaded file ${file.originalname}:`, err);
                 throw new Error("Không đọc được tệp, vui lòng thử lại.");
-            } finally {
-                // Clean up the temporary file
-                try {
-                    await fs.unlink(tempFilePath);
-                } catch (cleanupError) {
-                    logger.error("Failed to clean up temporary OCR file:", cleanupError);
-                }
             }
         }
 

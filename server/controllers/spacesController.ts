@@ -11,6 +11,13 @@ import { pool } from '../db.js';
 import { toPublicUser } from '../utils/sanitizeUser.js';
 import { toPublicSpace, toAdminSpace } from '../utils/sanitizeSpace.js';
 
+const canManageSpaceSettings = async (user: any, spaceId: number): Promise<boolean> => {
+    for (const permission of ['spaces', 'settings', 'payment-settings']) {
+        if (await hasSpacePermission(user, spaceId, permission)) return true;
+    }
+    return false;
+};
+
 export const spacesController = {
     async getAllSpaces(req: Request, res: Response) {
         try {
@@ -67,7 +74,11 @@ export const spacesController = {
             if (!space) {
                 return res.status(404).json({ message: 'Space not found.' });
             }
-            // Slug lookup is used for public space browsing — always strip secrets
+            // Admin screens (/:slug/admin) load the space by slug: give authorized managers the
+            // masked admin view so settings forms keep (and never blank out) stored secrets.
+            if (req.user && (isAdmin(req.user as any) || await canManageSpaceSettings(req.user, space.id as number))) {
+                return res.json(toAdminSpace(space));
+            }
             res.json(toPublicSpace(space));
         } catch (error: unknown) {
             console.error(`Error fetching space with slug ${req.params.slug}:`, error);
@@ -197,7 +208,7 @@ export const spacesController = {
             }
 
             const updatedSpace = await spaceModel.update(id, spaceData);
-            res.json(updatedSpace);
+            res.json(toAdminSpace(updatedSpace as any));
         } catch (error: unknown) {
             console.error('Error updating space:', error);
             res.status(500).json({ message: `Failed to save space: ${(error instanceof Error ? error.message : String(error))}` });

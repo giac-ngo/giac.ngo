@@ -16,7 +16,7 @@ router.delete('/pricing-plans/:id', checkPermission('pricing'), billingControlle
 router.get('/transactions', isAuthenticated, billingController.getAllTransactions); // Phân quyền trong controller
 router.get('/transactions/user/:userId', isAuthenticated, billingController.getTransactionsByUserId); // User can get their own
 router.get('/spaces/:spaceId/transactions', billingController.getSpaceTransactions); // Public access for donation list
-router.post('/transactions/manual', checkPermission('manual-billing'), billingController.addMeritsManually);
+router.post('/transactions/manual', requireGlobalAdmin, billingController.addMeritsManually);
 
 // Subscriptions
 router.post('/subscriptions/purchase', isAuthenticated, billingController.purchaseSubscription);

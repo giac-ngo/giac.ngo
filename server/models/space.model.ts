@@ -206,7 +206,7 @@ export const spaceModel = {
             const columnName = keyMap[key];
             if (columnName) {
                 // If a masked credential is sent back from the frontend, NEVER overwrite the real key in DB
-                if (['payosApiKey', 'payosChecksumKey', 'smtpPass'].includes(key) && typeof value === 'string' && value.includes('••')) {
+                if (['payosApiKey', 'payosChecksumKey', 'smtpPass'].includes(key) && (value === undefined || value === null || (typeof value === 'string' && (value.trim() === '' || value.includes('••'))))) {
                     continue;
                 }
 

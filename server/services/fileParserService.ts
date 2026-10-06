@@ -78,12 +78,18 @@ export const fileParserService = {
             }
         }
 
-        const extension = path.extname(originalFileName || fileUrl).toLowerCase();
+        // Strictly read file from its exact resolved path.
+        // NEVER search other folders across users or spaces.
+        const dataBuffer = await fs.readFile(filePath);
+        return this.extractTextFromBuffer(dataBuffer, originalFileName || fileUrl);
+    },
+
+    /** Parse an in-memory file (internal callers only, e.g. OCR uploads). Never takes a client path. */
+    async extractTextFromBuffer(dataBuffer: Buffer, originalFileName: string): Promise<string> {
+        const extension = path.extname(originalFileName || '').toLowerCase();
+        const filePath = originalFileName;
 
         try {
-            // Strictly read file from its exact resolved path.
-            // NEVER search other folders across users or spaces.
-            const dataBuffer = await fs.readFile(filePath);
 
             if (extension === '.pdf') {
                 const data = await pdf(dataBuffer);

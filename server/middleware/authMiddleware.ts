@@ -171,10 +171,10 @@ export const hasSpacePermission = async (user: User | null | undefined, spaceId:
         `SELECT 1 FROM user_roles ur
          JOIN roles r ON r.id = ur.role_id
          WHERE ur.user_id = $1
-           AND (r.space_id IS NULL OR r.space_id = $2)
-           AND (r.permissions @> $3::jsonb OR (r.permissions ? $4 AND LOWER(r.permissions ->> $4) IN ('true', '1')))
+           AND r.space_id = $2
+           AND $3 = ANY(r.permissions)
          LIMIT 1`,
-        [user.id, spaceId, JSON.stringify([permission]), permission]
+        [user.id, spaceId, permission]
     );
     return result.rows.length > 0;
 };

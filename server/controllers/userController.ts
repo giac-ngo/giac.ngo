@@ -5,8 +5,33 @@ import { userModel } from '../models/user.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { verifyPassword, pool, mapRowToCamelCase } from '../db.js';
 import { User } from '../types/index.js';
-import { getUserManagedSpaceIds, isAdmin as checkIsGlobalAdmin } from '../middleware/authMiddleware.js';
+import { getUserManagedSpaceIds, hasSpacePermission, isAdmin as checkIsGlobalAdmin } from '../middleware/authMiddleware.js';
+import { roleModel } from '../models/role.model.js';
 import { toPublicUser, toMinimalUser } from '../utils/sanitizeUser.js';
+
+/** A non-global admin can assign a role only if it belongs to a Space where they hold 'users'. System roles never. */
+const canAssignRole = async (editor: User, roleId: number): Promise<boolean> => {
+    if (!Number.isInteger(roleId) || roleId <= 0) return false;
+    const role: any = await roleModel.findById(roleId);
+    if (!role || !role.spaceId) return false;
+    return hasSpacePermission(editor, role.spaceId, 'users');
+};
+
+/** Returns the subset of requested role IDs the editor may assign, or null if they manage users nowhere. */
+const filterAssignableRoleIds = async (editor: User, requested: unknown[]): Promise<number[] | null> => {
+    const managed = await getUserManagedSpaceIds(editor.id);
+    let managesAny = false;
+    for (const sid of managed) {
+        if (await hasSpacePermission(editor, sid, 'users')) { managesAny = true; break; }
+    }
+    if (!managesAny) return null;
+    const result: number[] = [];
+    for (const raw of requested) {
+        const rid = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+        if (await canAssignRole(editor, rid)) result.push(rid);
+    }
+    return result;
+};
 
 export const userController = {
     async getProfile(req: Request, res: Response) {
@@ -127,14 +152,30 @@ export const userController = {
     async createUser(req: Request, res: Response) {
         try {
             const user = req.user as User;
-            const isGloballyAdmin = checkIsGlobalAdmin(user) || Boolean(user?.permissions?.includes('users'));
-            if (!isGloballyAdmin) {
-                return res.status(403).json({ message: 'Forbidden: You do not have permission to create users.' });
+            if (!user) return res.status(401).json({ message: 'Authentication required.' });
+            const isGloballyAdmin = checkIsGlobalAdmin(user);
+
+            const { email, password, name, avatarUrl, template } = req.body;
+            const payload: Record<string, unknown> = { email, password, name, avatarUrl, template };
+
+            if (isGloballyAdmin) {
+                payload.roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds : [];
+            } else {
+                // Non-global admins may only create accounts and assign roles belonging to
+                // Spaces where they hold the 'users' permission. Never system roles.
+                const requested = Array.isArray(req.body.roleIds) ? req.body.roleIds : [];
+                const allowed = await filterAssignableRoleIds(user, requested);
+                if (allowed === null) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have permission to create users.' });
+                }
+                payload.roleIds = allowed;
             }
-            const newUser = await userModel.create(req.body);
+
+            const newUser = await userModel.create(payload);
             res.status(201).json(toPublicUser(newUser));
         } catch (error: unknown) {
-            res.status(500).json({ message: `Lỗi khi tạo người dùng: ${(error instanceof Error ? error.message : String(error))}` });
+            logger.error('Error creating user:', error);
+            res.status(500).json({ message: 'Lỗi khi tạo người dùng.' });
         }
     },
 
@@ -144,61 +185,68 @@ export const userController = {
             if (isNaN(id)) return res.status(400).json({ message: 'User ID không hợp lệ.' });
 
             const user = req.user as User;
+            if (!user) return res.status(401).json({ message: 'Authentication required.' });
             const isGloballyAdmin = checkIsGlobalAdmin(user);
-            const hasUsersPermission = Boolean(user && user.permissions && user.permissions.includes('users'));
-            const isSelf = user && user.id === id;
+            const isSelf = user.id === id;
+            const body = req.body || {};
 
-            let isSpaceManagerForUser = false;
-            if (!isGloballyAdmin && !hasUsersPermission && !isSelf) {
-                const managedSpaceIds = await getUserManagedSpaceIds(user?.id);
-                if (managedSpaceIds.length > 0) {
-                    const targetUserSpaces = await spaceMemberModel.getSpacesByUser(id);
-                    isSpaceManagerForUser = targetUserSpaces.some((s: any) => managedSpaceIds.includes(s.spaceId));
+            // 1. Global Admin: full control (except removing own global admin flag).
+            if (isGloballyAdmin) {
+                const payload = { ...body };
+                delete payload.id;
+                if (payload.password === '') delete payload.password;
+                if (payload.isGlobalAdmin === false && isSelf) {
+                    return res.status(403).json({ message: 'Không thể tự bỏ quyền Global Admin của chính mình.' });
                 }
+                const updatedUser = await userModel.update(id, payload);
+                return res.json(toPublicUser(updatedUser));
             }
 
-            const canManage = isGloballyAdmin || hasUsersPermission || isSpaceManagerForUser;
-            if (!canManage && !isSelf) {
+            const target = await userModel.findById(id);
+            if (!target) return res.status(404).json({ message: 'User not found.' });
+
+            // 2. Self (non-admin): profile fields only. Password via /change-password.
+            const profilePayload: Record<string, unknown> = {};
+            if (typeof body.name === 'string' && body.name.trim()) profilePayload.name = body.name.trim();
+            if (typeof body.avatarUrl === 'string') profilePayload.avatarUrl = body.avatarUrl.trim();
+            if (typeof body.bio === 'string') profilePayload.bio = body.bio;
+
+            if (isSelf) {
+                const updatedUser = await userModel.update(id, profilePayload);
+                return res.json(toPublicUser(updatedUser));
+            }
+
+            // 3. Space admin managing another member: only when they hold 'users' in a Space
+            //    the target belongs to. Never touch Global Admins, credentials, merits, plans or status.
+            if (target.isGlobalAdmin) {
+                return res.status(403).json({ message: 'Forbidden: Global Admin accounts can only be changed by a Global Admin.' });
+            }
+            const targetSpaces = await spaceMemberModel.getSpacesByUser(id);
+            let managesTarget = false;
+            for (const s of targetSpaces as any[]) {
+                if (await hasSpacePermission(user, s.spaceId, 'users')) { managesTarget = true; break; }
+            }
+            if (!managesTarget) {
                 return res.status(403).json({ message: 'Forbidden: You cannot modify this user.' });
             }
 
-            const payload = { ...req.body };
-            if (payload.password === '') delete payload.password;
-
-            // Protect isGlobalAdmin: only global admin can set it, cannot remove own
-            if (!isGloballyAdmin) {
-                delete payload.isGlobalAdmin;
-            } else if (payload.isGlobalAdmin === false && id === user.id) {
-                return res.status(403).json({ message: 'Không thể tự bỏ quyền Global Admin của chính mình.' });
+            const payload: Record<string, unknown> = { ...profilePayload };
+            if (Array.isArray(body.roleIds)) {
+                // Keep roles the editor cannot manage; replace only roles they can assign.
+                const currentRoleIds: number[] = (target.roleIds || []).map((r: unknown) => Number(r));
+                const keep: number[] = [];
+                for (const rid of currentRoleIds) {
+                    if (!(await canAssignRole(user, rid))) keep.push(rid);
+                }
+                const assignable = await filterAssignableRoleIds(user, body.roleIds);
+                payload.roleIds = Array.from(new Set([...keep, ...(assignable || [])]));
             }
 
-            // Merits: only Global Admin can directly modify merits
-            if (!isGloballyAdmin) {
-                delete payload.merits;
-            }
-
-            // Roles & status: only admins (Global or 'users' permission) can change roles / status
-            if (!isGloballyAdmin && !hasUsersPermission) {
-                delete payload.roleIds;
-                delete payload.isActive;
-            }
-
-            // Prevent changing password without current password verification:
-            // Self-updates must ALWAYS use the changePassword endpoint which verifies oldPassword.
-            if (isSelf || (!isGloballyAdmin && !hasUsersPermission)) {
-                delete payload.password;
-            }
-
-            if (!isGloballyAdmin && !hasUsersPermission) {
-                delete payload.email;
-            }
-
-            // DO NOT log payload containing raw password!
             const updatedUser = await userModel.update(id, payload);
             res.json(toPublicUser(updatedUser));
         } catch (error: unknown) {
-            logger.error("Lỗi khi cập nhật người dùng:", error);
-            res.status(500).json({ message: `Lỗi khi cập nhật người dùng: ${error instanceof Error ? error.message : String(error)}` });
+            logger.error('Lỗi khi cập nhật người dùng:', error);
+            res.status(500).json({ message: 'Lỗi khi cập nhật người dùng.' });
         }
     },
 
