@@ -32,15 +32,25 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback, language, 
     // Listen for postMessage from iframe (navigation, language changes, donation modal, etc.)
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
+            // P0 Security Fix: Only accept postMessage from the resolver's own iframe window
+            if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+
             const data = event.data;
             if (!data || typeof data !== 'object') return;
 
-            if (data.type === 'NAVIGATE' && data.path) {
+            if (data.type === 'NAVIGATE' && typeof data.path === 'string') {
+                const path = data.path.trim();
+                // P0 Security Fix: Path must be a local relative path, cannot start with // or javascript:
+                if (!path.startsWith('/') || path.startsWith('//') || path.toLowerCase().startsWith('javascript:')) {
+                    console.warn('[CustomDomainPageResolver] Rejected unsafe navigation path:', path);
+                    return;
+                }
+
                 if (data.aiId) {
                     localStorage.setItem('lastSelectedAiId', String(data.aiId));
                 }
                 // Use React Router navigate for SPA routing instead of full reload
-                navigate(data.path);
+                navigate(path);
             } else if (data.type === 'OPEN_DONATION_MODAL' || data.type === 'OPEN_DONATION') {
                 setDonationModal({
                     isOpen: true,
@@ -133,7 +143,7 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback, language, 
                 title={space?.name || 'Space'}
                 srcDoc={htmlContent || ''}
                 className="w-full h-screen border-none block m-0 p-0"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
+                sandbox="allow-scripts allow-forms allow-popups"
             />
             {donationModal.isOpen && (
                 <MeritPaymentModal

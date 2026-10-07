@@ -1,48 +1,38 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 // server/routes/notificationRoutes.js
 import { Router } from 'express';
 import { notificationController } from '../controllers/notificationController.js';
+import { can } from '../utils/policy.js';
 
 const router = Router();
 
-// Tất cả routes notification đều yêu cầu đăng nhập và quyền admin
-// Middleware xác thực đã được mount ở cấp routes/index.js (authenticateToken)
-
-// POST /api/notifications/broadcast — Gửi thông báo hàng loạt (chỉ admin)
-router.post('/broadcast', async (req: Request, res: Response) => {
-    // Kiểm tra quyền admin/superadmin
-    const user = req.user;
-    if (!user || (!user.permissions?.includes('users') && !user.permissions?.includes('settings'))) {
-        return res.status(403).json({ error: 'Bạn không có quyền gửi thông báo hàng loạt.' });
+async function requireNotificationPermission(req: Request, res: Response, next: NextFunction) {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required.' });
     }
-    return notificationController.broadcastNotification(req, res);
-});
-
-// GET /api/notifications/logs — Lịch sử thông báo đã gửi (chỉ admin)
-router.get('/logs', async (req: Request, res: Response) => {
-    const user = req.user;
-    if (!user || (!user.permissions?.includes('users') && !user.permissions?.includes('settings'))) {
-        return res.status(403).json({ error: 'Bạn không có quyền xem lịch sử thông báo.' });
+    const rawSpaceId = req.query.spaceId || req.body?.spaceId;
+    const scope = rawSpaceId ? { spaceId: String(rawSpaceId) } : 'global';
+    const allowed = await can(req.user, 'notifications', scope);
+    if (!allowed) {
+        return res.status(403).json({
+            error: rawSpaceId
+                ? 'Bạn không có quyền quản lý thông báo trong Không gian này.'
+                : 'Chỉ Global Admin mới có quyền quản lý thông báo toàn hệ thống.'
+        });
     }
-    return notificationController.getLogs(req, res);
-});
+    next();
+}
+
+// POST /api/notifications/broadcast — Gửi thông báo hàng loạt
+router.post('/broadcast', requireNotificationPermission, notificationController.broadcastNotification);
+
+// GET /api/notifications/logs — Lịch sử thông báo đã gửi
+router.get('/logs', requireNotificationPermission, notificationController.getLogs);
 
 // GET /api/notifications/recipients-preview — Preview số lượng người nhận
-router.get('/recipients-preview', async (req: Request, res: Response) => {
-    const user = req.user;
-    if (!user || (!user.permissions?.includes('users') && !user.permissions?.includes('settings'))) {
-        return res.status(403).json({ error: 'Không có quyền truy cập.' });
-    }
-    return notificationController.previewRecipients(req, res);
-});
+router.get('/recipients-preview', requireNotificationPermission, notificationController.previewRecipients);
 
 // GET /api/notifications/members-list — Lấy danh sách thành viên để chọn khi gửi thông báo
-router.get('/members-list', async (req: Request, res: Response) => {
-    const user = req.user;
-    if (!user || (!user.permissions?.includes('users') && !user.permissions?.includes('settings'))) {
-        return res.status(403).json({ error: 'Không có quyền truy cập.' });
-    }
-    return notificationController.getMembersList(req, res);
-});
+router.get('/members-list', requireNotificationPermission, notificationController.getMembersList);
 
 export default router;

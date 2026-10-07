@@ -4,6 +4,7 @@ import { pool } from '../db.js';
 import { Request, Response, NextFunction } from 'express';
 import { User } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { can } from '../utils/policy.js';
 
 const mapAndSanitizeUser = (user: any) => {
     if (!user) return null;
@@ -145,38 +146,25 @@ export const isAdmin = (user: User | null | undefined) => {
     return !!user?.isGlobalAdmin;
 };
 
-export const canAccessSpace = async (user: User | null | undefined, spaceId: number | string) => {
+export const isSpaceMember = async (user: User | null | undefined, spaceId: number | string) => {
     if (isAdmin(user)) return true;
-    if (!user || !user.id) return false;
-    const userSpaceIds = await getUserManagedSpaceIds(user.id);
-    return userSpaceIds.includes(typeof spaceId === 'string' ? parseInt(spaceId, 10) : spaceId);
+    if (!user || !user.id || !/^\d+$/.test(String(spaceId))) return false;
+    const numericSpaceId = Number(spaceId);
+    const result = await pool.query(
+        'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 UNION SELECT 1 FROM space_members WHERE space_id = $1 AND user_id = $2 LIMIT 1',
+        [numericSpaceId, user.id]
+    );
+    return (result.rowCount ?? 0) > 0;
 };
 
-// Resolve permissions from system roles and only the role for the requested
-// space. `req.user.permissions` is a convenient union for UI rendering, but it
-// must not authorize writes across all spaces a member belongs to.
+/**
+ * @deprecated Use isSpaceMember for read access or policy can(user, action, { spaceId }) for permissions.
+ */
+export const canAccessSpace = isSpaceMember;
+
+// Resolve permissions by delegating directly to the unified policy engine can()
 export const hasSpacePermission = async (user: User | null | undefined, spaceId: number | string, permission: string) => {
-    if (isAdmin(user)) return true;
-    if (!user?.id || !/^\d+$/.test(String(spaceId))) return false;
-
-    // A Space owner is its tenant administrator, regardless of which Space
-    // roles happen to be included in the user's UI permission union.
-    const ownership = await pool.query(
-        'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 LIMIT 1',
-        [Number(spaceId), user.id]
-    );
-    if (ownership.rows.length > 0) return true;
-
-    const result = await pool.query(
-        `SELECT 1 FROM user_roles ur
-         JOIN roles r ON r.id = ur.role_id
-         WHERE ur.user_id = $1
-           AND r.space_id = $2
-           AND $3 = ANY(r.permissions)
-         LIMIT 1`,
-        [user.id, spaceId, permission]
-    );
-    return result.rows.length > 0;
+    return can(user, permission, { spaceId });
 };
 
 /** Authorize a permission in one explicitly identified Space. A missing

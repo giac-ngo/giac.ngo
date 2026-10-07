@@ -44,9 +44,16 @@ export const enrichUserWithPermissions = async (user: Partial<User> & Record<str
     return { ...user, roleIds, permissions: Array.from(permissions), ownedAis, grantedAiConfigIds, dailyMsgUsed, dailyLimitBonus } as User;
 }
 
+interface CachedUser {
+    user: User;
+    expiresAt: number;
+}
+const userCache = new Map<number, CachedUser>();
+
 const updateRolesForUser = async (userId: number | string, roleIds: number[], client: { query: Function } = pool) => {
     const numericUserId = parseInt(String(userId), 10);
     if (isNaN(numericUserId)) return;
+    userCache.delete(numericUserId);
 
     await client.query('DELETE FROM user_roles WHERE user_id = $1', [numericUserId]);
     if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
@@ -62,6 +69,14 @@ const updateRolesForUser = async (userId: number | string, roleIds: number[], cl
 };
 
 export const userModel = {
+    invalidateCache(userId?: number | string) {
+        if (userId) {
+            userCache.delete(Number(userId));
+        } else {
+            userCache.clear();
+        }
+    },
+
     async findByEmail(email: string): Promise<User | null> {
         const res = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
         const user = res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
@@ -69,11 +84,25 @@ export const userModel = {
         return enrichUserWithPermissions(user);
     },
 
-    async findById(id: number | string): Promise<User | null> {
+    async findById(id: number | string, forceFresh = false): Promise<User | null> {
+        const numId = Number(id);
+        if (!forceFresh && numId) {
+            const cached = userCache.get(numId);
+            if (cached && cached.expiresAt > Date.now()) {
+                return cached.user;
+            }
+        }
         const res = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
         const user = res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
-        if (!user) return null;
-        return enrichUserWithPermissions(user);
+        if (!user) {
+            if (numId) userCache.delete(numId);
+            return null;
+        }
+        const enriched = await enrichUserWithPermissions(user);
+        if (enriched && numId) {
+            userCache.set(numId, { user: enriched, expiresAt: Date.now() + 45000 });
+        }
+        return enriched;
     },
 
     async findByApiToken(token: string): Promise<User | null> {
@@ -243,6 +272,7 @@ export const userModel = {
             await client.query('COMMIT');
 
             if (res.rows.length === 0) throw new Error('User not found after update.');
+            userCache.delete(Number(id));
             const updatedUser = mapRowToCamelCase(res.rows[0]);
             return enrichUserWithPermissions(updatedUser);
 
@@ -255,10 +285,12 @@ export const userModel = {
     },
 
     async delete(id: number | string): Promise<void> {
+        userCache.delete(Number(id));
         await pool.query('DELETE FROM users WHERE id = $1', [id]);
     },
 
     async regenerateApiToken(userId: number | string): Promise<User | null> {
+        userCache.delete(Number(userId));
         const apiToken = crypto.randomBytes(24).toString('hex');
         const res = await pool.query('UPDATE users SET api_token = $1 WHERE id = $2 RETURNING *', [apiToken, userId]);
         if (res.rows.length === 0) throw new Error('User not found.');
@@ -266,11 +298,13 @@ export const userModel = {
     },
 
     async saveResetToken(userId: number | string, token: string): Promise<void> {
+        userCache.delete(Number(userId));
         const expires = new Date(Date.now() + 3600000); // 1 hour expiry
         await pool.query('UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3', [token, expires, userId]);
     },
 
     async deductRequest(userId: number | string): Promise<User | null> {
+        userCache.delete(Number(userId));
         const res = await pool.query(
             'UPDATE users SET requests_remaining = requests_remaining - 1 WHERE id = $1 AND requests_remaining > 0 RETURNING *',
             [userId]

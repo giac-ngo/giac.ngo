@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spacesController } from '../controllers/spacesController.js';
-import { checkPermission, isAuthenticated, optionalAuth, requireSpacePermission } from '../middleware/authMiddleware.js';
+import { isAuthenticated, optionalAuth, requireGlobalAdmin, requireSpacePermission } from '../middleware/authMiddleware.js';
 import { aiConfigController } from '../controllers/aiConfigController.js';
 import { spacePageController } from '../controllers/spacePageController.js';
 import { userController } from '../controllers/userController.js';
@@ -58,12 +58,12 @@ router.get('/:id(\\d+)', optionalAuth, spacesController.getSpaceById);
 // Specific sub-routes MUST come before the generic /:slug route
 router.get('/domain/:domain', optionalAuth, spacesController.getSpaceByDomain);
 router.get('/managed/:userId', isAuthenticated, userController.getUserSpaces); // alias: GET /api/spaces/managed/:userId
-router.get('/owners', isAuthenticated, userController.getSpaceOwners);         // alias: GET /api/spaces/owners
+router.get('/owners', requireGlobalAdmin, userController.getSpaceOwners);         // alias: GET /api/spaces/owners
 router.get('/owner-data', isAuthenticated, userController.getMySpaceOwnerData); // alias: GET /api/spaces/owner-data
 router.get('/slug/:slug', optionalAuth, spacesController.getSpaceBySlug);                    // explicit slug prefix for apiService
 router.get('/:slug/published-page/:pageSlug(*)?', spacePageController.servePublicPage);
 router.get('/:slug', optionalAuth, spacesController.getSpaceBySlug);
-router.post('/', checkPermission('spaces'), upload.single('image'), spacesController.createSpace);
+router.post('/', requireGlobalAdmin, upload.single('image'), spacesController.createSpace);
 router.put('/:id', requireSpacePermission('spaces'), upload.single('image'), spacesController.updateSpace);
 router.delete('/:id', requireSpacePermission('spaces'), spacesController.deleteSpace);
 

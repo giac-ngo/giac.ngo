@@ -2,19 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 // server/routes/billingRoutes.js
 import { Router } from 'express';
 import { billingController } from '../controllers/billingController.js';
-import { checkPermission, isAuthenticated, requireGlobalAdmin } from './../middleware/authMiddleware.js';
+import { isAuthenticated, requireGlobalAdmin } from './../middleware/authMiddleware.js';
 
 const router = Router();
 
 // Pricing Plans (Admin)
 router.get('/pricing-plans', billingController.getPricingPlans);
-router.post('/pricing-plans', checkPermission('pricing'), billingController.createPricingPlan);
-router.put('/pricing-plans/:id', checkPermission('pricing'), billingController.updatePricingPlan);
-router.delete('/pricing-plans/:id', checkPermission('pricing'), billingController.deletePricingPlan);
+router.post('/pricing-plans', isAuthenticated, billingController.createPricingPlan);
+router.put('/pricing-plans/:id', isAuthenticated, billingController.updatePricingPlan);
+router.delete('/pricing-plans/:id', isAuthenticated, billingController.deletePricingPlan);
 
 // Transactions
 router.get('/transactions', isAuthenticated, billingController.getAllTransactions); // Phân quyền trong controller
-router.get('/transactions/user/:userId', isAuthenticated, billingController.getTransactionsByUserId); // User can get their own
+router.get('/transactions/user/:userId', isAuthenticated, billingController.getTransactionsByUserId);
 router.get('/spaces/:spaceId/transactions', billingController.getSpaceTransactions); // Public access for donation list
 router.post('/transactions/manual', requireGlobalAdmin, billingController.addMeritsManually);
 
@@ -54,7 +54,7 @@ router.put('/admin/withdrawals/:id/process', requireGlobalAdmin, billingControll
 router.post('/withdrawals', isAuthenticated, (req: Request, res: Response) => billingController.createWithdrawalRequest(req, res));
 
 // Export
-router.get('/export/transactions', isAuthenticated, billingController.exportTransactions);
+router.get('/export/transactions', requireGlobalAdmin, billingController.exportTransactions);
 
 // Stats
 router.get('/stats/space-earnings', isAuthenticated, billingController.getSpaceEarningsStats);

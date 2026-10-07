@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { dharmaTalkModel } from '../models/dharmaTalk.model.js';
 import { spaceModel } from '../models/space.model.js';
-import { pool } from '../db.js';
+import { pool, mapRowToCamelCase } from '../db.js';
 import { User } from '../types/index.js';
 
 const parseAndProcessTalkData = (req: Request) => {
@@ -79,22 +79,27 @@ const parseAndProcessTalkData = (req: Request) => {
 export const dharmaTalksController = {
     async getAllDharmaTalks(req: Request, res: Response) {
         try {
-            // Import helper functions
             const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
 
-            let talks = await spaceModel.findAllDharmaTalks();
+            let query = `
+                SELECT dt.*, s.name as space_name 
+                FROM dharma_talks dt 
+                LEFT JOIN spaces s ON dt.space_id = s.id
+            `;
+            const params: any[] = [];
 
-            if (req.user) {
-                if (!isAdmin(req.user)) {
-                    const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
-                    talks = talks.filter(talk => {
-                        if (!talk.spaceId) return false; 
-                        return userSpaceIds.includes(talk.spaceId);
-                    });
+            if (req.user && !isAdmin(req.user)) {
+                const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                if (userSpaceIds.length === 0) {
+                    return res.json([]);
                 }
+                query += ' WHERE dt.space_id = ANY($1)';
+                params.push(userSpaceIds);
             }
 
-            res.json(talks);
+            query += ' ORDER BY dt.date DESC NULLS LAST';
+            const { rows } = await pool.query(query, params);
+            res.json(rows.map(mapRowToCamelCase));
         } catch (error: unknown) {
             logger.error('Error fetching all dharma talks:', error);
             res.status(500).json({ message: 'Failed to fetch all dharma talks.' });
@@ -107,11 +112,13 @@ export const dharmaTalksController = {
             const { spaceId } = talkData;
             const user = req.user as User;
 
-            if (user && !user.isGlobalAdmin && spaceId) {
-                const { getUserManagedSpaceIds: getManagedIds1 } = await import('../middleware/authMiddleware.js');
-                const managedIds1 = await getManagedIds1(user.id);
-                if (!managedIds1.includes(Number(spaceId))) {
-                    return res.status(403).json({ message: 'You can only create talks for spaces you own or are a member of.' });
+            if (!user?.isGlobalAdmin) {
+                if (!spaceId) {
+                    return res.status(403).json({ message: 'Only Global Admins can create global dharma talks.' });
+                }
+                const { hasSpacePermission } = await import('../middleware/authMiddleware.js');
+                if (!await hasSpacePermission(user, spaceId, 'dharma-talks')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have dharma-talks permission in this space.' });
                 }
             }
 
@@ -130,12 +137,22 @@ export const dharmaTalksController = {
             const talkData = parseAndProcessTalkData(req);
             const user = req.user as User;
 
-            if (user && !user.isGlobalAdmin) {
-                const { getUserManagedSpaceIds: getManagedIds2 } = await import('../middleware/authMiddleware.js');
-                const managedIds2 = await getManagedIds2(user.id);
+            if (!user?.isGlobalAdmin) {
                 const talkSpaceResUpd = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);
-                if (talkSpaceResUpd.rows.length > 0 && !managedIds2.includes(Number(talkSpaceResUpd.rows[0].space_id))) {
-                    return res.status(403).json({ message: 'You can only edit talks from spaces you own or are a member of.' });
+                if (talkSpaceResUpd.rows.length === 0) {
+                    return res.status(404).json({ message: 'Dharma talk not found.' });
+                }
+                const spaceId = talkSpaceResUpd.rows[0].space_id;
+                if (!spaceId) {
+                    return res.status(403).json({ message: 'Only Global Admins can update global dharma talks.' });
+                }
+                const { hasSpacePermission } = await import('../middleware/authMiddleware.js');
+                if (!await hasSpacePermission(user, spaceId, 'dharma-talks')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have dharma-talks permission in this space.' });
+                }
+                // Do not allow transferring talk to another space
+                if (talkData.spaceId !== undefined && talkData.spaceId !== null && Number(talkData.spaceId) !== Number(spaceId)) {
+                    return res.status(403).json({ message: 'Forbidden: Cannot change spaceId of dharma talk.' });
                 }
             }
 
@@ -156,12 +173,18 @@ export const dharmaTalksController = {
             if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID.' });
             const user = req.user as User;
 
-            if (user && !user.isGlobalAdmin) {
-                const { getUserManagedSpaceIds: getManagedIds3 } = await import('../middleware/authMiddleware.js');
-                const managedIds3 = await getManagedIds3(user.id);
+            if (!user?.isGlobalAdmin) {
                 const talkSpaceResDel = await pool.query('SELECT dt.space_id FROM dharma_talks dt WHERE dt.id = $1', [id]);
-                if (talkSpaceResDel.rows.length > 0 && !managedIds3.includes(Number(talkSpaceResDel.rows[0].space_id))) {
-                    return res.status(403).json({ message: 'You can only delete talks from spaces you own or are a member of.' });
+                if (talkSpaceResDel.rows.length === 0) {
+                    return res.status(404).json({ message: 'Dharma talk not found.' });
+                }
+                const spaceId = talkSpaceResDel.rows[0].space_id;
+                if (!spaceId) {
+                    return res.status(403).json({ message: 'Only Global Admins can delete global dharma talks.' });
+                }
+                const { hasSpacePermission } = await import('../middleware/authMiddleware.js');
+                if (!await hasSpacePermission(user, spaceId, 'dharma-talks')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have dharma-talks permission in this space.' });
                 }
             }
 

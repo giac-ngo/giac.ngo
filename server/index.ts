@@ -33,7 +33,7 @@ import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from './utils/jwtSecret.js';
 import { userModel } from './models/user.model.js';
-import { canAccessSpace } from './middleware/authMiddleware.js';
+import { isSpaceMember } from './middleware/authMiddleware.js';
 
 try {
     getJwtSecret();
@@ -224,7 +224,7 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
     socket.on('join-space', async (spaceId) => {
         if (!/^\d+$/.test(String(spaceId))) return;
-        if (await canAccessSpace(socket.data.user, String(spaceId))) {
+        if (await isSpaceMember(socket.data.user, String(spaceId))) {
             socket.join(`space-${spaceId}`);
         }
     });

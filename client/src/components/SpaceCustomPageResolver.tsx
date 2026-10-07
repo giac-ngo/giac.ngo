@@ -23,20 +23,31 @@ export const SpaceCustomPageResolver: React.FC<SpaceCustomPageResolverProps> = (
         amount: number;
     }>({ isOpen: false, title: '', amount: 0 });
     const navigate = useNavigate();
+    const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
     // Listen for postMessage from iframe (navigation, donation, etc.)
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
+            // P0 Security Fix: Only accept postMessage from the resolver's own iframe window
+            if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+
             const data = event.data;
             if (!data || typeof data !== 'object') return;
 
-            if (data.type === 'NAVIGATE' && data.path) {
+            if (data.type === 'NAVIGATE' && typeof data.path === 'string') {
+                const path = data.path.trim();
+                // P0 Security Fix: Path must be a local relative path, cannot start with // or javascript:
+                if (!path.startsWith('/') || path.startsWith('//') || path.toLowerCase().startsWith('javascript:')) {
+                    console.warn('[SpaceCustomPageResolver] Rejected unsafe navigation path:', path);
+                    return;
+                }
+
                 // Store selected AI if provided
                 if (data.aiId) {
                     localStorage.setItem('lastSelectedAiId', String(data.aiId));
                 }
-                // Use full navigation instead of React Router to ensure it works from any iframe context
-                window.location.href = data.path;
+                // Use React Router SPA navigate instead of window.location.href to avoid arbitrary top-level redirection
+                navigate(path);
             } else if (data.type === 'OPEN_DONATION_MODAL' || data.type === 'OPEN_DONATION') {
                 setDonationModal({
                     isOpen: true,
@@ -172,10 +183,11 @@ export const SpaceCustomPageResolver: React.FC<SpaceCustomPageResolverProps> = (
     return (
         <>
             <iframe
+                ref={iframeRef}
                 title={`Space Page - ${pageSlug || 'home'}`}
                 srcDoc={safeHtml}
                 className="w-full h-screen border-none block m-0 p-0"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
+                sandbox="allow-scripts allow-forms allow-popups"
             />
             {donationModal.isOpen && (
                 <MeritPaymentModal

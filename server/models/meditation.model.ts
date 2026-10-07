@@ -96,6 +96,11 @@ export const meditationModel = {
         return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
     },
 
+    async findById(id: number | string): Promise<MeditationSession | null> {
+        const res = await pool.query('SELECT * FROM meditation_sessions WHERE id = $1', [id]);
+        return res.rows[0] ? mapRowToCamelCase(res.rows[0]) : null;
+    },
+
     async findAll(spaceIds: (number | string)[] = []): Promise<MeditationSession[]> {
         let query = `
             SELECT m.*, s.name as space_name 

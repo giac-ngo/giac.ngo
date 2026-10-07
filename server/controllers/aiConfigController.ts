@@ -14,13 +14,11 @@ import { toPublicUser } from '../utils/sanitizeUser.js';
 
 export const aiConfigController = {
     async getVisibleAiConfigs(req: Request, res: Response) {
-        const { userId } = req.body;
         try {
-            let dbUser: User | null = null;
-            if (userId) {
-                dbUser = await userModel.findById(userId);
-            }
-            const configs = await aiConfigModel.findVisibleForUser(dbUser);
+            // Security fix: Never trust userId from body, only use authenticated req.user
+            const user = req.user || null;
+            const spaceId = req.body?.spaceId ? parseInt(String(req.body.spaceId), 10) : null;
+            const configs = await aiConfigModel.findVisibleForUser(user, spaceId);
             res.json(configs);
         } catch (error: any) {
             logger.error("Lỗi tải danh sách AI:", error);
@@ -238,6 +236,24 @@ export const aiConfigController = {
 
             const aiConfig = (await aiConfigModel.findById(aiId)) as AIConfig | null;
             if (!aiConfig) return res.status(404).json({ message: 'AI config not found.' });
+
+            // Ensure caller has access to use this AI
+            const { isAdmin, hasSpacePermission } = await import('../middleware/authMiddleware.js');
+            const user = req.user;
+            if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+            const isOwner = aiConfig.ownerId && Number(aiConfig.ownerId) === Number(user.id);
+            const isManager = isAdmin(user) || isOwner || (aiConfig.spaceId ? await hasSpacePermission(user, aiConfig.spaceId, 'ai') : false);
+            if (!isManager) {
+                // Regular user must have access to this AI
+                if (!aiConfig.isPublic) {
+                    const isGranted = await aiConfigModel.checkUserAccess(aiConfig.id, user.id);
+                    const perAiCount = await aiConfigModel.getUserRequestCount(user.id, aiConfig.id);
+                    if (!isGranted && (perAiCount === null || perAiCount <= 0)) {
+                        return res.status(403).json({ message: 'Forbidden: You do not have access to this AI.' });
+                    }
+                }
+            }
 
             let realGeminiKey: string;
             try {

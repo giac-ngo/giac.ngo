@@ -3,7 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 import { spaceModel } from '../models/space.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { userModel } from '../models/user.model.js';
-import { isAdmin, getUserManagedSpaceIds, canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
+import { isAdmin, getUserManagedSpaceIds, isSpaceMember, hasSpacePermission } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 import { pool } from '../db.js';
 
 
@@ -13,7 +14,7 @@ import { toPublicSpace, toAdminSpace } from '../utils/sanitizeSpace.js';
 
 const canManageSpaceSettings = async (user: any, spaceId: number): Promise<boolean> => {
     for (const permission of ['spaces', 'settings', 'payment-settings']) {
-        if (await hasSpacePermission(user, spaceId, permission)) return true;
+        if (await can(user, permission, { spaceId })) return true;
     }
     return false;
 };
@@ -163,11 +164,9 @@ export const spacesController = {
                 return res.status(404).json({ message: 'Space not found.' });
             }
 
-            if (req.user && !isAdmin(req.user as any)) {
-                const hasAccess = await canAccessSpace(req.user as any, id);
-                if (!hasAccess) {
-                    return res.status(403).json({ message: 'Forbidden: You do not have permission to edit this space.' });
-                }
+            const hasAccess = await can(req.user, 'spaces', { spaceId: id });
+            if (!hasAccess) {
+                return res.status(403).json({ message: 'Forbidden: You do not have permission to edit this space.' });
             }
 
             const spaceData = { ...req.body };
@@ -228,11 +227,9 @@ export const spacesController = {
                 return res.status(404).json({ message: 'Space not found.' });
             }
 
-            if (req.user && !isAdmin(req.user as any)) {
-                const hasAccess = await canAccessSpace(req.user as any, id);
-                if (!hasAccess) {
-                    return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this space.' });
-                }
+            const isOwner = String(existingSpace.userId) === String(req.user?.id);
+            if (!req.user?.isGlobalAdmin && !isOwner) {
+                return res.status(403).json({ message: 'Forbidden: Only the Space Owner or Global Admin can delete this space.' });
             }
 
             await spaceModel.delete(id);

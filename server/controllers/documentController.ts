@@ -13,7 +13,8 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { pool } from '../db.js';
 import { getApiKeyForAi } from '../utils/getApiKeyForAi.js';
-import { canAccessSpace, hasSpacePermission, isAdmin } from '../middleware/authMiddleware.js';
+import { isSpaceMember, isAdmin } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 import { logger } from '../utils/logger.js';
 
 
@@ -28,14 +29,13 @@ const _deleteCategory = async (req: Request, res: Response, tableName: string, i
             return res.status(404).json({ message: 'Item not found.' });
         }
         const spaceId = itemRes.rows[0].space_id;
-        if (!isAdmin(req.user)) {
-            if (!spaceId) {
-                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền xóa danh mục dùng chung toàn hệ thống.' });
-            }
-            const hasAccess = await hasSpacePermission(req.user, spaceId, 'files');
-            if (!hasAccess) {
-                return res.status(403).json({ message: 'Bạn không có quyền xóa mục này trong Không gian.' });
-            }
+        const allowed = await can(req.user, 'files', spaceId ? { spaceId } : 'global');
+        if (!allowed) {
+            return res.status(403).json({
+                message: spaceId
+                    ? 'Bạn không có quyền xóa mục này trong Không gian.'
+                    : 'Chỉ Global Admin mới có quyền xóa danh mục dùng chung toàn hệ thống.'
+            });
         }
         await documentModel._deleteCategory(tableName, id);
         res.status(204).send();
@@ -47,17 +47,13 @@ const _deleteCategory = async (req: Request, res: Response, tableName: string, i
 const _createCategory = async (req: Request, res: Response, tableName: string, additionalData: any = {}) => {
     try {
         const { name, nameEn, spaceId } = req.body;
-        // Global item (no spaceId): ONLY Global Admin can create
-        if (!spaceId) {
-            if (!isAdmin(req.user)) {
-                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền tạo danh mục dùng chung toàn hệ thống.' });
-            }
-        } else {
-            // Space-specific item: requires 'files' permission on this specific Space
-            const hasAccess = await hasSpacePermission(req.user, spaceId, 'files');
-            if (!hasAccess) {
-                return res.status(403).json({ message: 'Bạn không có quyền quản lý tài liệu trong Không gian này.' });
-            }
+        const allowed = await can(req.user, 'files', spaceId ? { spaceId } : 'global');
+        if (!allowed) {
+            return res.status(403).json({
+                message: spaceId
+                    ? 'Bạn không có quyền quản lý tài liệu trong Không gian này.'
+                    : 'Chỉ Global Admin mới có quyền tạo danh mục dùng chung toàn hệ thống.'
+            });
         }
         const payload = { name, nameEn, spaceId: spaceId || null, ...additionalData };
         const item = await documentModel._createCategory(tableName, payload);
@@ -78,24 +74,23 @@ const _updateCategory = async (req: Request, res: Response, tableName: string) =
         }
         const currentSpaceId = itemRes.rows[0].space_id;
 
-        if (!isAdmin(req.user)) {
-            if (!currentSpaceId) {
-                return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền sửa danh mục dùng chung toàn hệ thống.' });
-            }
-            const hasAccess = await hasSpacePermission(req.user, currentSpaceId, 'files');
-            if (!hasAccess) {
-                return res.status(403).json({ message: 'Bạn không có quyền sửa đổi mục này trong Không gian.' });
-            }
-            if (spaceId !== undefined) {
-                if (!spaceId) {
-                    return res.status(403).json({ message: 'Chỉ Global Admin mới có quyền chuyển danh mục thành dùng chung toàn hệ thống.' });
-                }
-                if (String(spaceId) !== String(currentSpaceId)) {
-                    const hasTargetAccess = await hasSpacePermission(req.user, spaceId, 'files');
-                    if (!hasTargetAccess) {
-                        return res.status(403).json({ message: 'Bạn không có quyền chuyển mục sang Không gian đích.' });
-                    }
-                }
+        const allowed = await can(req.user, 'files', currentSpaceId ? { spaceId: currentSpaceId } : 'global');
+        if (!allowed) {
+            return res.status(403).json({
+                message: currentSpaceId
+                    ? 'Bạn không có quyền sửa đổi mục này trong Không gian.'
+                    : 'Chỉ Global Admin mới có quyền sửa danh mục dùng chung toàn hệ thống.'
+            });
+        }
+
+        if (spaceId !== undefined && String(spaceId) !== String(currentSpaceId)) {
+            const targetAllowed = await can(req.user, 'files', spaceId ? { spaceId } : 'global');
+            if (!targetAllowed) {
+                return res.status(403).json({
+                    message: spaceId
+                        ? 'Bạn không có quyền chuyển mục sang Không gian đích.'
+                        : 'Chỉ Global Admin mới có quyền chuyển danh mục thành dùng chung toàn hệ thống.'
+                });
             }
         }
 
@@ -239,60 +234,85 @@ export const documentController = {
 
     async createDocument(req: Request, res: Response) {
         try {
-            const { spaceId } = req.body;
-            if (!req.user?.isGlobalAdmin && spaceId) {
-                const hasAccess = await canAccessSpace(req.user, spaceId);
-                if (!hasAccess) {
-                    return res.status(403).json({ message: 'You can only create documents for spaces you own or manage.' });
-                }
+            const { spaceId, tags, ...docData } = req.body;
+            const targetScope = spaceId ? { spaceId } : 'global';
+            const allowed = await can(req.user, 'files', targetScope);
+            if (!allowed) {
+                return res.status(403).json({
+                    message: spaceId
+                        ? 'Forbidden: You do not have files permission in this Space.'
+                        : 'Only Global Admins can create global documents.'
+                });
             }
 
-            const { tags, ...docData } = req.body;
-            const newDoc = await documentModel.create(docData, tags || []);
+            const newDoc = await documentModel.create({ ...docData, spaceId: spaceId || null }, tags || []);
             res.status(201).json(newDoc);
         } catch (error: unknown) {
-            res.status(500).json({ message: `Failed to create document: ${(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error))}` });
+            res.status(500).json({ message: `Failed to create document: ${(error instanceof Error ? error.message : String(error))}` });
         }
     },
 
     async updateDocument(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
+            const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
+            if (docRes.rows.length === 0) {
+                return res.status(404).json({ message: 'Document not found.' });
+            }
+            const currentSpaceId = docRes.rows[0].space_id;
 
-            if (!req.user?.isGlobalAdmin) {
-                const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
-                if (docRes.rows.length > 0 && docRes.rows[0].space_id) {
-                    const hasAccess = await canAccessSpace(req.user, docRes.rows[0].space_id);
-                    if (!hasAccess) {
-                        return res.status(403).json({ message: 'You can only edit documents from spaces you own or manage.' });
+            const canEdit = await can(req.user, 'files', currentSpaceId ? { spaceId: currentSpaceId } : 'global');
+            if (!canEdit) {
+                return res.status(403).json({
+                    message: currentSpaceId
+                        ? 'Forbidden: You do not have files permission in this Space.'
+                        : 'Only Global Admins can edit global documents.'
+                });
+            }
+
+            if (req.body.spaceId !== undefined) {
+                const targetSpaceId = (req.body.spaceId === 'null' || !req.body.spaceId) ? null : parseInt(req.body.spaceId, 10);
+                if (targetSpaceId !== currentSpaceId) {
+                    const canTarget = await can(req.user, 'files', targetSpaceId ? { spaceId: targetSpaceId } : 'global');
+                    if (!canTarget) {
+                        return res.status(403).json({
+                            message: targetSpaceId
+                                ? 'Forbidden: You do not have files permission in the target Space.'
+                                : 'Only Global Admins can make documents global.'
+                        });
                     }
                 }
             }
 
             const { tags, ...docData } = req.body;
 
-            if (docData.spaceId) {
-                docData.spaceId = docData.spaceId === 'null' ? null : parseInt(docData.spaceId, 10);
+            if (docData.spaceId !== undefined) {
+                docData.spaceId = docData.spaceId === 'null' || !docData.spaceId ? null : parseInt(docData.spaceId, 10);
             }
 
             const updatedDoc = await documentModel.update(id, docData, tags);
             res.json(updatedDoc);
         } catch (error: unknown) {
-            res.status(500).json({ message: `Failed to update document: ${(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error))}` });
+            res.status(500).json({ message: `Failed to update document: ${(error instanceof Error ? error.message : String(error))}` });
         }
     },
 
     async deleteDocument(req: Request, res: Response) {
         try {
             const id = parseInt(String(req.params.id), 10);
-            if (!req.user?.isGlobalAdmin) {
-                const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
-                if (docRes.rows.length > 0 && docRes.rows[0].space_id) {
-                    const hasAccess = await canAccessSpace(req.user, docRes.rows[0].space_id);
-                    if (!hasAccess) {
-                        return res.status(403).json({ message: 'You can only delete documents from spaces you own or manage.' });
-                    }
-                }
+            const docRes = await pool.query('SELECT space_id FROM documents WHERE id = $1', [id]);
+            if (docRes.rows.length === 0) {
+                return res.status(404).json({ message: 'Document not found.' });
+            }
+            const currentSpaceId = docRes.rows[0].space_id;
+
+            const canDel = await can(req.user, 'files', currentSpaceId ? { spaceId: currentSpaceId } : 'global');
+            if (!canDel) {
+                return res.status(403).json({
+                    message: currentSpaceId
+                        ? 'Forbidden: You do not have files permission in this Space.'
+                        : 'Only Global Admins can delete global documents.'
+                });
             }
 
             const doc = await documentModel.findById(id);
@@ -353,24 +373,16 @@ export const documentController = {
 
     async getDocumentAuthors(req: Request, res: Response) {
         try {
-            const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
-            let spaceFilter = req.query.spaceId;
-
-            if (req.user && !isAdmin(req.user as any)) {
-                const managedIds = await getUserManagedSpaceIds(req.user.id);
-                if (managedIds.length === 0) return res.json([]);
-
-                if (spaceFilter) {
-                    if (!managedIds.includes(parseInt(String(spaceFilter), 10))) {
-                        return res.status(403).json({ message: "Forbidden: You do not own this space." });
-                    }
-                } else {
-                    spaceFilter = managedIds as any;
+            const rawSpace = req.query.spaceId;
+            if (rawSpace && !isAdmin(req.user as any)) {
+                const isMember = await isSpaceMember(req.user, String(rawSpace));
+                if (!isMember) {
+                    return res.status(403).json({ message: "Forbidden: You do not have access to this Space." });
                 }
             }
-            res.json(await documentModel._findCategory('document_authors', spaceFilter as any));
+            res.json(await documentModel._findCategory('document_authors', rawSpace as any));
         } catch (error: unknown) {
-            res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) });
+            res.status(500).json({ message: (error instanceof Error ? error.message : String(error)) });
         }
     },
     async createDocumentAuthor(req: Request, res: Response) { await _createCategory(req, res, 'document_authors'); },
@@ -379,24 +391,16 @@ export const documentController = {
 
     async getDocumentTypes(req: Request, res: Response) {
         try {
-            const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
-            let spaceFilter = req.query.spaceId;
-
-            if (req.user && !isAdmin(req.user as any)) {
-                const managedIds = await getUserManagedSpaceIds(req.user.id);
-                if (managedIds.length === 0) return res.json([]);
-
-                if (spaceFilter) {
-                    if (!managedIds.includes(parseInt(String(spaceFilter), 10))) {
-                        return res.status(403).json({ message: "Forbidden: You do not own this space." });
-                    }
-                } else {
-                    spaceFilter = managedIds as any;
+            const rawSpace = req.query.spaceId;
+            if (rawSpace && !isAdmin(req.user as any)) {
+                const isMember = await isSpaceMember(req.user, String(rawSpace));
+                if (!isMember) {
+                    return res.status(403).json({ message: "Forbidden: You do not have access to this Space." });
                 }
             }
-            res.json(await documentModel._findCategory('document_types', spaceFilter as any));
+            res.json(await documentModel._findCategory('document_types', rawSpace as any));
         } catch (error: unknown) {
-            res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) });
+            res.status(500).json({ message: (error instanceof Error ? error.message : String(error)) });
         }
     },
     async createDocumentType(req: Request, res: Response) { await _createCategory(req, res, 'document_types'); },
@@ -405,24 +409,16 @@ export const documentController = {
 
     async getDocumentTopics(req: Request, res: Response) {
         try {
-            const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
-            let spaceFilter = req.query.spaceId;
-
-            if (req.user && !isAdmin(req.user as any)) {
-                const managedIds = await getUserManagedSpaceIds(req.user.id);
-                if (managedIds.length === 0) return res.json([]);
-
-                if (spaceFilter) {
-                    if (!managedIds.includes(parseInt(String(spaceFilter), 10))) {
-                        return res.status(403).json({ message: "Forbidden: You do not own this space." });
-                    }
-                } else {
-                    spaceFilter = managedIds as any;
+            const rawSpace = req.query.spaceId;
+            if (rawSpace && !isAdmin(req.user as any)) {
+                const isMember = await isSpaceMember(req.user, String(rawSpace));
+                if (!isMember) {
+                    return res.status(403).json({ message: "Forbidden: You do not have access to this Space." });
                 }
             }
-            res.json(await documentModel._findCategory('document_topics', spaceFilter as any));
+            res.json(await documentModel._findCategory('document_topics', rawSpace as any));
         } catch (error: unknown) {
-            res.status(500).json({ message: (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) });
+            res.status(500).json({ message: (error instanceof Error ? error.message : String(error)) });
         }
     },
     async createDocumentTopic(req: Request, res: Response) {

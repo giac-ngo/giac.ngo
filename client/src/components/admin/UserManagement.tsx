@@ -225,15 +225,19 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         setUserSpaceId(null);
         if (user && typeof user.id === 'number') {
             try {
-                // Load spaces list and user's space membership in parallel
-                const [memberSpaces, spacesList] = await Promise.all([
-                    apiService.getUserSpaces(user.id),
-                    spaces.length === 0 ? apiService.getSpaces() : Promise.resolve(spaces),
-                ]);
-                if (spacesList !== spaces) setSpaces(spacesList);
-                setUserSpaceId(memberSpaces.length > 0 ? memberSpaces[0].spaceId : null);
+                if (isGlobalAdminProp) {
+                    // Load spaces list and user's space membership in parallel only for global admin
+                    const [memberSpaces, spacesList] = await Promise.all([
+                        apiService.getUserSpaces(user.id),
+                        spaces.length === 0 ? apiService.getSpaces() : Promise.resolve(spaces),
+                    ]);
+                    if (spacesList !== spaces) setSpaces(spacesList);
+                    setUserSpaceId(memberSpaces.length > 0 ? memberSpaces[0].spaceId : null);
+                } else {
+                    setUserSpaceId(space?.id ? Number(space.id) : null);
+                }
             } catch {
-                setUserSpaceId(null);
+                setUserSpaceId(space?.id ? Number(space.id) : null);
             }
         } else {
             setUserSpaceId(space?.id ? (space.id as number) : null);

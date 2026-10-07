@@ -275,6 +275,7 @@ export const billingModel = {
                expires_at = NOW() + ($3 || ' days')::INTERVAL`,
             [userId, bonus, days]
         );
+        userModel.invalidateCache(userId);
         return mapRowToCamelCase(res.rows[0]);
     },
 
@@ -316,11 +317,15 @@ export const billingModel = {
         return res.rows.map(mapRowToCamelCase);
     },
 
-    async findTransactionsBySpaceId(spaceId: number | string, options: { page?: number, limit?: number, fromDate?: string, toDate?: string } = {}): Promise<{ data: Transaction[], total: number, page: number, limit: number }> {
-        const { page = 1, limit = 10, fromDate, toDate } = options;
+    async findPublicDonationsBySpaceId(spaceId: number | string, options: { page?: number, limit?: number, fromDate?: string, toDate?: string } = {}): Promise<{ data: Partial<Transaction>[], total: number, page: number, limit: number }> {
+        const { fromDate, toDate } = options;
+        const page = Math.max(1, Number(options.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number(options.limit) || 10)); // Cap limit at 100 for public query
         const offset = (page - 1) * limit;
         let query = `
-            SELECT t.*, u.name as user_name
+            SELECT t.id, t.merits, t.timestamp, t.destination_space_id,
+                   t.details->>'message' AS message,
+                   u.name as user_name
             FROM transactions t
             LEFT JOIN users u ON t.user_id = u.id
             WHERE t.destination_space_id = $1
@@ -344,7 +349,64 @@ export const billingModel = {
 
         const res = await pool.query(query, params);
 
-        // Get total count for pagination
+        let countQuery = `SELECT COUNT(*) FROM transactions t WHERE t.destination_space_id = $1`;
+        const countParams: unknown[] = [spaceId];
+        let countParamIndex = 2;
+        if (fromDate) {
+            countQuery += ` AND t.timestamp >= $${countParamIndex}`;
+            countParams.push(fromDate);
+            countParamIndex++;
+        }
+        if (toDate) {
+            countQuery += ` AND t.timestamp <= $${countParamIndex}`;
+            countParams.push(toDate);
+            countParamIndex++;
+        }
+        const countRes = await pool.query(countQuery, countParams);
+
+        return {
+            data: res.rows.map(mapRowToCamelCase),
+            total: parseInt(countRes.rows[0].count, 10),
+            page,
+            limit
+        };
+    },
+
+    async findTransactionsBySpaceId(spaceId: number | string, options: { page?: number, limit?: number, fromDate?: string, toDate?: string } = {}): Promise<{ data: Transaction[], total: number, page: number, limit: number }> {
+        const { fromDate, toDate } = options;
+        const page = Math.max(1, Number(options.page) || 1);
+        const limit = Math.min(10000, Math.max(1, Number(options.limit) || 50));
+        const offset = (page - 1) * limit;
+        let query = `
+            SELECT t.*,
+                   u.name as user_name,
+                   s.name as space_name,
+                   a.name as admin_name
+            FROM transactions t
+            LEFT JOIN users u ON t.user_id = u.id
+            LEFT JOIN spaces s ON t.destination_space_id = s.id
+            LEFT JOIN users a ON t.admin_id = a.id
+            WHERE t.destination_space_id = $1
+        `;
+        const params: unknown[] = [spaceId];
+        let paramIndex = 2;
+
+        if (fromDate) {
+            query += ` AND t.timestamp >= $${paramIndex}`;
+            params.push(fromDate);
+            paramIndex++;
+        }
+        if (toDate) {
+            query += ` AND t.timestamp <= $${paramIndex}`;
+            params.push(toDate);
+            paramIndex++;
+        }
+
+        query += ` ORDER BY t.timestamp DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(limit, offset);
+
+        const res = await pool.query(query, params);
+
         let countQuery = `SELECT COUNT(*) FROM transactions t WHERE t.destination_space_id = $1`;
         const countParams: unknown[] = [spaceId];
         let countParamIndex = 2;
@@ -428,10 +490,21 @@ export const billingModel = {
                     return unchangedUser;
                 }
             }
-            const res = await client.query(
-                'UPDATE users SET merits = COALESCE(merits, 0) + $1 WHERE id = $2 RETURNING *',
-                [merits, userId]
-            );
+            let res;
+            if (merits < 0) {
+                res = await client.query(
+                    'UPDATE users SET merits = merits + $1 WHERE id = $2 AND merits >= $3 RETURNING *',
+                    [merits, userId, -merits]
+                );
+                if (res.rowCount === 0) {
+                    throw new Error('Không đủ Merits để thực hiện giao dịch.');
+                }
+            } else {
+                res = await client.query(
+                    'UPDATE users SET merits = COALESCE(merits, 0) + $1 WHERE id = $2 RETURNING *',
+                    [merits, userId]
+                );
+            }
             if (spaceId) {
                 await client.query(
                     'UPDATE spaces SET merits = COALESCE(merits, 0) + $1, merits_sold = COALESCE(merits_sold, 0) + $1 WHERE id = $2',
@@ -443,6 +516,7 @@ export const billingModel = {
                 [userId, merits, adminId, type, stripeChargeId, details, spaceId]
             );
             await client.query('COMMIT');
+            userModel.invalidateCache(userId);
             const updatedUser = await enrichUserWithPermissions(mapRowToCamelCase(res.rows[0]));
             if (updatedUser && stripeChargeId) Object.defineProperty(updatedUser, 'paymentAlreadyProcessed', { value: false, enumerable: false });
             return updatedUser;
@@ -461,15 +535,21 @@ export const billingModel = {
             const plan = await this.findPlanById(planId);
             if (!plan) throw new Error('Plan not found.');
 
-            const user = await userModel.findById(userId);
-            if (!user) throw new Error('User not found.');
+            // Row-level lock to prevent concurrent purchase race conditions
+            const userLockRes = await client.query('SELECT merits FROM users WHERE id = $1 FOR UPDATE', [userId]);
+            if (userLockRes.rows.length === 0) throw new Error('User not found.');
 
-            if (user.merits !== undefined && user.merits !== null && user.merits < plan.meritCost) {
+            const currentMerits = Number(userLockRes.rows[0].merits || 0);
+            if (currentMerits < plan.meritCost) {
                 throw new Error('Not enough merits for this plan.');
             }
 
-            if (user.merits !== undefined && user.merits !== null) {
-                await client.query('UPDATE users SET merits = merits - $1 WHERE id = $2', [plan.meritCost, userId]);
+            if (plan.meritCost > 0) {
+                const deductRes = await client.query(
+                    'UPDATE users SET merits = merits - $1 WHERE id = $2 AND merits >= $1',
+                    [plan.meritCost, userId]
+                );
+                if (deductRes.rowCount === 0) throw new Error('Not enough merits for this plan.');
                 await client.query('INSERT INTO transactions (user_id, merits, type) VALUES ($1, $2, $3)', [userId, -plan.meritCost, 'subscription']);
             }
 
@@ -491,6 +571,7 @@ export const billingModel = {
             );
 
             await client.query('COMMIT');
+            userModel.invalidateCache(userId);
             return enrichUserWithPermissions(mapRowToCamelCase(finalUserRes.rows[0]));
         } catch (error: unknown) {
             await client.query('ROLLBACK');
@@ -549,6 +630,7 @@ export const billingModel = {
             await client.query('INSERT INTO user_owned_ais (user_id, ai_config_id, requests_remaining) VALUES ($1, $2, $3)', [userId, aiId, requestsGranted]);
 
             await client.query('COMMIT');
+            userModel.invalidateCache(userId);
 
             const updatedUser = await enrichUserWithPermissions(mapRowToCamelCase(updatedUserRes.rows[0]));
             return { updatedUser };
@@ -581,6 +663,7 @@ export const billingModel = {
             await client.query('INSERT INTO user_owned_ais (user_id, ai_config_id, requests_remaining) VALUES ($1, $2, $3)', [userId, aiId, requestsGranted || 0]);
 
             await client.query('COMMIT');
+            userModel.invalidateCache(userId);
             const updatedUser = await userModel.findById(userId);
             return { updatedUser };
 

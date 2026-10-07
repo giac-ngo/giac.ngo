@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { systemController, upload } from '../controllers/systemController.js';
 import { documentController } from '../controllers/documentController.js';
 import { spacePageController } from '../controllers/spacePageController.js';
-import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
+import { isAuthenticated, optionalAuth, requireGlobalAdmin } from '../middleware/authMiddleware.js';
 import weaviateService from '../services/weaviateService.js';
 
 const router = Router();
@@ -32,8 +32,7 @@ router.get('/exchange-rate', async (_req: Request, res: Response) => {
     }
 });
 
-// Dashboard (requires 'dashboard' permission)
-router.get('/dashboard/stats', checkPermission('dashboard'), systemController.getDashboardStats);
+router.get('/dashboard/stats', isAuthenticated, systemController.getDashboardStats);
 
 // TTS
 router.post('/tts/generate', isAuthenticated, systemController.generateTtsAudio);
@@ -54,7 +53,7 @@ router.post('/contact', spacePageController.handleContactForm);
 // Admin-only: drop and recreate Weaviate class after embedding model update
 // Body: { modelType: 'gemini' | 'gpt' | 'vertex', apiKey: '...' }
 // @ts-ignore
-router.post('/reset-weaviate-schema', checkPermission('settings'), async (req: Request, res: Response) => {
+router.post('/reset-weaviate-schema', requireGlobalAdmin, async (req: Request, res: Response) => {
     // @ts-ignore
     const { modelType, apiKey } = req.body;
     if (!modelType || !apiKey) {

@@ -74,7 +74,7 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - `DELETE /api/spaces/:id/members/:userId`: Kick thành viên.
 
 ### 3. Phân hệ Phân Quyền (`/api/roles`)
-  - **Tài liệu Chi tiết**: Mời xem [Hướng dẫn Phân Quyền Đa Không Gian (Multi-Tenant RBAC)](./rbac_multi_tenant.md)
+  - **Tài liệu Chi tiết**: Xem chi tiết kiến trúc phân quyền đa không gian tại [Mục III: Cơ chế Bảo mật và Phân Quyền Multi-Tenant RBAC](#iii-cơ-chế-bảo-mật-và-phân-quyền-multi-tenant-rbac).
   - `GET /api/roles`, `POST`, `PUT /:id`, `DELETE /:id`: Quản lý danh sách vai trò (Roles).
   - `GET /api/roles/space/:spaceId`: Lấy danh sách role nội bộ áp dụng trong một Space cụ thể.
 
@@ -185,6 +185,9 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
   - Facebook: sau khi nhấn "Kết nối qua Facebook", hệ thống gọi `GET /api/cms/:spaceId/oauth/facebook/url` để lấy OAuth URL → mở popup → facebook-connect.phoai.vn xác thực → callback về backend → redirect về `cms_approve`.
 
 ### 12. Phân hệ Thanh Toán, Cúng Dường & Lịch Sử Giao Dịch (`/api/billing`, `/api/payos`)
+* **Tỷ giá & Trạng thái Cổng thanh toán**:
+  - `GET /api/exchange-rate` (và `/exchange-rate`): Lấy tỷ giá quy đổi USD/VND hiện hành thời gian thực (fallback an toàn 25.000). Route công khai được gắn trực tiếp trước các middleware custom domain/SPA để không bao giờ bị 404.
+  - `GET /api/billing/stripe/config`: Kiểm tra trạng thái cấu hình Stripe Publishable Key & Secret Key trên máy chủ backend để frontend tự động ẩn/hiện phương thức thanh toán thẻ quốc tế.
 * **Billing (Trực tiếp bằng thẻ via Stripe)**:
   - `GET`, `POST`, `PUT`, `DELETE /api/billing/pricing-plans`: Quản lý các gói thanh toán định kỳ.
   - `GET /api/billing/transactions`: Lịch sử giao dịch (có thể lọc qua `user/:id` hoặc `spaces/:id`).
@@ -209,26 +212,51 @@ Dưới đây là danh sách chi tiết và đầy đủ nhất mọi endpoint A
 
 ---
 
-## III. Cơ chế Bảo mật và Middleware
-- **Xác thực và Phân quyền (JWT)**: Sử dụng JWT tokens quản lý session qua `authMiddleware.js`.
-- Phân tách quyền lực rõ ràng: `isGlobalAdmin` (Super Admin hệ thống — chỉ `true` khi truy cập từ Root Domain `/admin`) vs. `isSpaceOwner`/Manager (Quản lý Space của mình qua `/:slug/admin`).
-- **QUY TẮC QUAN TRỌNG**: KHÔNG dùng `user.permissions?.includes('roles')` để xác định SuperAdmin. Thay vào đó, `AdminPage.tsx` truyền prop `isGlobalAdmin` xuống tất cả các component con. Việc dùng `permissions.includes('roles')` sẽ gây lỗi bảo mật vì Space Owner cũng có thể có quyền `roles`.
-- **Socket.IO Real-time**: Tham gia các phòng (`room`) thông qua tên gọi `space-{spaceId}` hoặc `user-{userId}` để đẩy (push) log đồng bộ Vector hoặc tiến trình huấn luyện AI.
-- **Bảo mật dữ liệu nhạy cảm (Sanitization)**: 
-  - Tại `spacesController.ts`, hệ thống sử dụng hàm `mapAndSanitizeSpace` để lọc bỏ các trường nhạy cảm (`apiKeys`, `smtpPass`, `payosApiKey`, `payosChecksumKey`) trước khi gửi dữ liệu về Client.
-  - **Quyền hạn**: Chỉ có SuperAdmin hoặc Space Owner (được xác thực qua `canAccessSpace`) mới nhận được dữ liệu thô (Raw) chứa các Key này.
-- **Cơ chế Kế thừa Quyền hạn (Inherited Role Allocation)**:
-  - Khi Space Owner tạo mới hoặc cấp phát Quyền (Role) cho người dùng, hệ thống giới hạn danh sách quyền được phép cấp phát **chỉ trong phạm vi những quyền mà Space Owner đang sở hữu**.
-  - Kiểm soát ở giao diện (ẩn checkbox) và API (`roleController.ts` lọc quyền vượt cấp).
+## III. Cơ chế Bảo mật và Phân Quyền Multi-Tenant RBAC
+
+Hệ thống Giác Ngộ VN sử dụng cơ chế Phân Quyền Dựa Trên Vai Trò (Role-Based Access Control - RBAC) được thiết kế đặc thù cho kiến trúc Multi-Tenant.
+
+### 1. Khái niệm Cốt lõi & Phân cấp Vai trò
+- **System Role (Quyền Hệ thống)**: Là các Quyền có sẵn của hệ thống (ví dụ: `User`, `Global Admin`). Các quyền này có trường `space_id IS NULL` trong cơ sở dữ liệu. Không ai có quyền sửa hoặc xóa các Quyền này ngoại trừ Global Admin.
+- **Space Role (Quyền Không Gian)**: Là các Quyền do chủ Không Gian (Space Owner) tự tạo ra để phân cấp quản lý trong nội bộ Không Gian của mình. Các quyền này có `space_id` trỏ về ID của Không Gian đó.
+- **Global Admin (Quản trị viên toàn hệ thống)**: Là người quản lý hệ thống cấp cao nhất, truy cập thông qua root domain `/admin`.
+  - ⚠️ **QUAN TRỌNG (Nguyên tắc nhận diện Backend)**: Global Admin **BẮT BUỘC** phải được nhận diện qua cờ `isGlobalAdmin = true` trong database, HOẶC nếu qua permission thì phải thỏa mãn đồng thời: `permissions.includes('roles') && userManagedSpaceIds.length === 0`.
+  - ❌ **TUYỆT ĐỐI KHÔNG** dùng `isAdmin(req.user)` hoặc `permissions.includes('roles')` độc lập để check Global Admin. Lý do: Các Chủ Không Gian (Space Owner) cũng được tự động gán quyền `roles` trong mảng `permissions` của họ do hệ thống gộp chung quyền (flatten). Nếu check lỏng lẻo, Space Admin sẽ vô tình bị cấp quyền Global Admin (xem toàn bộ Dashboard hệ thống).
+- **Space Admin / Space Manager**: Là người được cấp quyền quản trị (như `ai`, `users`, `roles`) nhưng bị giới hạn bên trong Không Gian của họ. Truy cập thông qua `/:slug/admin`.
 - **Phân quyền Thành viên Quản trị (Space Managers)**:
   - Hàm `getUserManagedSpaceIds` là trung tâm của việc xác thực quyền sở hữu/quản lý liên Không gian. Một người dùng được coi là "Quản lý" các Không gian mà họ làm **Owner** (`spaces`) HOẶC làm **Member** (`space_members`).
   - Khi thực hiện các hành động nhạy cảm (vd: Tạo, Sửa, Xóa cấu hình AI của Không gian), hệ thống kết hợp kiểm tra ID Không gian qua `getUserManagedSpaceIds` VÀ kiểm tra xem người dùng có được cấp quyền tương ứng (ví dụ: `user.permissions.includes('ai')`) hay không. Tránh việc chỉ kiểm tra quyền Owner cứng nhắc.
-- **Space-Scoped Roles**: Bảng `roles` có cột `space_id`.
-  - `space_id IS NULL` → Role hệ thống (Global Admin quản lý, read-only cho Space Owner).
-  - `space_id = X` → Role do Space Owner tạo (chỉnh sửa được bởi Space Owner/Manager).
-  - UNIQUE constraint: `(name, COALESCE(space_id, 0))` — cho phép trùng tên giữa các Space.
+
+### 2. Kiến trúc Cơ Sở Dữ Liệu RBAC
+- **Bảng `roles`**: Lưu trữ tất cả các Quyền.
+  - Cột `space_id` (Nullable): Xác định Quyền này thuộc về Không Gian nào. Nếu `NULL`, đó là Quyền Hệ thống (`read-only` cho Space Owner). Nếu `= X`, đó là Quyền do Space Owner tạo (`editable` bởi Space Owner/Manager).
+  - **Ràng buộc Duy nhất (Unique Constraint)**: Đã được sửa đổi từ `UNIQUE(name)` thành `UNIQUE (name, COALESCE(space_id, 0))` để cho phép các Không Gian khác nhau có thể tạo các Quyền trùng tên nhau (ví dụ: Space A và Space B đều có thể tạo role tên là "Quản lý AI").
   - *Lưu ý Hiển thị*: Khi Root Admin (Global Admin) truy cập Quản lý Quyền từ ngoài Space, API chỉ trả về các Role hệ thống (`space_id IS NULL`) để tránh lỗi hiển thị trùng lặp (duplicate) các quyền cùng tên do nhiều Không gian khác nhau tạo ra.
-- **Rate Limit & Reverse Proxy (Nginx)**: Hệ thống sử dụng `express-rate-limit` để chống spam API (vd: Chat, gọi hàm TTS). Vì chạy thực tế đằng sau Nginx, Express được cấu hình `app.set('trust proxy', 1)` để nhận diện đúng IP thật của người dùng qua header `X-Forwarded-For`. Việc này ngăn việc Rate Limiter chặn nhầm IP của Nginx và cấm cửa tất cả người dùng hệ thống.
+- **Bảng `user_roles`**: Lưu trữ mối quan hệ n-n giữa Người dùng và Quyền. Khi thêm quyền cho user, hệ thống đảm bảo ID của quyền đó thuộc về hệ thống hoặc thuộc về Không Gian mà user đó đang tham gia.
+- **Bảng `space_members`**: Quản lý danh sách người dùng của từng Không Gian và trạng thái hoạt động của họ (`is_active`).
+
+### 3. Kiến trúc Frontend (`isGlobalAdmin` và Dynamic Roles)
+Vì hệ thống sử dụng Dynamic Roles (Quyền Động có thể tạo ra vô hạn), logic ẩn/hiện nút Quản trị và kiểm tra truy cập Router được thực hiện thông qua việc kiểm tra mảng `user.roleIds`:
+- Mọi user đăng ký mới đều có `roleIds = []` (không có quyền quản trị).
+- **Nút "Quản trị" trên giao diện**: Chỉ hiển thị nếu `user.roleIds.length > 0` (có ít nhất 1 role) HOẶC nếu user là Chủ không gian (`currentSpace.userId === user.id`).
+- **Chặn truy cập URL (`/:slug/admin`)**: Nếu user cố tình gõ link quản trị mà mảng `roleIds` trống rỗng và họ không phải chủ không gian, hệ thống tự động đẩy về trang trước đó bằng `navigate(-1)`.
+- **Ngữ cảnh Quản trị theo Domain/URL**:
+  - Nếu URL là `/admin`: `isGlobalAdmin = true` (Kèm theo kiểm tra quyền backend).
+  - Nếu URL là `/:slug/admin`: `isGlobalAdmin = false`, giới hạn phạm vi trong `currentSpace`.
+- **Prop drilling an toàn**: Prop `isGlobalAdmin` và `space` (contextSpace) được truyền rải xuống tất cả các Component con (`SpaceManagement`, `RoleManagement`, `UserManagement`, `AiManagement`) để lọc dữ liệu và khóa chức năng nguy hiểm (như Xóa Không gian).
+
+### 4. Luồng Cấp Quyền Đăng Ký Mới / Google Auth
+Khi một User mới đăng ký (qua Email hoặc Google OAuth), hệ thống **không cấp bất kỳ quyền mặc định nào**. 
+Trường `roleIds` sẽ được đặt là mảng rỗng `[]`:
+- Thay vì gán cứng `role_id = [3]` hay phải tìm kiếm động `SELECT id FROM roles WHERE name = 'User'`, việc gán mảng rỗng giúp hệ thống hoàn toàn loại bỏ rủi ro `Foreign Key Constraint` khi ID của Role bị thay đổi ở các môi trường khác nhau.
+- User mới vẫn được vào app và sử dụng tính năng cơ bản, nhưng sẽ bị khóa toàn bộ các Nút và URL quản trị cho đến khi được Admin cấp quyền.
+
+### 5. Cơ chế Bảo Mật & Hạ Tầng Khác
+- **Xác thực và Phân quyền (JWT)**: Sử dụng JWT tokens quản lý session qua `authMiddleware.js`.
+- **Socket.IO Real-time**: Tham gia các phòng (`room`) thông qua tên gọi `space-{spaceId}` hoặc `user-{userId}` để đẩy log đồng bộ Vector hoặc tiến trình huấn luyện AI.
+- **Bảo mật dữ liệu nhạy cảm (Sanitization)**: Tại `spacesController.ts`, hệ thống sử dụng hàm `mapAndSanitizeSpace` để lọc bỏ các trường nhạy cảm (`apiKeys`, `smtpPass`, `payosApiKey`, `payosChecksumKey`) trước khi gửi dữ liệu về Client. Chỉ có SuperAdmin hoặc Space Owner (được xác thực qua `canAccessSpace`) mới nhận được dữ liệu thô chứa các Key này.
+- **Cơ chế Kế thừa Quyền hạn (Inherited Role Allocation)**: Khi Space Owner tạo mới hoặc cấp phát Quyền cho người dùng, hệ thống giới hạn danh sách quyền được phép cấp phát **chỉ trong phạm vi những quyền mà Space Owner đang sở hữu**.
+- **Rate Limit & Reverse Proxy (Nginx)**: Hệ thống sử dụng `express-rate-limit` để chống spam API. Express được cấu hình `app.set('trust proxy', 1)` để nhận diện đúng IP thật của người dùng qua header `X-Forwarded-For`.
 
 ---
 

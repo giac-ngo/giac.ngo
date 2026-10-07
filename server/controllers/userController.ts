@@ -8,6 +8,7 @@ import { User } from '../types/index.js';
 import { getUserManagedSpaceIds, hasSpacePermission, isAdmin as checkIsGlobalAdmin } from '../middleware/authMiddleware.js';
 import { roleModel } from '../models/role.model.js';
 import { toPublicUser, toMinimalUser } from '../utils/sanitizeUser.js';
+import { can } from '../utils/policy.js';
 
 /** A non-global admin can assign a role only if it belongs to a Space where they hold 'users'. System roles never. */
 const canAssignRole = async (editor: User, roleId: number): Promise<boolean> => {
@@ -65,22 +66,16 @@ export const userController = {
             const { page = 1, limit = 15, search = '' } = req.query;
             const user = req.user as User;
 
-            // Check permissions inside the controller
-            if (user && user.permissions && user.permissions.includes('users')) {
-                // Admin role: can see all users with pagination and search
+            // Only Global Admin can see all platform users
+            if (user && user.isGlobalAdmin) {
                 const users = await userModel.findAll({
                     page: parseInt(page as string, 10),
                     limit: parseInt(limit as string, 10),
                     search: search as string,
                 });
                 return res.json(users.map(toPublicUser));
-            } else if (user && user.permissions && (user.permissions.includes('spaces') || user.permissions.includes('ai'))) {
-                // Other management roles (like Content Manager): can only see a list of space owners
-                const users = await userModel.findSpaceOwners();
-                return res.json(users.map(toMinimalUser));
             }
-            // If user has none of these permissions, they are forbidden.
-            return res.status(403).json({ message: 'Forbidden: You do not have permission to view users.' });
+            return res.status(403).json({ message: 'Forbidden: Global Admin access required.' });
         } catch (error: unknown) {
             res.status(500).json({ message: 'Không thể tải danh sách người dùng.' });
         }
@@ -160,19 +155,46 @@ export const userController = {
 
             if (isGloballyAdmin) {
                 payload.roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds : [];
-            } else {
-                // Non-global admins may only create accounts and assign roles belonging to
-                // Spaces where they hold the 'users' permission. Never system roles.
-                const requested = Array.isArray(req.body.roleIds) ? req.body.roleIds : [];
-                const allowed = await filterAssignableRoleIds(user, requested);
-                if (allowed === null) {
-                    return res.status(403).json({ message: 'Forbidden: You do not have permission to create users.' });
+                const newUser = await userModel.create(payload);
+                if (newUser && req.body.spaceId) {
+                    const sid = Number(req.body.spaceId);
+                    if (Number.isInteger(sid) && sid > 0) {
+                        await spaceMemberModel.add(sid, newUser.id);
+                    }
                 }
-                payload.roleIds = allowed;
+                return res.status(201).json(toPublicUser(newUser));
             }
 
+            // Non-global admins MUST supply spaceId and have 'users' permission in that Space
+            const targetSpaceId = Number(req.body.spaceId);
+            if (!Number.isInteger(targetSpaceId) || targetSpaceId <= 0) {
+                return res.status(400).json({ message: 'spaceId is required to create a user.' });
+            }
+
+            const canManageUsersInSpace = await can(user, 'users', { spaceId: targetSpaceId });
+            if (!canManageUsersInSpace) {
+                return res.status(403).json({ message: 'Forbidden: You do not have permission to manage users in this Space.' });
+            }
+
+            // Role assignment must only include roles belonging to this target Space
+            const requestedRoles = Array.isArray(req.body.roleIds) ? req.body.roleIds : [];
+            const allowedRoleIds: number[] = [];
+            for (const raw of requestedRoles) {
+                const rid = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+                if (Number.isInteger(rid) && rid > 0) {
+                    const role: any = await roleModel.findById(rid);
+                    if (role && Number(role.spaceId) === targetSpaceId) {
+                        allowedRoleIds.push(rid);
+                    }
+                }
+            }
+            payload.roleIds = allowedRoleIds;
+
             const newUser = await userModel.create(payload);
-            res.status(201).json(toPublicUser(newUser));
+            if (newUser) {
+                await spaceMemberModel.add(targetSpaceId, newUser.id);
+            }
+            return res.status(201).json(toPublicUser(newUser));
         } catch (error: unknown) {
             logger.error('Error creating user:', error);
             res.status(500).json({ message: 'Lỗi khi tạo người dùng.' });

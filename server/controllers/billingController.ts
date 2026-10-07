@@ -4,7 +4,8 @@ import { billingModel } from '../models/billing.model.js';
 import { userModel } from '../models/user.model.js';
 import { pool, mapRowToCamelCase } from '../db.js';
 import Stripe from 'stripe';
-import { canAccessSpace, hasSpacePermission, isAdmin } from '../middleware/authMiddleware.js';
+import { hasSpacePermission, isAdmin } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 
 const mapAndSanitizeUser = (user: Record<string, unknown> | null) => {
     if (!user) return null;
@@ -17,10 +18,9 @@ async function getAuthorizedConnectSpace(req: Request, spaceId: unknown) {
     const result = await pool.query('SELECT id, user_id, stripe_account_id FROM spaces WHERE id = $1', [spaceId]);
     const space = result.rows[0];
     if (!space) return null;
-    if (!req.user?.isGlobalAdmin) {
-        if (!await canAccessSpace(req.user, String(spaceId))) return null;
-        const canManageBilling = await Promise.all(['space-billing', 'payment-settings', 'settings'].map(permission => hasSpacePermission(req.user, String(spaceId), permission))).then(results => results.some(Boolean));
-        if (String(space.user_id) !== String(req.user?.id) && !canManageBilling) return null;
+    // P1 Security Fix: Only the actual Space Owner or Global Admin may connect/disconnect Stripe Connect accounts
+    if (!req.user?.isGlobalAdmin && String(space.user_id) !== String(req.user?.id)) {
+        return null;
     }
     return space;
 }
@@ -52,6 +52,26 @@ export const billingController = {
     },
     async createPricingPlan(req: Request, res: Response) {
         try {
+            const { spaceId, aiConfigIds } = req.body;
+            if (!spaceId) {
+                if (!req.user?.isGlobalAdmin) {
+                    return res.status(403).json({ message: 'Forbidden: Global Admin required to create global pricing plans.' });
+                }
+            } else {
+                if (!await hasSpacePermission(req.user, spaceId, 'pricing')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have pricing permission in this Space.' });
+                }
+                // P1 #14: Space pricing plan must only contain AIs belonging to that space
+                if (Array.isArray(aiConfigIds) && aiConfigIds.length > 0) {
+                    const invalidAi = await pool.query(
+                        'SELECT id FROM ai_configs WHERE id = ANY($1::int[]) AND (space_id IS NULL OR space_id != $2)',
+                        [aiConfigIds, spaceId]
+                    );
+                    if (invalidAi.rows.length > 0) {
+                        return res.status(400).json({ message: 'Gói giá Không gian chỉ được chứa các AI thuộc về chính Không gian này.' });
+                    }
+                }
+            }
             res.status(201).json(await billingModel.createPlan(req.body));
         } catch (error: unknown) {
             res.status(500).json({ message: 'Lỗi khi tạo gói giá mới.' });
@@ -59,14 +79,57 @@ export const billingController = {
     },
     async updatePricingPlan(req: Request, res: Response) {
         try {
-            res.json(await billingModel.updatePlan(String(req.params.id), req.body));
+            const planId = String(req.params.id);
+            const plan = await billingModel.findPlanById(planId);
+            if (!plan) return res.status(404).json({ message: 'Gói giá không tồn tại.' });
+
+            if (!plan.spaceId) {
+                if (!req.user?.isGlobalAdmin) {
+                    return res.status(403).json({ message: 'Forbidden: Global Admin required to update global pricing plans.' });
+                }
+            } else {
+                if (!await hasSpacePermission(req.user, plan.spaceId, 'pricing')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have pricing permission in this Space.' });
+                }
+            }
+
+            if (req.body.spaceId !== undefined && Number(req.body.spaceId) !== Number(plan.spaceId) && !req.user?.isGlobalAdmin) {
+                return res.status(403).json({ message: 'Forbidden: Cannot change spaceId of plan.' });
+            }
+
+            const effectiveSpaceId = req.body.spaceId !== undefined ? req.body.spaceId : plan.spaceId;
+            if (effectiveSpaceId && Array.isArray(req.body.aiConfigIds) && req.body.aiConfigIds.length > 0) {
+                const invalidAi = await pool.query(
+                    'SELECT id FROM ai_configs WHERE id = ANY($1::int[]) AND (space_id IS NULL OR space_id != $2)',
+                    [req.body.aiConfigIds, effectiveSpaceId]
+                );
+                if (invalidAi.rows.length > 0) {
+                    return res.status(400).json({ message: 'Gói giá Không gian chỉ được chứa các AI thuộc về chính Không gian này.' });
+                }
+            }
+
+            res.json(await billingModel.updatePlan(planId, req.body));
         } catch (error: unknown) {
             res.status(500).json({ message: 'Lỗi khi cập nhật gói giá.' });
         }
     },
     async deletePricingPlan(req: Request, res: Response) {
         try {
-            await billingModel.deletePlan(String(req.params.id));
+            const planId = String(req.params.id);
+            const plan = await billingModel.findPlanById(planId);
+            if (!plan) return res.status(404).json({ message: 'Gói giá không tồn tại.' });
+
+            if (!plan.spaceId) {
+                if (!req.user?.isGlobalAdmin) {
+                    return res.status(403).json({ message: 'Forbidden: Global Admin required to delete global pricing plans.' });
+                }
+            } else {
+                if (!await hasSpacePermission(req.user, plan.spaceId, 'pricing')) {
+                    return res.status(403).json({ message: 'Forbidden: You do not have pricing permission in this Space.' });
+                }
+            }
+
+            await billingModel.deletePlan(planId);
             res.status(204).send();
         } catch (error: unknown) {
             res.status(500).json({ message: 'Lỗi khi xóa gói giá.' });
@@ -113,8 +176,8 @@ export const billingController = {
     async getTransactionsByUserId(req: Request, res: Response) {
         try {
             const requestedId = parseInt(String(req.params.userId), 10);
-            const canViewOthers = !!req.user?.isGlobalAdmin || !!req.user?.permissions?.includes('manual-billing');
-            if (!canViewOthers && requestedId !== Number(req.user?.id)) return res.status(404).json({ message: 'Transactions not found.' });
+            const canViewOthers = !!req.user?.isGlobalAdmin;
+            if (!canViewOthers && requestedId !== Number(req.user?.id)) return res.status(403).json({ message: 'Forbidden: Cannot view transactions of other users.' });
             res.json(await billingModel.findTransactionsByUserId(requestedId));
         } catch (error: unknown) {
             res.status(500).json({ message: 'Không thể tải lịch sử giao dịch của người dùng.' });
@@ -124,7 +187,7 @@ export const billingController = {
         try {
             const spaceId = parseInt(String(req.params.spaceId), 10);
             const { page, limit, fromDate, toDate } = req.query;
-            const result = await billingModel.findTransactionsBySpaceId(spaceId, {
+            const result = await billingModel.findPublicDonationsBySpaceId(spaceId, {
                 page: page ? parseInt(String(page), 10) : 1,
                 limit: limit ? parseInt(String(limit), 10) : 10,
                 fromDate: fromDate ? String(fromDate) : undefined,
@@ -771,8 +834,7 @@ export const billingController = {
             }
 
             const space = await getAuthorizedConnectSpace(req, spaceId);
-            const canManageBilling = await Promise.all(['space-billing', 'payment-settings', 'settings'].map(permission => hasSpacePermission(req.user, String(spaceId), permission))).then(results => results.some(Boolean));
-            if (!req.user?.isGlobalAdmin && String(spaceRes.rows[0].user_id) !== String(req.user?.id) && !(space && canManageBilling)) {
+            if (!space) {
                 return res.status(403).json({ message: 'Unauthorized, you do not own this space.' });
             }
 
@@ -822,7 +884,7 @@ export const billingController = {
                 // Does req.user.permissions include 'manual-billing' or 'view-all-transactions'?
                 // For now, strict check:
                 const isOwner = spaceRes.rows[0].user_id === req.user?.id;
-                const isAdmin = req.user?.permissions && (req.user.permissions.includes('manual-billing') || req.user.permissions.includes('settings'));
+                const isAdmin = !!req.user?.isGlobalAdmin;
 
                 if (!isOwner && !isAdmin) {
                     return res.status(403).json({ message: 'Unauthorized_export' });
@@ -832,8 +894,8 @@ export const billingController = {
                 const result = await billingModel.findTransactionsBySpaceId(parseInt(String(spaceId), 10), { limit: 10000 }); // High limit for export
                 data = result.data;
             } else {
-                // Export all? Only for Admin
-                if (!req.user?.permissions || !req.user.permissions.includes('manual-billing')) {
+                // Export all? Only for Global Admin
+                if (!req.user?.isGlobalAdmin) {
                     return res.status(403).json({ message: 'Unauthorized_export_all' });
                 }
                 data = await billingModel.findAllTransactions();
@@ -871,15 +933,10 @@ export const billingController = {
             const { spaceId, days } = req.query;
             if (!spaceId) return res.status(400).json({ message: 'Space ID is required' });
 
-            // Auth check: Owner or Admin
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            if (spaceRes.rows.length === 0) return res.status(404).json({ message: 'Space not found' });
-
-            const isOwner = spaceRes.rows[0].user_id === req.user?.id;
-            const isAdmin = req.user?.roles && (req.user?.permissions?.includes('manual-billing') || req.user?.permissions?.includes('settings'));
-
-            if (!isOwner && !isAdmin) {
-                return res.status(403).json({ message: 'Unauthorized' });
+            // Unified RBAC check: Space Owner, Global Admin, or Space Manager with 'space-billing'
+            const allowed = await can(req.user, 'space-billing', { spaceId: String(spaceId) });
+            if (!allowed) {
+                return res.status(403).json({ message: 'Forbidden: Bạn không có quyền xem thống kê tài chính của Không gian này.' });
             }
 
             const stats = await billingModel.getSpaceEarningsStats(parseInt(String(spaceId), 10), Number(days || 30));

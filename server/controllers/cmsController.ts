@@ -4,7 +4,9 @@ import { logger } from '../utils/logger.js';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { cmsArticleModel, cmsSocialConnectionModel, cmsPublishLogModel } from '../models/cmsArticle.model.js';
 import { fbAlbumModel } from '../models/fbAlbum.model.js';
-import { canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
+import { hasSpacePermission } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
+import { signCmsOAuthState, verifyCmsOAuthState } from '../utils/oauthState.js';
 import crypto from 'crypto';
 
 const N8N_WEBHOOK_URL = process.env.N8N_CMS_WEBHOOK_URL || '';
@@ -25,6 +27,20 @@ function deriveSpaceCmsSecret(masterSecret: string, spaceId: number | string): s
     return crypto.createHmac('sha256', masterSecret).update(`cms-space:${spaceId}`).digest('hex');
 }
 
+/** Load an article only if it belongs to the Space in the URL. Returns null otherwise (caller responds 404). */
+async function findArticleInSpace(id: string, spaceId: string) {
+    const article = await cmsArticleModel.findById(id);
+    if (!article || String(article.spaceId) !== String(spaceId)) return null;
+    return article;
+}
+
+/** Load a social connection only if it belongs to the Space in the URL. */
+async function findConnectionInSpace(id: string, spaceId: string) {
+    const conn = await cmsSocialConnectionModel.findById(id);
+    if (!conn || String(conn.spaceId) !== String(spaceId)) return null;
+    return conn;
+}
+
 export const cmsController = {
     // ═══════════════════════════════════════════════════════════
     // Articles CRUD
@@ -33,7 +49,7 @@ export const cmsController = {
     async getArticles(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_write', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
             const { status, search, page, limit } = req.query;
@@ -55,10 +71,10 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_write', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
-            const article = await cmsArticleModel.findById(id);
+            const article = await findArticleInSpace(id, spaceId);
             if (!article) return res.status(404).json({ message: 'Article not found.' });
             res.json(article);
         } catch (error: unknown) {
@@ -70,18 +86,9 @@ export const cmsController = {
     async createArticle(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
-                return res.status(403).json({ message: 'Access denied.' });
+            if (!await can(req.user, 'cms_write', { spaceId })) {
+                return res.status(403).json({ message: 'Bạn không có quyền viết bài CMS trong Không gian này.' });
             }
-
-            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
-            const hasWrite = req.user?.permissions?.includes('cms_write');
-            const hasApprove = req.user?.permissions?.includes('cms_approve');
-            const canWrite = isGlobalAdmin || isSpaceOwner || hasApprove || hasWrite;
-
-            if (!canWrite) return res.status(403).json({ message: 'Bạn không có quyền viết bài CMS.' });
 
             const { title, content, imageUrls, status, scheduledAt, targetPlatforms, sourceDocumentId, tags, author, fbAlbumId } = req.body;
             if (!title || !title.trim()) {
@@ -107,22 +114,18 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_write', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
-            const existingArticle = await cmsArticleModel.findById(id);
+            const existingArticle = await findArticleInSpace(id, spaceId);
             if (!existingArticle) return res.status(404).json({ message: 'Article not found.' });
 
-            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
-            const hasWrite = req.user?.permissions?.includes('cms_write');
-            const hasApprove = req.user?.permissions?.includes('cms_approve');
-            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
+            const canApprove = await can(req.user, 'cms_approve', { spaceId });
+            const canWrite = await can(req.user, 'cms_write', { spaceId });
             
             // Writer edit rules
-            if (!canApprove && hasWrite) {
+            if (!canApprove && canWrite) {
                 if (!['draft', 'pending_approval', 'rejected'].includes(existingArticle.status)) {
                     return res.status(403).json({ message: 'Không thể sửa bài viết đã được duyệt hoặc đang xuất bản.' });
                 }
@@ -130,7 +133,7 @@ export const cmsController = {
                 if (req.body.status && !['draft', 'pending_approval'].includes(req.body.status)) {
                     return res.status(403).json({ message: 'Bạn không có quyền chuyển sang trạng thái này.' });
                 }
-            } else if (!canApprove && !hasWrite) {
+            } else if (!canApprove && !canWrite) {
                 return res.status(403).json({ message: 'Bạn không có quyền sửa bài.' });
             }
 
@@ -147,7 +150,12 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            const existing = await findArticleInSpace(id, spaceId);
+            if (!existing) return res.status(404).json({ message: 'Article not found.' });
+
+            const canApprove = await can(req.user, 'cms_approve', { spaceId });
+            const isAuthor = existing.userId === req.user?.id;
+            if (!canApprove && !(isAuthor && await can(req.user, 'cms_write', { spaceId }))) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
             await cmsArticleModel.delete(id);
@@ -162,9 +170,11 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
+            const existing = await findArticleInSpace(id, spaceId);
+            if (!existing) return res.status(404).json({ message: 'Article not found.' });
             await cmsArticleModel.permanentDelete(id);
             res.json({ success: true });
         } catch (error: unknown) {
@@ -180,7 +190,7 @@ export const cmsController = {
     async importDocument(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_write', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
             const { documentId } = req.body;
@@ -189,6 +199,9 @@ export const cmsController = {
             const docRes = await pool.query('SELECT * FROM documents WHERE id = $1', [documentId]);
             if (!docRes.rows[0]) return res.status(404).json({ message: 'Document not found.' });
             const doc = docRes.rows[0];
+            if (doc.space_id != null && String(doc.space_id) !== spaceId) {
+                return res.status(404).json({ message: 'Document not found.' });
+            }
 
             const article = await cmsArticleModel.create({
                 spaceId: parseInt(spaceId, 10),
@@ -222,17 +235,7 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
-                return res.status(403).json({ message: 'Access denied.' });
-            }
-            
-            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
-            const hasApprove = req.user?.permissions?.includes('cms_approve');
-            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
-
-            if (!canApprove) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Bạn không có quyền Xuất bản (Publish) bài viết.' });
             }
 
@@ -241,7 +244,7 @@ export const cmsController = {
             //     return res.status(500).json({ message: 'n8n webhook URL is not configured. Set N8N_CMS_WEBHOOK_URL in .env' });
             // }
 
-            const article = await cmsArticleModel.findById(id);
+            const article = await findArticleInSpace(id, spaceId);
             if (!article) return res.status(404).json({ message: 'Article not found.' });
 
             const requestedPlatforms: string[] = req.body.platforms || article.targetPlatforms || [];
@@ -368,24 +371,14 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const id = String(req.params.id);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
-                return res.status(403).json({ message: 'Access denied.' });
-            }
-
-            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-            const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [spaceId]);
-            const isSpaceOwner = spaceRes.rows[0]?.user_id === req.user?.id;
-            const hasApprove = req.user?.permissions?.includes('cms_approve');
-            const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
-
-            if (!canApprove) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Bạn không có quyền chia sẻ bài viết lên Bảng tin.' });
             }
 
             const user = req.user;
             if (!user) return res.status(401).json({ message: 'Not authenticated.' });
 
-            const article = await cmsArticleModel.findById(id);
+            const article = await findArticleInSpace(id, spaceId);
             if (!article) return res.status(404).json({ message: 'Article not found.' });
 
             // Build social post content: title + content
@@ -437,6 +430,9 @@ export const cmsController = {
             if (!articleId || !platform || !status) {
                 logger.warn(`CMS webhook: missing fields. articleId=${articleId}, platform=${platform}, status=${status}`);
                 return res.status(400).json({ message: 'articleId, platform, and status are required.' });
+            }
+            if (!await findArticleInSpace(String(articleId), String(spaceId))) {
+                return res.status(404).json({ message: 'Article not found.' });
             }
 
             let finalPlatform = platform;
@@ -617,11 +613,9 @@ export const cmsController = {
     async getConnections(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
-                return res.status(403).json({ message: 'Access denied.' });
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
+                return res.status(403).json({ message: 'CMS management permission is required.' });
             }
-            const canManageCms = await Promise.all(['cms_write', 'cms_approve', 'settings'].map(permission => hasSpacePermission(req.user, spaceId, permission))).then(results => results.some(Boolean));
-            if (!canManageCms) return res.status(403).json({ message: 'CMS management permission is required.' });
             const connections = await cmsSocialConnectionModel.findBySpaceId(spaceId);
             const safe = connections.map((c: any) => ({
                 ...c,
@@ -641,8 +635,11 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const connectionId = String(req.params.connectionId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
+            }
+            if (!await findConnectionInSpace(connectionId, spaceId)) {
+                return res.status(404).json({ message: 'Connection not found.' });
             }
             await cmsSocialConnectionModel.delete(connectionId);
             res.json({ success: true });
@@ -655,7 +652,7 @@ export const cmsController = {
     async getFacebookPages(req: Request, res: Response) {
         const spaceId = String(req.params.spaceId);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
             
@@ -685,7 +682,7 @@ export const cmsController = {
             if (!req.user || !pageName || !accessToken) {
                 return res.status(400).json({ message: 'Missing required fields.' });
             }
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
@@ -721,29 +718,30 @@ export const cmsController = {
 
     async oauthCallback(req: Request, res: Response) {
         try {
-            const state = String(req.query.state || '');
+            const rawState = String(req.query.state || '');
             const code = String(req.query.code || '');
 
-            if (!state || !code) {
+            if (!rawState || !code) {
                 return res.status(400).send('Missing state or code parameter.');
             }
 
-            const match = state.match(/^space_(\d+)_(\w+)$/);
-            if (!match) {
-                return res.status(400).send('Invalid state format.');
+            const state = verifyCmsOAuthState(rawState);
+            if (!state) {
+                logger.warn(`CMS OAuth: rejected invalid or expired state: ${rawState}`);
+                return res.status(400).send('Invalid or expired OAuth state.');
             }
 
-            const spaceId = parseInt(match[1], 10);
-            const platform = match[2];
+            const spaceId = state.spaceId;
+            const platform = state.platform;
             const accessToken = code;
 
             await cmsSocialConnectionModel.upsert({
                 spaceId, platform, accessToken,
                 pageName: platform.charAt(0).toUpperCase() + platform.slice(1),
-                connectedBy: req.user?.id || undefined
+                connectedBy: state.userId || undefined
             });
 
-            logger.info(`CMS OAuth: connected ${platform} for space ${spaceId}`);
+            logger.info(`CMS OAuth: connected ${platform} for space ${spaceId} by user ${state.userId}`);
 
             const spaceRes = await pool.query('SELECT slug FROM spaces WHERE id = $1', [spaceId]);
             const slug = spaceRes.rows[0]?.slug || '';
@@ -768,14 +766,20 @@ export const cmsController = {
         const spaceId = String(req.params.spaceId);
         const platform = String(req.params.platform);
         try {
-            if (!await canAccessSpace(req.user, spaceId)) {
-                return res.status(403).json({ message: 'Access denied.' });
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
+                return res.status(403).json({ message: 'Access denied: requires CMS approval permission in this Space.' });
             }
             const protocol = req.protocol;
             const host = req.get('host');
             const redirectUri = `${protocol}://${host}/api/cms/oauth/callback`;
-            const oauthState = `space_${spaceId}_${platform}`;
-            const oauthUrl = `https://facebook-connect.phoai.vn/?state=${oauthState}&redirect_uri=${encodeURIComponent(redirectUri)}&domain=${CMS_OAUTH_DOMAIN}`;
+            const oauthState = signCmsOAuthState({
+                spaceId: parseInt(spaceId, 10),
+                platform,
+                userId: req.user?.id || 0,
+                issuedAt: Date.now(),
+                nonce: crypto.randomBytes(16).toString('hex')
+            });
+            const oauthUrl = `https://facebook-connect.phoai.vn/?state=${encodeURIComponent(oauthState)}&redirect_uri=${encodeURIComponent(redirectUri)}&domain=${CMS_OAUTH_DOMAIN}`;
             res.json({ url: oauthUrl });
         } catch (error: unknown) {
             logger.error('CMS getOAuthUrl error:', error);
@@ -792,7 +796,7 @@ export const cmsController = {
             const spaceId = parseInt(req.params.spaceId as string);
             if (!req.user || isNaN(spaceId)) return res.status(400).json({ message: 'Invalid data.' });
             
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_write', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 
@@ -833,7 +837,7 @@ export const cmsController = {
                 return res.status(400).json({ message: 'Missing required fields.' });
             }
 
-            if (!await canAccessSpace(req.user, spaceId)) {
+            if (!await can(req.user, 'cms_approve', { spaceId })) {
                 return res.status(403).json({ message: 'Access denied.' });
             }
 

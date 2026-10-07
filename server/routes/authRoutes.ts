@@ -34,10 +34,6 @@ router.get('/google', async (req: Request, res: Response) => {
     const requestHost = req.headers.host?.split(':')[0]?.toLowerCase() || '';
     const allowedOrigins = new Set((process.env.OAUTH_RETURN_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean));
     if (requestHost) allowedOrigins.add(`${req.protocol}://${requestHost}`);
-    try {
-        const spaces = await pool.query('SELECT custom_domain FROM spaces WHERE custom_domain IS NOT NULL');
-        for (const row of spaces.rows) allowedOrigins.add(`https://${String(row.custom_domain).toLowerCase()}`);
-    } catch { /* A missing optional lookup must not permit arbitrary redirect origins. */ }
     let returnTo = '';
     try {
         const parsed = new URL(requestedReturnTo);

@@ -5,7 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import sharp from 'sharp';
-import { canAccessSpace, hasSpacePermission } from '../middleware/authMiddleware.js';
+import { isSpaceMember } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,15 +69,15 @@ export const mediaController = {
         const isSuperAdmin = !!requestingUser?.isGlobalAdmin;
         const userId = requestingUser?.id;
 
-        // Check if user is the owner of this specific space
+        // Check if user is the owner or has files permission in this specific space
         let isSpaceOwner = false;
         if (userId && !isSuperAdmin && /^\d+$/.test(safeSpaceId)) {
             try {
                 const { pool } = await import('../db.js');
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [parseInt(safeSpaceId, 10)]);
-                const hasMediaPermission = await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, safeSpaceId, permission))).then(results => results.some(Boolean));
-                isSpaceOwner = !!spaceRes.rows.length && (String(spaceRes.rows[0].user_id) === String(userId)
-                    || (!!hasMediaPermission && await canAccessSpace(requestingUser, safeSpaceId)));
+                const isOwner = spaceRes.rows.length > 0 && String(spaceRes.rows[0].user_id) === String(userId);
+                const hasMediaPermission = await can(requestingUser, 'files', { spaceId: safeSpaceId });
+                isSpaceOwner = isOwner || hasMediaPermission;
             } catch (e: unknown) {
                 logger.error('mediaController: failed to check space ownership', (e instanceof Error ? e.message : String(e)));
             }
@@ -218,11 +219,16 @@ export const mediaController = {
             return res.status(400).json({ message: 'Invalid space ID.' });
         }
         if (!userId) return res.status(401).json({ message: 'Unauthorized.' });
-        if (['global', 'system'].includes(String(spaceId)) && !isSuperAdmin) return res.status(403).json({ message: 'Access denied.' });
-        if (!isSuperAdmin && !await canAccessSpace(requestingUser, String(spaceId))) return res.status(403).json({ message: 'Access denied.' });
-        const hasSpaceMediaPermission = isSuperAdmin || (await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, String(spaceId), permission)))).some(Boolean);
-        if (!userScoped && !hasSpaceMediaPermission) {
-            return res.status(403).json({ message: 'Space-level upload permission is required.' });
+        if (['global', 'system'].includes(String(spaceId))) {
+            if (!isSuperAdmin) return res.status(403).json({ message: 'Access denied: Global media requires Global Admin.' });
+        } else {
+            if (!isSuperAdmin && !await isSpaceMember(requestingUser, String(spaceId))) {
+                return res.status(403).json({ message: 'Access denied: Not a member of this space.' });
+            }
+            const hasSpaceMediaPermission = await can(requestingUser, 'files', { spaceId: String(spaceId) });
+            if (!userScoped && !hasSpaceMediaPermission) {
+                return res.status(403).json({ message: 'Space-level upload permission is required.' });
+            }
         }
         const targetUserId = userScoped ? userId : null;
 
@@ -294,15 +300,15 @@ export const mediaController = {
         const isSuperAdmin = !!requestingUser?.isGlobalAdmin;
         const userId = requestingUser?.id;
 
-        // Check space ownership from DB  
+        // Check space ownership or files permission
         let isSpaceOwner = false;
         if (userId && !isSuperAdmin && /^\d+$/.test(safeSpaceId)) {
             try {
                 const { pool } = await import('../db.js');
                 const spaceRes = await pool.query('SELECT user_id FROM spaces WHERE id = $1', [parseInt(safeSpaceId, 10)]);
-                const hasMediaPermission = await Promise.all(['files', 'spaces'].map(permission => hasSpacePermission(requestingUser, safeSpaceId, permission))).then(results => results.some(Boolean));
-                isSpaceOwner = !!spaceRes.rows.length && (String(spaceRes.rows[0].user_id) === String(userId)
-                    || (!!hasMediaPermission && await canAccessSpace(requestingUser, safeSpaceId)));
+                const isOwner = spaceRes.rows.length > 0 && String(spaceRes.rows[0].user_id) === String(userId);
+                const hasMediaPermission = await can(requestingUser, 'files', { spaceId: safeSpaceId });
+                isSpaceOwner = isOwner || hasMediaPermission;
             } catch (e: unknown) {
                 logger.error('mediaController deleteMedia: space ownership check failed', (e instanceof Error ? e.message : String(e)));
             }
@@ -322,20 +328,25 @@ export const mediaController = {
                     continue;
                 }
 
-                const isSpaceFile = relativePath.startsWith(spacePrefix) || relativePath.startsWith('global/');
+                const isGlobalFile = relativePath.startsWith('global/') || relativePath.startsWith('system/');
+                const isSpaceFile = relativePath.startsWith(spacePrefix);
                 const isInOtherUserDir = isSpaceFile &&
                     /\/user-\d+\//.test(relativePath) &&
                     !relativePath.startsWith(ownUserPrefix);
 
                 if (isSuperAdmin) {
                     // Super admin: delete anything in scope
-                    if (!isSpaceFile) {
+                    if (!isSpaceFile && !isGlobalFile) {
                         results.push({ url, status: 'error', error: 'Out of scope.' });
                         continue;
                     }
                 } else if (isSpaceOwner) {
                     // Space owner: can delete space root files + own user files
-                    // CANNOT delete other users' files
+                    // CANNOT delete global files or other users' files
+                    if (isGlobalFile) {
+                        results.push({ url, status: 'error', error: 'Chỉ Global Admin mới có quyền xóa tài nguyên toàn cục.' });
+                        continue;
+                    }
                     if (!isSpaceFile) {
                         results.push({ url, status: 'error', error: 'Unauthorized.' });
                         continue;

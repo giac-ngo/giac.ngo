@@ -2,6 +2,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { User, AIConfig } from '../types/index.js';
+import { userModel } from './user.model.js';
 
 const AI_CONFIG_DETAILS_QUERY = `
     SELECT ac.id, ac.space_id, ac.name, ac.name_en, ac.description, ac.description_en, 
@@ -19,9 +20,26 @@ const AI_CONFIG_DETAILS_QUERY = `
     LEFT JOIN spaces s ON ac.space_id = s.id
 `;
 
+// Public query excludes training_content (system prompt) for security
+const AI_CONFIG_PUBLIC_QUERY = `
+    SELECT ac.id, ac.space_id, ac.name, ac.name_en, ac.description, ac.description_en, 
+           ac.avatar_url, ac.model_type, ac.model_name, NULL as training_content, 
+           ac.suggested_questions, ac.suggested_questions_en, ac.tags, ac.is_public, 
+           ac.is_trial_allowed, ac.requires_subscription, ac.is_contact_for_access,
+           ac.max_output_tokens, ac.thinking_budget, ac.purchase_cost, ac.old_purchase_cost,
+           ac.is_on_sale, ac.requests_granted_on_purchase, ac.views, ac.likes, ac.rating,
+           ac.tts_provider, ac.tts_model, ac.tts_voice, ac.tts_style, ac.tts_temperature,
+           ac.embedding_provider, ac.embedding_model, ac.vector_backend,
+           ac.created_at, ac.updated_at,
+           s.user_id as owner_id,
+           ac.base_daily_limit
+    FROM ai_configs ac
+    LEFT JOIN spaces s ON ac.space_id = s.id
+`;
+
 export const aiConfigModel = {
     async findVisibleForUser(user?: User | null, spaceId?: number | string | null): Promise<AIConfig[]> {
-        let query = AI_CONFIG_DETAILS_QUERY;
+        let query = AI_CONFIG_PUBLIC_QUERY;
         const params = [];
         let whereClauses = [];
 
@@ -92,7 +110,7 @@ export const aiConfigModel = {
     },
 
     async findBySpaceId(spaceId: number | string): Promise<AIConfig[]> {
-        const res = await pool.query(`${AI_CONFIG_DETAILS_QUERY} WHERE ac.space_id = $1 AND ac.is_public = true ORDER BY ac.name ASC`, [spaceId]);
+        const res = await pool.query(`${AI_CONFIG_PUBLIC_QUERY} WHERE ac.space_id = $1 AND ac.is_public = true ORDER BY ac.name ASC`, [spaceId]);
         return res.rows.map(mapRowToCamelCase);
     },
 
@@ -222,6 +240,9 @@ export const aiConfigModel = {
              RETURNING requests_remaining`,
             [userId, aiConfigId]
         );
+        if (res.rows.length > 0) {
+            userModel.invalidateCache(userId);
+        }
         return {
             success: res.rows.length > 0,
             remaining: res.rows.length > 0 ? res.rows[0].requests_remaining : 0

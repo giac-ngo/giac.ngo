@@ -194,6 +194,7 @@ async function reserveUserCharge(currentUser: User, aiConfig: AIConfig): Promise
                 [aiConfig.meritCost, currentUser.id]
             );
             if (meritRes.rows.length > 0) {
+                userModel.invalidateCache(currentUser.id);
                 return { method: 'merit_cost', dailyUsageIncremented };
             } else {
                 if (dailyUsageIncremented) await billingModel.decrementDailyUsage(currentUser.id);
@@ -214,6 +215,7 @@ async function reserveUserCharge(currentUser: User, aiConfig: AIConfig): Promise
                 [currentUser.id]
             );
             if (subRes.rows.length > 0) {
+                userModel.invalidateCache(currentUser.id);
                 return { method: 'subscription', dailyUsageIncremented };
             } else {
                 if (dailyUsageIncremented) await billingModel.decrementDailyUsage(currentUser.id);
@@ -251,6 +253,7 @@ async function refundUserCharge(userId: number | string, aiConfig: AIConfig, res
                 );
                 break;
         }
+        userModel.invalidateCache(userId);
     } catch (refundErr) {
         logger.error('Failed to refund user charge:', refundErr);
     }
@@ -538,8 +541,10 @@ export const chatController = {
                 return res.status(404).json({ message: 'AI config not found.' });
             }
 
-            const canAccess = isAdmin(currentUser) || (aiConfig.spaceId ? await hasSpacePermission(currentUser, aiConfig.spaceId, 'ai') : false) || await canUserAccessAi(currentUser, aiConfig);
-            if (!canAccess) {
+            // Inspection of system prompt and raw RAG chunks must only be allowed for managers of this AI
+            const isOwner = aiConfig.ownerId && Number(aiConfig.ownerId) === Number(currentUser.id);
+            const canManageAi = isAdmin(currentUser) || isOwner || (aiConfig.spaceId ? await hasSpacePermission(currentUser, aiConfig.spaceId, 'ai') : false);
+            if (!canManageAi) {
                 return res.status(403).json({ message: 'Forbidden: You do not have permission to inspect this AI.' });
             }
 

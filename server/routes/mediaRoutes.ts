@@ -1,6 +1,6 @@
-﻿import express from 'express';
+import express from 'express';
 import { mediaController, upload } from '../controllers/mediaController.js';
-import { isAuthenticated, checkPermission } from '../middleware/authMiddleware.js';
+import { isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 

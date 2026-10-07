@@ -197,12 +197,20 @@ export const systemController = {
 
     async getDashboardStats(req: Request, res: Response) {
         try {
-            // Fix: A user is only a global admin if they explicitly have the isGlobalAdmin flag,
-            // or if they have the 'roles' permission but do NOT manage any spaces.
-            // This prevents Space Owners (who have the 'roles' permission for their space) from seeing global stats.
-            const userManagedSpaceIds = await getUserManagedSpaceIds(req.user?.id!);
-            const superAdmin = !!req.user?.isGlobalAdmin || (isAdmin(req.user) && userManagedSpaceIds.length === 0);
-            const managedSpaceIds = superAdmin ? null : userManagedSpaceIds;
+            // Fix: Global Admin gets all stats. Space managers only see stats for spaces where they own the space or have 'dashboard' permission
+            const superAdmin = !!req.user?.isGlobalAdmin;
+            let managedSpaceIds: number[] = [];
+
+            if (!superAdmin && req.user?.id) {
+                const spacesWithDashboard = await pool.query(`
+                    SELECT s.id FROM spaces s WHERE s.user_id = $1
+                    UNION
+                    SELECT r.space_id FROM user_roles ur
+                    JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = $1 AND r.space_id IS NOT NULL AND 'dashboard' = ANY(r.permissions)
+                `, [req.user.id]);
+                managedSpaceIds = spacesWithDashboard.rows.map(r => Number(r.id));
+            }
             
             let spaceIds: (number | string)[] | null = null;
             const reqSpaceId = req.query.spaceId ? parseInt(req.query.spaceId as string, 10) : null;
@@ -215,10 +223,10 @@ export const systemController = {
                 }
             } else {
                 if (reqSpaceId) {
-                    if (managedSpaceIds && managedSpaceIds.includes(reqSpaceId)) {
+                    if (managedSpaceIds.includes(reqSpaceId)) {
                         spaceIds = [reqSpaceId];
                     } else {
-                        // Return empty if they request a space they don't manage
+                        // Return empty if they request a space they don't have dashboard permission for
                         return res.json({
                             totalUsers: 0, totalAiConfigs: 0, totalConversations: 0,
                             interactingUsers: 0, topAIs: [], recentConversations: [],
@@ -457,18 +465,32 @@ export const systemController = {
     },
 
     async translateText(req: Request, res: Response) {
-        const { provider, model, text, targetLanguage, userId, contextPrompt, spaceId } = req.body;
-        if (!provider || !model || !text || !targetLanguage || !userId) {
+        const { provider, model, text, targetLanguage, contextPrompt, spaceId } = req.body;
+        if (!provider || !model || !text || !targetLanguage) {
             return res.status(400).json({ message: 'Missing required fields for translation.' });
         }
 
         try {
-            const user = await userModel.findById(userId);
+            const caller = req.user;
+            if (!caller) return res.status(401).json({ message: 'Unauthorized' });
+
             let apiKey = '';
             if (spaceId) {
+                const { hasSpacePermission, isAdmin } = await import('../middleware/authMiddleware.js');
+                const canUseSpaceAi = isAdmin(caller) || (await hasSpacePermission(caller, spaceId, 'files')) || (await hasSpacePermission(caller, spaceId, 'ai'));
+                if (!canUseSpaceAi) {
+                    return res.status(403).json({ message: 'Bạn không có quyền sử dụng khóa AI của Space này.' });
+                }
+
                 const space = await spaceModel.findById(spaceId);
                 if (space?.apiKeys?.[provider]) {
                     apiKey = space.apiKeys[provider] || '';
+                }
+            } else if (isAdmin(caller)) {
+                const config = await systemModel.getConfig();
+                const systemApiKeys = config?.apiKeys as Record<string, string> | undefined;
+                if (systemApiKeys?.[provider]) {
+                    apiKey = systemApiKeys[provider] || '';
                 }
             }
 
@@ -495,17 +517,32 @@ export const systemController = {
     },
 
     async explainContent(req: Request, res: Response) {
-        const { provider, model, text, targetLanguage, userId, spaceId } = req.body;
-        if (!provider || !model || !text || !targetLanguage || !userId) {
+        const { provider, model, text, targetLanguage, spaceId } = req.body;
+        if (!provider || !model || !text || !targetLanguage) {
             return res.status(400).json({ message: 'Missing required fields for explanation.' });
         }
 
         try {
+            const caller = req.user;
+            if (!caller) return res.status(401).json({ message: 'Unauthorized' });
+
             let apiKey = '';
             if (spaceId) {
+                const { hasSpacePermission, isAdmin } = await import('../middleware/authMiddleware.js');
+                const canUseSpaceAi = isAdmin(caller) || (await hasSpacePermission(caller, spaceId, 'files')) || (await hasSpacePermission(caller, spaceId, 'ai'));
+                if (!canUseSpaceAi) {
+                    return res.status(403).json({ message: 'Bạn không có quyền sử dụng khóa AI của Space này.' });
+                }
+
                 const space = await spaceModel.findById(spaceId);
                 if (space?.apiKeys?.[provider]) {
                     apiKey = space.apiKeys[provider] || '';
+                }
+            } else if (isAdmin(caller)) {
+                const config = await systemModel.getConfig();
+                const systemApiKeys = config?.apiKeys as Record<string, string> | undefined;
+                if (systemApiKeys?.[provider]) {
+                    apiKey = systemApiKeys[provider] || '';
                 }
             }
 

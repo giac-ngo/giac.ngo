@@ -4,7 +4,8 @@ import { pool, mapRowToCamelCase } from '../db.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { isAdmin } from '../middleware/authMiddleware.js';
+import { isAdmin, isSpaceMember } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 import { User } from '../types/index.js';
 
 // Extend Request to include user property
@@ -49,6 +50,10 @@ export const getSocialPosts = async (req: AuthenticatedRequest, res: Response) =
     try {
         const spaceId = parseInt(String(req.params.id), 10);
         if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải là thành viên của Space này.' });
+        }
 
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(20, parseInt(req.query.limit as string) || 10);
@@ -138,6 +143,10 @@ export const createSocialPost = async (req: AuthenticatedRequest, res: Response)
 
         const user = req.user;
         if (!user) return res.status(401).json({ message: 'Chưa đăng nhập.' });
+
+        if (!await isSpaceMember(user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải là thành viên của Space này.' });
+        }
 
         const { content, quotedPostId } = req.body;
 
@@ -264,10 +273,17 @@ export const deleteSocialPost = async (req: AuthenticatedRequest, res: Response)
         const postId = parseInt(String(req.params.postId), 10);
         if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
 
+        const spaceId = parseInt(String(req.params.id), 10);
         const { rows } = await pool.query('SELECT * FROM social_posts WHERE id = $1', [postId]);
         if (!rows[0]) return res.status(404).json({ message: 'Bài đăng không tồn tại.' });
 
-        if (rows[0].user_id !== req.user?.id && !isAdmin(req.user as any)) {
+        if (Number(rows[0].space_id) !== spaceId) {
+            return res.status(400).json({ message: 'Bài đăng không thuộc Không gian này.' });
+        }
+
+        const isAuthor = rows[0].user_id === req.user?.id;
+        const canModerate = isAuthor || (await can(req.user, 'social-moderate', { spaceId }));
+        if (!canModerate) {
             return res.status(403).json({ message: 'Không có quyền xóa bài này.' });
         }
 
@@ -284,11 +300,21 @@ export const deleteSocialPost = async (req: AuthenticatedRequest, res: Response)
 // ─────────────────────────────────────────────
 export const toggleSocialLike = async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const spaceId = parseInt(String(req.params.id), 10);
         const postId = parseInt(String(req.params.postId), 10);
-        if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
+        if (isNaN(spaceId) || isNaN(postId)) return res.status(400).json({ message: 'Invalid ID.' });
 
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Vui lòng đăng nhập.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải thành viên của Không gian này.' });
+        }
+
+        const { rows: postRows } = await pool.query('SELECT space_id, user_id FROM social_posts WHERE id = $1', [postId]);
+        if (!postRows[0] || Number(postRows[0].space_id) !== spaceId) {
+            return res.status(404).json({ message: 'Bài đăng không tồn tại hoặc không thuộc Không gian này.' });
+        }
 
         const { rows: existing } = await pool.query(
             'SELECT 1 FROM social_post_likes WHERE post_id = $1 AND user_id = $2', [postId, userId]
@@ -324,8 +350,19 @@ export const toggleSocialLike = async (req: AuthenticatedRequest, res: Response)
 // ─────────────────────────────────────────────
 export const getPostLikers = async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const spaceId = parseInt(String(req.params.id), 10);
         const postId = parseInt(String(req.params.postId), 10);
-        if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
+        if (isNaN(spaceId) || isNaN(postId)) return res.status(400).json({ message: 'Invalid ID.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải thành viên của Không gian này.' });
+        }
+
+        const { rows: postRows } = await pool.query('SELECT space_id FROM social_posts WHERE id = $1', [postId]);
+        if (!postRows[0] || Number(postRows[0].space_id) !== spaceId) {
+            return res.status(404).json({ message: 'Bài đăng không tồn tại hoặc không thuộc Không gian này.' });
+        }
+
         const { rows } = await pool.query(
             `SELECT u.id, u.name, u.avatar_url as "avatarUrl"
              FROM social_post_likes l
@@ -346,8 +383,18 @@ export const getPostLikers = async (req: AuthenticatedRequest, res: Response) =>
 // ─────────────────────────────────────────────
 export const getSocialComments = async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const spaceId = parseInt(String(req.params.id), 10);
         const postId = parseInt(String(req.params.postId), 10);
-        if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
+        if (isNaN(spaceId) || isNaN(postId)) return res.status(400).json({ message: 'Invalid ID.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải thành viên của Không gian này.' });
+        }
+
+        const { rows: postRows } = await pool.query('SELECT space_id FROM social_posts WHERE id = $1', [postId]);
+        if (!postRows[0] || Number(postRows[0].space_id) !== spaceId) {
+            return res.status(404).json({ message: 'Bài đăng không tồn tại hoặc không thuộc Không gian này.' });
+        }
 
         const userId = req.user?.id || null;
 
@@ -387,14 +434,24 @@ export const getSocialComments = async (req: AuthenticatedRequest, res: Response
 // ─────────────────────────────────────────────
 export const addSocialComment = async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const spaceId = parseInt(String(req.params.id), 10);
         const postId = parseInt(String(req.params.postId), 10);
-        if (isNaN(postId)) return res.status(400).json({ message: 'Invalid post ID.' });
-
-        const { content, parentCommentId, imageUrl } = req.body;
-        if (!content || !content.trim()) return res.status(400).json({ message: 'Nội dung bình luận không được để trống.' });
+        if (isNaN(spaceId) || isNaN(postId)) return res.status(400).json({ message: 'Invalid ID.' });
 
         const user = req.user;
         if (!user) return res.status(401).json({ message: 'Vui lòng đăng nhập.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải thành viên của Không gian này.' });
+        }
+
+        const { rows: postRows } = await pool.query('SELECT space_id FROM social_posts WHERE id = $1', [postId]);
+        if (!postRows[0] || Number(postRows[0].space_id) !== spaceId) {
+            return res.status(404).json({ message: 'Bài đăng không tồn tại hoặc không thuộc Không gian này.' });
+        }
+
+        const { content, parentCommentId, imageUrl } = req.body;
+        if (!content || !content.trim()) return res.status(400).json({ message: 'Nội dung bình luận không được để trống.' });
 
         const { rows } = await pool.query(`
             INSERT INTO social_post_comments (post_id, user_id, user_name, user_avatar_url, content, parent_comment_id, image_url)
@@ -405,7 +462,6 @@ export const addSocialComment = async (req: AuthenticatedRequest, res: Response)
         await pool.query('UPDATE social_posts SET comments_count = comments_count + 1 WHERE id = $1', [postId]);
 
         // ── Create notifications ──
-        const spaceId = parseInt(String(req.params.id), 10);
         const commentRow = rows[0];
         try {
             // 1. Notify post owner
@@ -443,12 +499,24 @@ export const deleteSocialComment = async (req: AuthenticatedRequest, res: Respon
     try {
         const commentId = parseInt(String(req.params.commentId), 10);
         const postId = parseInt(String(req.params.postId), 10);
+        const spaceId = parseInt(String(req.params.id), 10);
         if (isNaN(commentId) || isNaN(postId)) return res.status(400).json({ message: 'Invalid ID.' });
+
+        const { rows: postRows } = await pool.query('SELECT space_id FROM social_posts WHERE id = $1', [postId]);
+        if (!postRows[0] || Number(postRows[0].space_id) !== spaceId) {
+            return res.status(400).json({ message: 'Bài đăng không thuộc Không gian này.' });
+        }
 
         const { rows } = await pool.query('SELECT * FROM social_post_comments WHERE id = $1', [commentId]);
         if (!rows[0]) return res.status(404).json({ message: 'Bình luận không tồn tại.' });
 
-        if (rows[0].user_id !== req.user?.id && !isAdmin(req.user as any)) {
+        if (Number(rows[0].post_id) !== postId) {
+            return res.status(400).json({ message: 'Bình luận không thuộc bài đăng này.' });
+        }
+
+        const isAuthor = rows[0].user_id === req.user?.id;
+        const canModerate = isAuthor || (await can(req.user, 'social-moderate', { spaceId }));
+        if (!canModerate) {
             return res.status(403).json({ message: 'Không có quyền xóa bình luận này.' });
         }
 
@@ -466,11 +534,26 @@ export const deleteSocialComment = async (req: AuthenticatedRequest, res: Respon
 // ─────────────────────────────────────────────
 export const toggleCommentLike = async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const spaceId = parseInt(String(req.params.id), 10);
         const commentId = parseInt(String(req.params.commentId), 10);
-        if (isNaN(commentId)) return res.status(400).json({ message: 'Invalid comment ID.' });
+        if (isNaN(spaceId) || isNaN(commentId)) return res.status(400).json({ message: 'Invalid ID.' });
 
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Vui lòng đăng nhập.' });
+
+        if (!await isSpaceMember(req.user, spaceId)) {
+            return res.status(403).json({ message: 'Bạn không phải thành viên của Không gian này.' });
+        }
+
+        const { rows: commentRows } = await pool.query(`
+            SELECT c.id, p.space_id 
+            FROM social_post_comments c
+            JOIN social_posts p ON p.id = c.post_id
+            WHERE c.id = $1
+        `, [commentId]);
+        if (!commentRows[0] || Number(commentRows[0].space_id) !== spaceId) {
+            return res.status(404).json({ message: 'Bình luận không tồn tại hoặc không thuộc Không gian này.' });
+        }
 
         // Ensure table exists
         await pool.query(`CREATE TABLE IF NOT EXISTS social_comment_likes (
@@ -829,12 +912,12 @@ export const togglePinPost = async (req: AuthenticatedRequest, res: Response) =>
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Vui lòng đăng nhập.' });
 
-        // Only owner or admin can pin
+        // Only Space manager with 'social-moderate' permission, Space Owner, or Global Admin can pin posts
         const { rows: [post] } = await pool.query('SELECT user_id FROM social_posts WHERE id = $1 AND space_id = $2', [postId, spaceId]);
         if (!post) return res.status(404).json({ message: 'Post not found.' });
 
-        const isUserAdmin = (req.user?.roleIds && req.user.roleIds.length > 0) || isAdmin(req.user as any);
-        if (post.user_id !== userId && !isUserAdmin) {
+        const canPin = await can(req.user, 'social-moderate', { spaceId });
+        if (!canPin) {
             return res.status(403).json({ message: 'Không có quyền ghim bài viết.' });
         }
 

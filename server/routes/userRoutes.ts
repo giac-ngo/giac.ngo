@@ -1,21 +1,21 @@
 // server/routes/userRoutes.js
 import { Router } from 'express';
 import { userController } from '../controllers/userController.js';
-import { checkPermission, checkSelfOrPermission, isAuthenticated } from '../middleware/authMiddleware.js';
+import { requireGlobalAdmin, checkSelfOrPermission, isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-router.get('/', isAuthenticated, userController.getAllUsers);
+router.get('/', requireGlobalAdmin, userController.getAllUsers);
 router.get('/profile', isAuthenticated, userController.getProfile);
-router.get('/space-owners', checkPermission('ai'), userController.getSpaceOwners);
+router.get('/space-owners', requireGlobalAdmin, userController.getSpaceOwners);
 router.get('/my-space-owner-data', isAuthenticated, userController.getMySpaceOwnerData);
 
-router.post('/', checkPermission('users'), userController.createUser);
+router.post('/', isAuthenticated, userController.createUser);
 router.put('/:id', checkSelfOrPermission('users'), userController.updateUser);
-router.delete('/:id', checkPermission('users'), userController.deleteUser);
+router.delete('/:id', requireGlobalAdmin, userController.deleteUser);
 router.post('/:id/regenerate-token', checkSelfOrPermission('users'), userController.regenerateApiToken);
 
 router.post('/change-password', isAuthenticated, userController.changePassword);
-router.get('/:id/spaces', checkPermission('users'), userController.getUserSpaces);
+router.get('/:id/spaces', requireGlobalAdmin, userController.getUserSpaces);
 
 export default router;

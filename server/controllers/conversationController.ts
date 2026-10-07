@@ -3,7 +3,7 @@ import { logger } from '../utils/logger.js';
 // server/controllers/conversationController.ts
 import { conversationModel } from '../models/conversation.model.js';
 import { userModel } from '../models/user.model.js';
-import { pool } from '../db.js';
+import { pool, mapRowToCamelCase } from '../db.js';
 
 export const conversationController = {
     async getConversations(req: Request, res: Response) {
@@ -41,7 +41,7 @@ export const conversationController = {
             }
         } catch (error: unknown) {
             logger.error("Error fetching conversations:", error);
-            res.status(500).json({ message: 'Kh�ng th? t?i l?ch s? h?i tho?i.' });
+            res.status(500).json({ message: 'Không th? t?i l?ch s? h?i tho?i.' });
         }
     },
 
@@ -49,6 +49,19 @@ export const conversationController = {
         try {
             const aiId = parseInt(String(req.params.id), 10);
             if (isNaN(aiId)) return res.status(400).json({ message: 'Invalid AI ID.' });
+
+            // Only AI owner, space AI manager, or global admin can inspect training conversations
+            const { aiConfigModel } = await import('../models/aiConfig.model.js');
+            const { isAdmin, hasSpacePermission } = await import('../middleware/authMiddleware.js');
+            const aiConfig = await aiConfigModel.findById(aiId);
+            if (!aiConfig) return res.status(404).json({ message: 'AI config not found.' });
+
+            const isOwner = aiConfig.ownerId && Number(aiConfig.ownerId) === Number(req.user?.id);
+            const canManageAi = isAdmin(req.user) || isOwner || (aiConfig.spaceId ? await hasSpacePermission(req.user, aiConfig.spaceId, 'ai') : false);
+            if (!canManageAi) {
+                return res.status(403).json({ message: 'Forbidden: You do not have permission to inspect training conversations.' });
+            }
+
             const conversations = await conversationModel.findTrainedByAiId(aiId);
             res.json(conversations);
         } catch (error: unknown) {
@@ -69,12 +82,13 @@ export const conversationController = {
     },
 
     async getLatestConversationByAiId(req: Request, res: Response) {
-        const { userId } = req.body;
         try {
-            if (!userId) return res.status(401).json({ message: 'User is required.' });
+            const user = req.user;
+            if (!user) return res.status(401).json({ message: 'User is required.' });
             const aiId = parseInt(String(req.params.id), 10);
             if (isNaN(aiId)) return res.status(400).json({ message: 'Invalid AI ID.' });
-            const conversation = await conversationModel.findLatestByAiId(aiId, userId);
+            // Always use authenticated user's ID to prevent accessing other users' conversations
+            const conversation = await conversationModel.findLatestByAiId(aiId, user.id);
             res.json(conversation);
         } catch (error: unknown) {
             res.status(500).json({ message: 'Failed to get latest conversation.' });
@@ -84,40 +98,29 @@ export const conversationController = {
     async getAllConversations(req: Request, res: Response) {
         try {
             const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
-            const { aiConfigModel } = await import('../models/aiConfig.model.js'); // Need AI config model to check spaces
 
-            let conversations = await conversationModel.findAll();
+            let query = `
+                SELECT c.*, a.name as ai_name 
+                FROM conversations c
+                LEFT JOIN ai_configs a ON c.ai_config_id = a.id
+            `;
+            const params: any[] = [];
 
             if (req.user && !isAdmin(req.user)) {
-                // Regular User: Only see conversations for AIs in their managed spaces.
+                // Regular User: Only see conversations for AIs in their managed spaces or owned AIs
                 const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
-
-                // Get all AIs in these spaces (or we could fetch all AIs and filter, but simpler to filter conversations if we verify AI's space)
-                // However, conversations usually have aiConfigId.
-                // We need to know which aiConfigId belongs to allowed spaces.
-
-                // Fetch all manageable AIs for this user to get their IDs.
-                // Re-using aiConfigModel logic might be cleaner if possible, or manual query.
-                // Let's manually filter since we have conversation objects which might include AI info or we look it up.
-                // Assuming conversations have aiConfigId.
-
-                // Optimization: Get properly filtered list of AI IDs first.
-                // But simplified approach:
-                // 1. Get all AI configs (cached/small enough) or just fetch all manageable AIs.
-                const manageableAis = await aiConfigModel.findManageableForUser(req.user);
-                const allowedAiIds = new Set(manageableAis.map(ai => ai.id));
-
-                conversations = conversations.filter(conv => {
-                    // If conversation has no AI (deleted?), maybe hide?
-                    if (!conv.aiConfigId) return false;
-                    return allowedAiIds.has(conv.aiConfigId);
-                });
+                query += `
+                    WHERE (a.owner_id = $1 OR (a.space_id = ANY($2::int[])))
+                `;
+                params.push(req.user.id, userSpaceIds);
             }
 
-            res.json(conversations);
+            query += ' ORDER BY c.start_time DESC LIMIT 200';
+            const { rows } = await pool.query(query, params);
+            res.json(rows.map(mapRowToCamelCase));
         } catch (error: unknown) {
             logger.error("Error fetching all conversations:", error);
-            res.status(500).json({ message: 'Kh�ng th? t?i t?t c? h?i tho?i.' });
+            res.status(500).json({ message: 'Không thể tải tất cả hội thoại.' });
         }
     },
 
@@ -162,7 +165,7 @@ export const conversationController = {
             await conversationModel.delete(conversationId);
             res.status(204).send();
         } catch (error: unknown) {
-            res.status(500).json({ message: 'L?i khi x�a h?i tho?i.' });
+            res.status(500).json({ message: 'L?i khi xóa h?i tho?i.' });
         }
     },
 

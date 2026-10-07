@@ -4,6 +4,7 @@ import { Role, User, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
 import { SettingsIcon, BookOpenIcon, AiIcon, UsersIcon, BillingIcon } from '../Icons';
+import { isGlobalOnlyPermission } from '../../constants/permissions';
 
 const translations = {
     vi: {
@@ -58,6 +59,7 @@ const translations = {
             'notifications': 'Thông Báo',
             'cms_write': 'CMS: Viết bài',
             'cms_approve': 'CMS: Duyệt & Đăng bài',
+            'social-moderate': 'Kiểm duyệt Bảng tin',
             'library': 'Thư Viện (xem)',  // merged with files
         }
     },
@@ -113,6 +115,7 @@ const translations = {
             'notifications': 'Notifications (Broadcast)',
             'cms_write': 'CMS Writer',
             'cms_approve': 'CMS Approver (Publish)',
+            'social-moderate': 'Social Moderation',
             'library': 'Library',
         }
     }
@@ -122,7 +125,7 @@ type PermissionKey = keyof typeof translations['vi']['permissionLabels'];
 
 const permissionGroups: { titleKey: keyof Omit<typeof translations['vi'], 'permissionLabels' | 'title' | 'loading' | 'roleList' | 'newRole' | 'noRoleSelected' | 'roleName' | 'permissions' | 'save' | 'saving' | 'delete' | 'confirmDelete' | 'saveSuccess' | 'saveError' | 'deleteSuccess' | 'deleteError' | 'fetchError' | 'systemRoleLabel' | 'spaceRoleLabel' | 'readOnlyWarning'>; icon: React.FC<{ className?: string }>; permissions: PermissionKey[] }[] = [
     { titleKey: 'groupSystem', icon: SettingsIcon, permissions: ['dashboard', 'settings', 'templates', 'notifications'] },
-    { titleKey: 'groupContent', icon: BookOpenIcon, permissions: ['files', 'media-library', 'spaces', 'dharma-talks', 'meditation', 'comments', 'cms_write', 'cms_approve'] },
+    { titleKey: 'groupContent', icon: BookOpenIcon, permissions: ['files', 'media-library', 'spaces', 'dharma-talks', 'meditation', 'comments', 'cms_write', 'cms_approve', 'social-moderate'] },
     { titleKey: 'groupAi', icon: AiIcon, permissions: ['ai', 'conversations', 'finetune'] },
     { titleKey: 'groupUsers', icon: UsersIcon, permissions: ['users', 'roles'] },
     { titleKey: 'groupFinance', icon: BillingIcon, permissions: ['pricing', 'user-billing', 'space-billing', 'manual-billing', 'withdrawals', 'payment-settings'] },
@@ -235,13 +238,20 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
         }
     };
 
-    const isReadOnly = selectedRole?._readOnly === true;
+    const isSpaceOwner = !isGlobalAdmin && !!space && (space.userId === user?.id || (space as any).user_id === user?.id);
+    const isUserAssignedThisRole = !isGlobalAdmin && !isSpaceOwner && !!selectedRole?.id && selectedRole.id !== 'new' && (user?.roleIds?.includes(selectedRole.id as number) || false);
+    const isReadOnly = selectedRole?._readOnly === true || isUserAssignedThisRole;
 
     const renderPermissionCheckbox = (permissionKey: PermissionKey) => {
-        // Space Owner must inherit permissions: they can only grant what they have
-        // Only Global Admin (SuperAdmin) can see and assign ALL permissions
-        if (!isGlobalAdmin && user && user.permissions && !user.permissions.includes(permissionKey)) {
-            return null; // Do not render if the current user doesn't have this permission
+        // Space roles cannot include global-only permissions
+        if (!isGlobalAdmin && isGlobalOnlyPermission(permissionKey)) {
+            return null;
+        }
+
+        // Space Owner can grant any Space permission.
+        // Space Manager can only grant permissions they themselves hold.
+        if (!isGlobalAdmin && !isSpaceOwner && user?.permissions && !user.permissions.includes(permissionKey)) {
+            return null;
         }
 
         return (

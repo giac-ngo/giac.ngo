@@ -2,6 +2,205 @@
 
 ## Quá Trình Thay Đổi
 
+## 2026-09-24
+
+### 🛠️ Sửa lỗi Trích xuất Nội dung (500 ENOENT), Bảo mật Thông báo Toast & Phân quyền Lưu Tài liệu (403)
+**Vấn đề**:
+1. Bấm "Đính kèm tệp & trích xuất nội dung" với PDF, DOCX, TXT bị trả về lỗi HTTP 500 `ENOENT: no such file or directory, open '/www/wwwroot/giac.ngo/tmp/...'` do `fileParserService` tự nối thêm `projectRoot` vào đường dẫn tuyệt đối của file tạm.
+2. Thông báo Toast lỗi hiển thị nguyên đường dẫn tuyệt đối trên máy chủ (`/www/wwwroot/giac.ngo/tmp/...`), gây rò rỉ thông tin hệ thống.
+3. Khi lưu tài liệu bị lỗi 403 Forbidden do `documentController` chỉ kiểm tra Owner duy nhất (`spaces.user_id`), bỏ qua các Quản trị viên/Thành viên Space (`space_members`). Đồng thời giao diện không báo rõ lỗi 403.
+4. Ảnh bìa tải lên form Tạo tài liệu (`POST /api/system/upload`) lưu trên disk nhưng khi bấm Lưu tài liệu lỗi 403 thì file trở thành mồ côi (`/uploads/space-1/SMK-06-library.png`).
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`fileParserService.ts` & `ocrService.ts`)**:
+  - Hỗ trợ xử lý đường dẫn file tuyệt đối (`path.isAbsolute(fileUrl)`) trong `fileParserService.extractText` mà không prepend `projectRoot`.
+  - Bổ sung `fs.mkdir(os.tmpdir(), { recursive: true })` trong `ocrService.ts` đảm bảo thư mục tạm luôn tồn tại.
+- **Backend (`documentController.ts`)**:
+  - Ẩn toàn bộ thông báo chứa đường dẫn hệ thống nội bộ `/tmp/` hoặc `ENOENT`, thay bằng câu thông báo thân thiện: `"Không đọc được tệp, vui lòng thử lại."`.
+  - Thay thế kiểm tra sở hữu cứng `spaces.user_id !== req.user.id` bằng `canAccessSpace(req.user, spaceId)` trong toàn bộ các endpoint CRUD tài liệu và danh mục (`createDocument`, `updateDocument`, `deleteDocument`, `_createCategory`, `_updateCategory`).
+- **Frontend (`FilesAndDocuments.tsx`)**:
+  - Chuẩn hóa thông báo lỗi Toast khi trích xuất tệp hoặc lưu tài liệu thất bại, hiển thị thông điệp tiếng Việt dễ hiểu (`"Không đọc được tệp, vui lòng thử lại."`, `"Bạn không có quyền tạo hoặc chỉnh sửa tài liệu ở Không gian này."`).
+
+---
+
+## 2026-09-14
+
+### 🎯 Tối ưu Trải nghiệm Chọn File trong Thư viện Media (Multi-select Checkbox & Bố cục nút bấm)
+**Vấn đề / Nhu cầu**:
+1. Nút "Đồng ý" ở header trên cùng thừa thãi và gây khó hiểu khi chọn file.
+2. Nút "Hủy" nằm xa nút hành động xác nhận ("Chọn N tệp đã đánh dấu") ở phía dưới.
+3. Cơ chế chọn nhiều tệp trước đó gây bối rối: click vào thumbnail vừa xem thuộc tính vừa toggle chọn nhiều, không phân biệt rõ ràng giữa "xem chi tiết 1 file" và "đánh dấu chọn hàng loạt".
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Bỏ nút Đồng ý ở header**: Loại bỏ nút "Đồng ý" trên thanh công cụ header của `MediaLibrary.tsx`.
+- **Di chuyển nút Hủy xuống cạnh nút Xác nhận**:
+  - Đặt nút "Hủy" nằm cạnh nút "Chọn N tệp đã đánh dấu" (hoặc "Chọn tệp này") ở chân bảng thuộc tính bên phải (`flex items-center gap-2`).
+  - Bổ sung thanh bar hành động phía dưới khi đóng bảng thuộc tính để người dùng vẫn có thể Hủy hoặc Xác nhận các tệp đã đánh dấu bất cứ lúc nào.
+- **Tách bạch thao tác Chọn nhiều và Xem chi tiết (Thumbnail)**:
+  - Bổ sung ô vuông checkbox `selected` ở **góc trên cùng bên trái** (`top-1.5 left-1.5`) của mỗi thumbnail. Khi người dùng click vào ô checkbox này, hệ thống sẽ bật/tắt đánh dấu chọn nhiều file (`handleToggleMultiSelect`).
+  - Khi người dùng click vào **ở giữa / thân thumbnail**, hệ thống chỉ chọn xem chi tiết đúng 1 file đó (`setActiveFile(file)`), không làm thay đổi danh sách các file đang đánh dấu.
+  - Loại bỏ hoàn toàn dấu tích đỏ tròn góc trên bên phải để tránh gây rối mắt và nhầm lẫn; file đang xem được làm nổi bật qua viền và đổ bóng rõ ràng.
+  - Tinh giản nhãn nút hành động: chuyển `"Chọn N tệp đã đánh dấu"` thành `"Chọn N tệp"`.
+
+
+### 🎨 Tinh chỉnh Giao diện Quản lý AI: Ẩn nút Tóm tắt & Tách viền khoảng cách Nút Thao tác
+**Vấn đề / Nhu cầu**:
+1. Nút "Tóm tắt tất cả" tại phần File huấn luyện đính kèm không còn cần thiết do hệ thống đã chuyển sang vector hóa toàn văn (RAG / pgvector).
+2. Viền dưới của khung "Ước tính Token" và trạng thái huấn luyện bị dính sát (0px margin) vào hàng nút thao tác chính ("Gửi Huấn luyện", "Xóa", "Lưu") gây mất thẩm mỹ.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`AiManagement.tsx`)**:
+  - Ẩn hoàn toàn nút "Tóm tắt tất cả" (`handleSummarizeAll`) tại tiêu đề phần File huấn luyện đính kèm, chỉ giữ lại nút mở rộng danh sách file.
+  - Bổ sung `mt-6 pb-6` cho hàng nút hành động phía dưới để tạo khoảng cách thông thoáng, tách biệt rõ ràng giữa viền hộp Ước tính Token và các nút bấm.
+  - Đóng gói và build production thành công.
+
+---
+
+### 🛡️ Ghi chú & Kiểm soát Định dạng Tệp Huấn luyện AI (Word, Excel, PDF, Text)
+**Vấn đề / Nhu cầu**:
+Trong phân hệ Quản lý AI, người dùng cần biết rõ các định dạng tệp tin nào được hỗ trợ để huấn luyện vector (`pgvector` / `weaviate`), tránh tải lên các tệp không tương thích (như hình ảnh, âm thanh, video). Nếu người dùng tải lên tệp ngoài danh mục hỗ trợ, hệ thống phải hiển thị cảnh báo và hướng dẫn cụ thể thay vì âm thầm bỏ qua.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`AiManagement.tsx`)**:
+  - Bổ sung banner ghi chú trực quan tại tab Huấn luyện và trong modal quản lý tệp: *"Chỉ hỗ trợ file: Word (.docx), Excel (.xlsx, .xls, .csv), PDF (.pdf văn bản), Text (.txt, .json, .md). Không hỗ trợ tệp ảnh hoặc âm thanh/video."*
+  - Thiết lập thuộc tính `accept=".docx,.xlsx,.xls,.csv,.pdf,.txt,.json,.md"` cho tất cả input tải tệp.
+  - Bổ sung hàm kiểm tra định dạng `isAllowedTrainingFile` và `isImageTrainingFile` trong `handleFileChange`:
+    - Nếu tệp là hình ảnh (`.png`, `.jpg`, `.jpeg`, `.webp`...): Hiển thị toast cảnh báo tệp ảnh chưa thể train vector trực tiếp và hướng dẫn dùng OCR trong Thư viện trước.
+    - Nếu tệp là định dạng không hợp lệ khác: Hiển thị toast lỗi thông báo danh sách đuôi file được chấp nhận.
+  - Cập nhật `MediaPickerModal` khi chọn tệp huấn luyện: lọc mặc định `defaultFileType="document"` và kiểm tra định dạng trước khi thêm vào danh sách training.
+- **Backend (`trainingDataController.ts`)**:
+  - Thêm tầng xác thực kiểm tra phần mở rộng tệp (`ALLOWED_TRAINING_EXTS`) cho cả hình thức tải tệp trực tiếp (`req.file`) lẫn truyền URL (`req.body.fileUrl`). Trả về mã lỗi 400 kèm thông báo rõ ràng nếu tệp không hợp lệ.
+
+---
+
+### 💰 Thống nhất Tiền tệ & Quy đổi VND - USD Toàn diện
+**Vấn đề**:
+Không thống nhất đơn vị tiền tệ giữa các màn hình: Trang chủ hiển thị báo giá USD ($2 / $8 / tùy tâm), nhưng modal cúng dường lại hiển thị VNĐ (100.000đ / 300.000đ / 1.000.000đ), gây nhầm lẫn cho người dùng và xung đột khi thanh toán quốc tế và nội địa. Đồng thời API quy đổi `/api/exchange-rate` trả về lỗi 404.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`server/routes/api.ts` & `server/index.ts`)**:
+  - Đăng ký route `/api/exchange-rate` ở tầng router API chính của Express trước các middleware tĩnh phục vụ SPA.
+  - Tích hợp cơ chế cache tỷ giá ngoại tệ và fallback an toàn 25.400 VND/USD khi dịch vụ bên ngoài gián đoạn.
+- **Frontend (`MeritPaymentModal.tsx` & `LandingPage.tsx`)**:
+  - Hỗ trợ chuyển đổi tiền tệ linh hoạt (VND / USD), hiển thị rõ ràng số tiền quy đổi tương đương theo tỷ giá thực tế từ API.
+  - Đồng bộ hóa các mức đề xuất và trường nhập tùy tâm giữa trang chủ và modal cúng dường.
+
+---
+
+### 🔗 Sửa lỗi nút Cúng dường bị điều hướng nhầm sang AI Chat
+**Vấn đề**:
+Khi nhấn nút "Cúng dường" từ thanh điều hướng (Header) hoặc trang chủ, hệ thống bị điều hướng sang route AI chat (`/giac-ngo/chat`) mà không bật form cúng dường, người dùng buộc phải nhấn tay lần thứ hai mới mở được modal.
+
+### 📂 Nâng cấp Chọn Nhiều File & Xem Tên Thật trong Media Picker, Sửa Lỗi Xóa File Huấn Luyện AI
+**Vấn đề**:
+1. Trong Thư viện Media / Quản lý AI khi nạp tài liệu huấn luyện, người dùng chỉ chọn được từng file một, không chọn được hàng loạt file cùng lúc.
+2. Các file tài liệu (doc, xls, pdf) chỉ hiển thị icon mờ nhạt không có tên file thật, khiến người dùng dễ chọn nhầm.
+3. Khi bấm xóa file huấn luyện AI, mặc dù server đã xóa file nhưng toast báo lỗi "Failed to delete training data source", file trên giao diện không mất ngay mà phải F5 mới biến mất.
+
+**Nguyên nhân & Chi tiết kỹ thuật**:
+- **Lỗi Xóa File (500 Error)**: Trong `trainingDataController.ts` gọi `pgVectorService.deleteEmbeddingsForSource(id)` nhưng trong `pgVectorService.ts` method tên là `deleteDataBySourceId(id)`. Khi gọi sai tên hàm phát sinh `TypeError`, rơi vào catch block trả về status 500 kèm thông báo thất bại, dù trước đó bản ghi đã bị xóa trong database. Ngoài ra, việc resolve đường dẫn xóa file vật lý trên Windows có thể bị sai nếu `fileUrl` bắt đầu bằng dấu `/`.
+- **Thư viện Media**: `MediaLibrary` khi ở chế độ `selectable` bị cố định click là chọn ngay 1 file và đóng modal. Thẻ card của file tài liệu bị ẩn tên file với `opacity-0 group-hover:opacity-100`.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`server/services/pgVectorService.ts` & `server/controllers/trainingDataController.ts`)**:
+  - Thêm alias `deleteEmbeddingsForSource(sourceId)` gọi `deleteDataBySourceId`.
+  - Tách các bước dọn dẹp vector (pgvector, weaviate) và xóa file vật lý bằng các khối `try/catch` độc lập, chuẩn hóa đường dẫn file với `path.join(projectRoot, cleanUrl)` để đảm bảo API luôn trả về HTTP `204 No Content` thành công.
+- **Frontend (`client/src/components/admin/MediaLibrary.tsx` & `MediaPickerModal.tsx`)**:
+  - Bổ sung cờ `multiple` và callback `onSelectMultiple?: (urls: string[]) => void`.
+  - Hỗ trợ click chọn / bỏ chọn nhiều file kèm badge tích chọn xanh trực quan.
+  - Bổ sung rõ ràng cặp nút **Đồng ý (N)** (nổi bật với tông màu chủ đạo) và **Hủy** (đóng modal an toàn) ngay trên thanh công cụ và bảng thuộc tính chi tiết bên phải: chỉ khi bấm "Đồng ý" thì danh sách file đã chọn mới được nạp vào form Quản lý AI.
+  - Tên file thật của tài liệu (`.docx`, `.xlsx`, `.pdf`) được hiển thị to rõ ngay chính giữa thẻ (line-clamp-2 kèm tooltip đầy đủ) thay vì chỉ có icon đơn điệu, giúp người dùng nhận diện tức thì và không bị nhầm lẫn.
+- **Frontend (`client/src/components/admin/AiManagement.tsx`)**:
+  - Cho phép mở modal chọn nhiều file training, kiểm tra định dạng cho từng file đã chọn và batch upload nạp hàng loạt vào danh sách dữ liệu huấn luyện.
+  - Khi xóa file, giao diện cập nhật ngay lập tức và toast hiển thị thành công.
+
+---
+
+
+### 🧭 Bổ sung Trang 404 Thiền Tĩnh (Zen 404 Page)
+**Vấn đề**:
+Khi người dùng nhập đường dẫn không tồn tại (ví dụ: `giac.ngo/trangtest`), hệ thống vẫn nạp giao diện mặc định và chỉ hiển thị một thông báo toast, không tuân theo chuẩn trải nghiệm web và gây hiểu nhầm cho người dùng.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`client/src/pages/NotFoundPage.tsx`)**:
+  - Xây dựng trang 404 mang phong cách Zen thiền định thanh nhã với thông điệp nhắc nhở chánh niệm: *"Vạn sự tùy duyên - Trang bạn đang tìm kiếm hiện không tồn tại hoặc đã được chuyển dời"*.
+  - Bổ sung các nút hành động trực quan: "Về Trang Chủ" và "Khám Phá Thư Viện".
+- **Frontend (`client/src/App.tsx`)**:
+  - Thêm route bắt lỗi toàn cục `<Route path="*" element={<NotFoundPage />} />` trong cấu hình React Router.
+
+---
+
+### 🌐 Sửa lỗi Lưu Ngôn ngữ (`localStorage.language`) & Đồng bộ Iframe
+**Vấn đề**:
+Bấm chọn ENG thì giao diện chuyển sang tiếng Anh, nhưng giá trị `localStorage.language` vẫn bị lưu là `'vi'`. Khi tải lại trang thì toàn bộ ứng dụng quay về tiếng Việt. Ngoài ra, các trang tĩnh nhúng qua iframe không cập nhật ngôn ngữ theo trang cha.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`Header.tsx` & `i18n.ts`)**:
+  - Đồng bộ việc lưu trữ `localStorage.setItem('language', lang)` và kích hoạt sự kiện `window.dispatchEvent(new Event('languagechange'))`.
+- **Frontend (`StaticPageViewer.tsx`)**:
+  - Thiết lập cơ chế truyền tin hai chiều qua `window.postMessage` gửi mã ngôn ngữ sang iframe và lắng nghe cập nhật, đảm bảo cả trang chính lẫn trang con iframe luôn đồng nhất ngôn ngữ đã chọn sau khi tải lại trang.
+
+---
+
+### 📝 Sửa Placeholder Tiếng Việt trên Form Đăng nhập
+**Vấn đề**:
+Trang đăng nhập đang chọn Tiếng Việt nhưng placeholder trong các ô nhập email và mật khẩu lại hiển thị Tiếng Anh ("Enter your email", "Enter your password").
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`client/src/components/auth/AuthModal.tsx` & các từ điển ngôn ngữ)**:
+  - Bổ sung và đồng bộ các khóa dịch i18n cho các trường placeholder: "Nhập email của bạn...", "Nhập mật khẩu...".
+  - Đảm bảo placeholder tự động chuyển đổi chuẩn xác khi người dùng thay đổi ngôn ngữ hiển thị.
+
+---
+
+### 💳 Cấu hình Khóa Stripe & Cơ chế Fallback khi Thanh toán Cúng dường
+**Vấn đề**:
+Khi người dùng chọn hình thức thanh toán thẻ quốc tế Stripe, hệ thống phát sinh lỗi do Stripe Secret Key chưa được cấu hình ở môi trường máy chủ.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Backend (`server/routes/billing.ts`)**:
+  - Thêm endpoint `GET /api/billing/stripe/config` kiểm tra trạng thái cấu hình Stripe và trả về `publishableKey` an toàn mà không làm lộ secret key.
+- **Frontend (`MeritPaymentModal.tsx`)**:
+  - Kiểm tra trạng thái Stripe trước khi khởi tạo payment intent; nếu Stripe chưa được kích hoạt, hiển thị cảnh báo thân thiện và tự động hướng dẫn người dùng sử dụng hình thức Chuyển khoản Ngân hàng (VietQR / Napas), tránh gián đoạn trải nghiệm cúng dường.
+
+---
+
+### 🖼️ Đồng nhất Tỉ lệ Hiển thị Ảnh Thư viện (Aspect Ratio 1:1)
+**Vấn đề**:
+Các hình ảnh thumbnail trong danh sách thẻ thư viện có kích thước ngang dọc không đều nhau, gây lệch bố cục giao diện. Yêu cầu xử lý bằng HTML/CSS để tất cả khung ảnh hiển thị vuông vức đồng đều mà không cần sửa ảnh gốc.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`client/src/components/LibraryView.tsx` & `Library.css`)**:
+  - Áp dụng class `aspect-square`, `object-cover`, và khung chứa `overflow-hidden` với chiều rộng/chiều cao cố định trên các thẻ bài viết thư viện.
+  - Đảm bảo tất cả hình ảnh đều hiển thị vuông vức 1:1, tự động căn giữa và cắt cúp thẩm mỹ trên mọi kích thước màn hình.
+
+---
+
+### 🔔 Tối ưu Chuông Thiền & Tích hợp Bộ tổng hợp Âm thanh Web Audio API
+**Vấn đề**:
+Khi mở tính năng thiền định, trên một số thiết bị hoặc mạng chập chờn, file âm thanh MP3 tĩnh của chuông xoay (Singing Bowl) không tải được dẫn đến việc thiền bị mất âm báo.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Frontend (`MeditationSpace.tsx`)**:
+  - Tích hợp bộ tổng hợp âm thanh chuông xoay Tây Tạng (Tibetan Singing Bowl) trực tiếp bằng Web Audio API (`AudioContext` với đa tần số họa âm harmonics và envelope suy hao tự nhiên).
+  - Tự động kích hoạt Web Audio API làm giải pháp dự phòng ngay khi file MP3 gặp lỗi tải, đảm bảo tiếng chuông thiền ngân vang liên tục và trung thực.
+
+---
+
+### 📚 Tái cấu trúc & Chuẩn hóa Tài liệu Dự án
+**Vấn đề**:
+Tài liệu bị phân tán và trùng lặp: tài liệu phân quyền `docs/rbac_multi_tenant.md` trùng lặp nội dung với `docs/cau_truc.md`; file `tasks/todo.md` là file nhiệm vụ cũ đã hoàn thành.
+
+**Giải pháp & Chi tiết thay đổi**:
+- **Hợp nhất `docs/cau_truc.md`**:
+  - Bổ sung Section III chi tiết toàn diện về Kiến trúc Phân quyền RBAC Đa Người Dùng (vai trò Hệ thống vs Không gian, điều kiện Global Admin, ràng buộc CSDL, guard router an toàn).
+  - Cập nhật Section II danh sách các endpoint mới: `GET /api/exchange-rate` và `GET /api/billing/stripe/config`.
+- **Dọn dẹp tệp tin dư thừa**:
+  - Xóa bỏ tệp `docs/rbac_multi_tenant.md` (nội dung đã được hợp nhất đầy đủ vào `cau_truc.md`).
+  - Xóa bỏ tệp `tasks/todo.md` không còn sử dụng.
+
+---
+
 ## 2026-07-02
 
 ### ⚙️ Sử dụng API Key của Space cho Dịch thuật & Diễn giải AI Thư viện & Loại bỏ xác nhận ghi đè

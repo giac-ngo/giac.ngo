@@ -1,7 +1,7 @@
-﻿// server/routes/meditationRoutes.js
+// server/routes/meditationRoutes.js
 import { Router } from 'express';
 import { meditationController } from '../controllers/meditationController.js';
-import { checkPermission } from '../middleware/authMiddleware.js';
+import { isAuthenticated } from '../middleware/authMiddleware.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,7 +53,7 @@ const router = Router();
 router.get('/space/:spaceId', meditationController.getMeditationBySpaceId);
 
 // Admin routes
-const protectMeditationRoutes = checkPermission('meditation');
+const protectMeditationRoutes = isAuthenticated;
 
 router.get('/', protectMeditationRoutes, meditationController.getAllMeditations);
 router.post('/', protectMeditationRoutes, fieldsUpload, meditationController.createMeditation);

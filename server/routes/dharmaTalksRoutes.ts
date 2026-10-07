@@ -1,7 +1,7 @@
 // server/routes/dharmaTalksRoutes.js
 import { Router } from 'express';
 import { dharmaTalksController } from '../controllers/dharmaTalksController.js';
-import { checkPermission, isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
+import { isAuthenticated, optionalAuth } from '../middleware/authMiddleware.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,10 +53,9 @@ const router = Router();
 router.get('/', optionalAuth, dharmaTalksController.getAllDharmaTalks);
 
 // Admin routes for management
-const protectDharmaRoutes = checkPermission('dharma-talks');
-router.post('/', protectDharmaRoutes, fieldsUpload, dharmaTalksController.createDharmaTalk);
-router.put('/:id', protectDharmaRoutes, fieldsUpload, dharmaTalksController.updateDharmaTalk);
-router.delete('/:id', protectDharmaRoutes, dharmaTalksController.deleteDharmaTalk);
+router.post('/', isAuthenticated, fieldsUpload, dharmaTalksController.createDharmaTalk);
+router.put('/:id', isAuthenticated, fieldsUpload, dharmaTalksController.updateDharmaTalk);
+router.delete('/:id', isAuthenticated, dharmaTalksController.deleteDharmaTalk);
 
 // Public routes for interactions
 router.post('/:id/view', dharmaTalksController.incrementDharmaTalkView);

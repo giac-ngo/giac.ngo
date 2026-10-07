@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { spaceTypesController } from '../controllers/spaceTypesController.js';
-import { checkPermission, isAuthenticated } from '../middleware/authMiddleware.js';
+import { requireGlobalAdmin, isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-const protectSpaceTypeRoutes = checkPermission('spaces');
+const protectSpaceTypeRoutes = requireGlobalAdmin;
 
 router.get('/', isAuthenticated, spaceTypesController.getSpaceTypes);
 router.post('/', protectSpaceTypeRoutes, spaceTypesController.createSpaceType);

@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { meditationModel } from '../models/meditation.model.js';
-import { isAdmin, getUserManagedSpaceIds } from '../middleware/authMiddleware.js';
+import { isAdmin, getUserManagedSpaceIds, hasSpacePermission } from '../middleware/authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,8 +125,11 @@ export const meditationController = {
 
             // Security check
             if (!isAdmin(req.user)) {
-                const userSpaceIds = await getUserManagedSpaceIds(req.user?.id);
-                if (!userSpaceIds.includes(parseInt(String(spaceId), 10))) {
+                if (!spaceId) {
+                    return res.status(403).json({ error: 'Forbidden: Global Admin required to create global meditation' });
+                }
+                const hasPerm = await hasSpacePermission(req.user, String(spaceId), 'meditation');
+                if (!hasPerm) {
                     return res.status(403).json({ error: 'Forbidden: You do not have permission to add meditation to this space' });
                 }
             }
@@ -173,20 +176,30 @@ export const meditationController = {
 
     updateMeditation: async (req: Request, res: Response) => {
         try {
-            const { id } = req.params;
-            const { title, titleEn, description, descriptionEn, duration, spaceId } = req.body;
-            const files = req.files as UploadedFiles | undefined;
+            const id = String(req.params.id);
+            const existing = await meditationModel.findById(id);
+            if (!existing) {
+                return res.status(404).json({ error: 'Meditation session not found' });
+            }
 
             // Security check
-            if (spaceId && !isAdmin(req.user)) {
-                const userSpaceIds = await getUserManagedSpaceIds(req.user?.id);
-                if (!userSpaceIds.includes(parseInt(String(spaceId), 10))) {
+            if (!isAdmin(req.user)) {
+                const targetSpaceId = existing.spaceId;
+                if (!targetSpaceId) {
+                    return res.status(403).json({ error: 'Forbidden: Global Admin required to edit global meditation' });
+                }
+                const hasPerm = await hasSpacePermission(req.user, String(targetSpaceId), 'meditation');
+                if (!hasPerm) {
                     return res.status(403).json({ error: 'Forbidden: You do not have permission to manage this space' });
                 }
             }
 
+            const { title, titleEn, description, descriptionEn, duration, spaceId } = req.body;
+            const files = req.files as UploadedFiles | undefined;
+
             const updateData: MeditationUpdateData = { title, titleEn, description, descriptionEn, duration };
-            const safeSpaceId = String(spaceId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+            const effectiveSpaceId = spaceId || existing.spaceId;
+            const safeSpaceId = String(effectiveSpaceId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 
             // Prefer URL from body (MediaPickerModal); fall back to uploaded file
             if (req.body.audioUrl) updateData.audioUrl = req.body.audioUrl;
@@ -219,11 +232,25 @@ export const meditationController = {
 
     deleteMeditation: async (req: Request, res: Response) => {
         try {
-            const { id } = req.params;
-            const deletedSession = await meditationModel.delete(String(id));
-            if (!deletedSession) {
+            const id = String(req.params.id);
+            const existing = await meditationModel.findById(id);
+            if (!existing) {
                 return res.status(404).json({ error: 'Meditation session not found' });
             }
+
+            // Security check
+            if (!isAdmin(req.user)) {
+                const targetSpaceId = existing.spaceId;
+                if (!targetSpaceId) {
+                    return res.status(403).json({ error: 'Forbidden: Global Admin required to delete global meditation' });
+                }
+                const hasPerm = await hasSpacePermission(req.user, String(targetSpaceId), 'meditation');
+                if (!hasPerm) {
+                    return res.status(403).json({ error: 'Forbidden: You do not have permission to manage this space' });
+                }
+            }
+
+            const deletedSession = await meditationModel.delete(String(id));
             res.json(deletedSession);
         } catch (error: unknown) {
             logger.error('Error deleting meditation:', error);

@@ -5,6 +5,8 @@ import { logger } from '../utils/logger.js';
 import { pool, mapRowToCamelCase } from '../db.js';
 import { sendBulkEmail } from '../services/broadcastMailService.js';
 import { User } from '../types/index.js';
+import { isAdmin } from '../middleware/authMiddleware.js';
+import { can } from '../utils/policy.js';
 
 interface Recipient {
     id: number;
@@ -25,7 +27,7 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
 
     switch (targetGroup) {
         case 'space_owners':
-            // Chỉ những user có ít nhất 1 Space
+            // Chỉ những user có ít nhất 1 Space (chỉ Global Admin)
             query = `
                 SELECT DISTINCT u.id, u.name, u.email, (
                     SELECT MIN(id) FROM spaces WHERE user_id = u.id
@@ -36,11 +38,12 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
                 ORDER BY u.name ASC
             `;
             break;
-            // Tất cả user active
+            // Tất cả user active trong Space được chỉ định hoặc toàn bộ nền tảng (chỉ Super Admin)
         case 'all':
         default: {
-            if (req?.query?.spaceId || req?.body?.spaceId) {
-                const spaceId = req.query?.spaceId || req.body?.spaceId;
+            const rawSpaceId = req?.query?.spaceId || req?.body?.spaceId;
+            if (rawSpaceId) {
+                const spaceId = parseInt(rawSpaceId as string, 10);
                 query = `
                     SELECT u.id, u.name, u.email, $1::int as space_id
                     FROM users u 
@@ -48,12 +51,13 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
                     AND u.id IN (SELECT user_id FROM space_members WHERE space_id = $1 UNION SELECT user_id FROM spaces WHERE id = $1)
                     ORDER BY u.id ASC
                 `;
-                params.push(parseInt(spaceId as string, 10));
+                params.push(spaceId);
             } else if (!isSuperAdmin && user) {
+                // Space manager chỉ được gửi cho thành viên trong các space mà mình sở hữu/quản lý
                 query = `
                     SELECT u.id, u.name, u.email, COALESCE((
                         SELECT MIN(space_id) FROM space_members WHERE user_id = u.id AND space_id IN (SELECT id FROM spaces WHERE user_id = $1)
-                    ), 1) as space_id
+                    ), (SELECT MIN(id) FROM spaces WHERE user_id = $1)) as space_id
                     FROM users u 
                     WHERE u.is_active = true AND u.email IS NOT NULL
                     AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1) UNION SELECT user_id FROM spaces WHERE user_id = $1)
@@ -101,12 +105,27 @@ export const notificationController = {
         }
 
         try {
+            const spaceId = req.body?.spaceId;
+            if (spaceId) {
+                const canNotify = await can(req.user, 'notifications', { spaceId });
+                if (!canNotify) {
+                    return res.status(403).json({ error: 'Bạn không có quyền gửi thông báo trong Space này.' });
+                }
+            } else if (!isAdmin(req.user)) {
+                return res.status(403).json({ error: 'Chỉ Global Admin mới có thể gửi thông báo toàn nền tảng.' });
+            }
+
             let recipients: Recipient[] = [];
             if (targetGroup === 'test') {
+                if (!isAdmin(req.user)) {
+                    return res.status(403).json({ error: 'Chỉ Global Admin mới có thể gửi email thử nghiệm (test email).' });
+                }
                 if (!testEmails || !Array.isArray(testEmails) || testEmails.length === 0) {
                     return res.status(400).json({ error: 'Vui lòng cung cấp danh sách email gửi test.' });
                 }
-                recipients = testEmails.map(email => ({ id: 0, name: 'Test User', email: String(email).trim(), spaceId: 1 })).filter((r: Recipient) => r.email);
+                // Giới hạn test email chỉ được gửi tối đa 5 địa chỉ và không cho người dùng lợi dụng SMTP gửi spam
+                const trimmedEmails = testEmails.map(email => String(email).trim().toLowerCase()).filter(Boolean).slice(0, 5);
+                recipients = trimmedEmails.map(email => ({ id: 0, name: 'Test User', email, spaceId: spaceId ? parseInt(spaceId, 10) : 1 }));
             } else {
                 recipients = await getRecipients(targetGroup, req.user, req);
             }
@@ -119,7 +138,6 @@ export const notificationController = {
 
             // Lấy emailTemplate từ space
             let emailTemplate = null;
-            const spaceId = req.body?.spaceId;
             if (spaceId) {
                 const spaceRes = await pool.query('SELECT email_template FROM spaces WHERE id = $1', [parseInt(spaceId, 10)]);
                 emailTemplate = spaceRes.rows[0]?.email_template || null;
@@ -216,6 +234,15 @@ export const notificationController = {
         const user = req.user;
         const isSuperAdmin = !!user?.isGlobalAdmin;
         try {
+            if (spaceId) {
+                const canAccess = await can(user, 'notifications', { spaceId: spaceId as string });
+                if (!canAccess) {
+                    return res.status(403).json({ error: 'Không có quyền truy cập danh sách thành viên của Space này.' });
+                }
+            } else if (!isSuperAdmin) {
+                return res.status(403).json({ error: 'Chỉ Global Admin mới có quyền truy cập toàn hệ thống.' });
+            }
+
             let query;
             let params: any[] = [];
             const searchPattern = search ? `%${search}%` : '%';
@@ -267,8 +294,17 @@ export const notificationController = {
      * Xem trước danh sách người nhận theo targetGroup (để admin tham khảo trước khi gửi)
      */
     async previewRecipients(req: Request, res: Response) {
-        const { targetGroup = 'all', testEmails } = req.query;
+        const { targetGroup = 'all', testEmails, spaceId } = req.query;
         try {
+            if (spaceId) {
+                const canAccess = await can(req.user, 'notifications', { spaceId: spaceId as string });
+                if (!canAccess) {
+                    return res.status(403).json({ error: 'Không có quyền truy cập Space này.' });
+                }
+            } else if (!isAdmin(req.user)) {
+                return res.status(403).json({ error: 'Chỉ Global Admin mới có quyền truy cập toàn hệ thống.' });
+            }
+
             if (targetGroup === 'test') {
                 let emails: string[] = [];
                 try { emails = JSON.parse(testEmails as string || '[]'); } catch (e: unknown) {}
