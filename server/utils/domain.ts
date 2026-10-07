@@ -13,7 +13,7 @@ export const getAdminHost = (): string => {
 export const isAdminHost = (host?: string): boolean => {
     if (!host) return false;
     const cleanHost = host.split(':')[0].toLowerCase().trim();
-    return cleanHost === getAdminHost();
+    return cleanHost === getAdminHost() || cleanHost === getMainDomain();
 };
 
 export const isLocalhost = (host?: string): boolean => {

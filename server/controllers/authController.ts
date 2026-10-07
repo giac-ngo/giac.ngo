@@ -76,7 +76,7 @@ export const authController = {
                     if (!isOwner && !isMember && !enrichedUser?.isGlobalAdmin) {
                         return res.status(403).json({ message: 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' });
                     }
-                } else if (!isLocalhost(host) && host !== getMainDomain()) {
+                } else if (!isLocalhost(host)) {
                     return res.status(404).json({ message: 'Không tìm thấy không gian này.' });
                 }
             }
@@ -310,6 +310,9 @@ export const authController = {
                         return res.redirect(`${oauthState.returnTo || ''}/#/login?error=not_member`);
                     }
                 }
+            } else if (!isLocalhost(returnHost)) {
+                logger.warn(`Google login rejected for ${email}: Host ${returnHost} has no space context.`);
+                return res.redirect(`${oauthState.returnTo || ''}/#/login?error=no_space`);
             }
 
             const sanitizedUser = mapAndSanitizeUser(user);

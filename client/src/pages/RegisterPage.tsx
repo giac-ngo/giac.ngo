@@ -6,6 +6,7 @@ import { useToast } from '../components/ToastProvider';
 import { apiService } from '../services/apiService';
 import { User, Space } from '../types';
 import { GoogleIcon } from '../components/Icons';
+import { isCustomDomain } from '../utils/domain';
 
 const translations = {
     vi: {
@@ -76,9 +77,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
 
     useEffect(() => {
         const host = window.location.hostname;
-        const isCustomDomain = host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io';
         
-        if (isCustomDomain) {
+        if (isCustomDomain(host)) {
             apiService.getSpaceByDomain(host).then(space => {
                 if (space) {
                     setCustomSpace(space);

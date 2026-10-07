@@ -5,6 +5,7 @@ import { AIConfig } from '../types';
 // FIX: Imported missing MenuIcon and XIcon components.
 import { ChevronDownIcon, ChevronLeftIcon, ListIcon } from './Icons';
 import { ViewMode } from '../types';
+import { isCustomDomain } from '../utils/domain';
 
 
 interface PracticeSpaceHeaderProps {
@@ -85,8 +86,7 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
     // Còn lại Back về /
     const handleBack = () => {
         const host = window.location.hostname;
-        const isCustomDomain = host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io';
-        if (isCustomDomain) {
+        if (isCustomDomain(host)) {
             window.location.href = window.location.origin;
         } else if (spaceSlug && spaceSlug !== 'giac-ngo') {
             navigate(`/${spaceSlug}`);

@@ -18,6 +18,7 @@ import { RoleManagement } from '../components/admin/RoleManagement';
 import { PaymentSettings } from '../components/admin/PaymentSettings';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { ChangePasswordModal } from '../components/user/ChangePasswordModal';
+import { isRootDomain } from '../utils/domain';
 import { EditProfileModal } from '../components/user/EditProfileModal';
 import { DocumentTextIcon, DashboardIcon, AiIcon, UserIcon, SettingsIcon, ConversationIcon, PricingIcon, BillingIcon, TemplateIcon, FineTuneIcon, CryptoIcon, RoleIcon, ChatBubbleIcon, MapPinIcon, RadioIcon, MeditationIcon, BellIcon, PhotoIcon } from '../components/Icons';
 import { FilesAndDocuments } from '../components/admin/FilesAndDocuments';
@@ -139,7 +140,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   // so we detect the slug from the subdomain hostname
   const hostnameSlug = (() => {
     const host = window.location.hostname;
-    const isRoot = host === 'localhost' || host === '127.0.0.1' || host === 'login.bodhilab.io';
+    const isRoot = isRootDomain(host);
     if (isRoot) return '';
     // e.g. 'mirror' from 'mirror.bodhilab.io'; skip if it's a pure custom domain (no dots in subdomain part)
     const parts = host.split('.');

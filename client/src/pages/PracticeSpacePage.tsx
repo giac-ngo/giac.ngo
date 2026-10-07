@@ -19,6 +19,7 @@ import { NotFoundPage } from './NotFoundPage';
 import { SocialFeed, UserPhotoGallery } from '../components/social/SocialFeed';
 import { VoiceChat } from '../components/social/VoiceChat';
 import { MediaLibraryPicker } from '../components/MediaLibraryPicker';
+import { isRootDomain } from '../utils/domain';
 
 
 // Lazy load components for code splitting
@@ -182,7 +183,7 @@ export const PracticeSpacePage: React.FC<{
     // Detect the slug from the subdomain hostname
     const hostnameSlug = (() => {
         const host = window.location.hostname;
-        const isRoot = host === 'localhost' || host === '127.0.0.1' || host === 'login.bodhilab.io';
+        const isRoot = isRootDomain(host);
         if (isRoot) return '';
         const parts = host.split('.');
         // Only extract slug from real subdomains (3+ parts): 'mirror' from 'mirror.bodhilab.io'

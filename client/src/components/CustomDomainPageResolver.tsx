@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { Space, User } from '../types';
 import { MeritPaymentModal } from './MeritPaymentModal';
+import { ADMIN_HOST, isCustomDomain } from '../utils/domain';
 
 interface Props {
     fallback: React.ReactNode;
@@ -13,7 +14,7 @@ interface Props {
 }
 
 /**
- * When the app is loaded on a custom domain (not login.bodhilab.io / localhost),
+ * When the app is loaded on a custom domain or subdomain (not ADMIN_HOST / localhost),
  * this component tries to resolve the space by domain and load its published home page.
  * If no custom page exists, it renders the fallback (usually HomePage).
  */
@@ -87,8 +88,15 @@ export const CustomDomainPageResolver: React.FC<Props> = ({ fallback, language, 
 
         const resolve = async () => {
             try {
-                // 1. Find the space for this domain
-                const sp = await apiService.getSpaceByDomain(host);
+                // 1. Find the space for this domain or subdomain
+                let sp = await apiService.getSpaceByDomain(host);
+                if (!sp && host.includes('.')) {
+                    const parts = host.split('.');
+                    const subSlug = parts.length >= 2 ? parts[0] : '';
+                    if (subSlug && subSlug !== 'login' && subSlug !== 'www') {
+                        sp = await apiService.getSpaceBySlug(subSlug);
+                    }
+                }
                 if (!sp || !sp.slug) {
                     setStatus('fallback');
                     return;

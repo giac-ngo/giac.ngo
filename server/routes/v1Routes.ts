@@ -12,8 +12,18 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { documentModel } from '../models/document.model.js';
 import { getJwtSecret } from '../utils/jwtSecret.js';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+const v1LoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'test' ? 10000 : 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau.' },
+    validate: false,
+});
 
 // Helper to check if a user has access to a specific space
 const checkSpaceAccess = async (spaceId: number, userId: number, isGlobalAdmin: boolean): Promise<boolean> => {
@@ -127,7 +137,7 @@ router.post('/tts', isAuthenticated, async (req: Request, res: Response, next: N
 // POST /api/v1/login
 // SSO Login endpoint — validates credentials & checks membership in the specified spaceId
 // Use this from external apps (e.g. n8n) to obtain a JWT access token without browser session
-router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', v1LoginLimiter, async (req: Request, res: Response, next: NextFunction) => {
     const { email, password, spaceId } = req.body;
     try {
         if (!email || !password) {

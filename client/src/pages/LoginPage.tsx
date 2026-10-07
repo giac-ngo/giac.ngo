@@ -6,6 +6,7 @@ import { apiService } from '../services/apiService';
 import { User, Space } from '../types';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { GoogleIcon } from '../components/Icons';
+import { isCustomDomain } from '../utils/domain';
 
 
 const translations = {
@@ -84,9 +85,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
 
   useEffect(() => {
     const host = window.location.hostname;
-    const isCustomDomain = host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io';
     
-    if (isCustomDomain) {
+    if (isCustomDomain(host)) {
         // Try to resolve space by full domain first (for fully custom domains like thienvienabc.com)
         apiService.getSpaceByDomain(host).then(space => {
             if (space) {

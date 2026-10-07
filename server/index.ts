@@ -135,13 +135,15 @@ const ttsLimiter = rateLimit({
     validate: false // Disable internal trust proxy validation
 });
 
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau.' } });
-const passwordResetLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau.' } });
+const isTestEnv = process.env.NODE_ENV === 'test';
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: isTestEnv ? 10000 : 10, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau.' }, validate: false });
+const passwordResetLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: isTestEnv ? 10000 : 5, standardHeaders: true, legacyHeaders: false, message: { message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau.' }, validate: false });
 
 app.use('/api/conversations/chat', chatLimiter);
 app.use('/api/system/tts/generate', ttsLimiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/register', loginLimiter);
+app.use('/api/v1/login', loginLimiter);
 app.use('/api/auth/forgot-password', passwordResetLimiter);
 app.use('/api/auth/reset-password', passwordResetLimiter);
 

@@ -779,5 +779,42 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 1
             );
         });
+
+        it('should reject login on bare domain bodhilab.io for non-admin user without space', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'bodhilab.io')
+                .send({
+                    email: 'owner@space1.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('Chỉ tài khoản Super Admin mới được đăng nhập tại đây');
+        });
+
+        it('should allow login on bare domain bodhilab.io for Super Admin', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'bodhilab.io')
+                .send({
+                    email: 'admin@giacngo.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(200);
+            expect(res.body.email).toBe('admin@giacngo.vn');
+        });
+
+        it('should reject registration on bare domain bodhilab.io', async () => {
+            const res = await request(app)
+                .post('/api/auth/register')
+                .set('Host', 'bodhilab.io')
+                .send({
+                    name: 'Bare User',
+                    email: 'bare@example.com',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('Trang quản trị hệ thống không cho phép đăng ký tài khoản');
+        });
     });
 });

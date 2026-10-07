@@ -18,6 +18,7 @@ import { User, SystemConfig } from './types';
 import { apiService } from './services/apiService';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { isRootDomain } from './utils/domain';
 import { UserBillingManagement } from './components/admin/UserBillingManagement'; // Added import
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
@@ -45,12 +46,6 @@ const ProtectedRoute: React.FC<{ user: User | null; children: React.ReactNode }>
   }
   return <>{children}</>;
 };
-// Helper: check if we're on the root/admin domain
-const isRootDomain = () => {
-  const host = window.location.hostname;
-  return host === 'localhost' || host === '127.0.0.1' || host === 'login.bodhilab.io';
-};
-
 // On custom domains (e.g. tathata.bodhilab.io), redirect logged-in users to the space's chat
 // using the subdomain as the space slug: tathata.bodhilab.io → /tathata/chat
 const LoginRedirect: React.FC = () => {
