@@ -78,7 +78,7 @@ Quyền `manual-billing` và `finetune` chỉ có ý nghĩa ở tầng 1 và ph�
 | # | Mức | Vấn đề | Vị trí | Cách xử lý |
 | --- | --- | --- | --- | --- |
 | 1 | P1 (chấp nhận) | Đường "Legacy Token" vẫn chạy: `api_token` không hết hạn dùng thẳng làm bearer; token có thể đã lộ trước khi vá P0-4. Chủ dự án quyết định giữ `api_token` | `authMiddleware.ts:39-44` | Tối thiểu: tắt đường Legacy (token vẫn làm refresh được, người dùng không thấy khác) hoặc chỉ tạo lại token cho tài khoản quyền cao |
-| 2 | P2 | Quy tắc "user phải thuộc Space" chưa được bảo đảm: đăng ký qua tên miền không khớp Space nào thì không vào Space nào; lỗi gán Space bị bỏ qua; `removeMember` cho xóa Space cuối cùng của user | `authController.ts:120-130, 241-250`; `spacesController.ts:424-437` | Không khớp → vào Space 1; gán Space trong cùng giao dịch tạo user; chặn xóa membership cuối (trừ Admin chính) |
+| 2 | P2 | Quy tắc "user phải thuộc Space" chưa được bảo đảm: đăng ký chỉ dựa vào header `Host`, không nhận `spaceSlug`/`spaceId` từ form; tên miền chính hoặc không nhận dạng được thì gán cứng Space 1; tên miền riêng không khớp thì không vào Space nào; lỗi gán Space bị bỏ qua; `removeMember` cho xóa Space cuối cùng của user | `authController.ts:120-130, 241-250`; `spacesController.ts:424-437`; `RegisterPage.tsx`, `LoginPage.tsx` | Xem việc 1.7 |
 | 3 | P2 | Cúng dường QR ghi giao dịch `pending_verification` nhưng chưa có màn / endpoint để chủ Space duyệt | `space.model.ts:309-324` | Giai đoạn 3, mục 3.6 |
 | 4 | P3 | `updateSocialPost` còn kiểm `role === 'admin'` kiểu cũ; alias `/api/spaces/managed/:userId` còn dùng quyền gộp trong `getUserSpaces` | `spaceSocialController.ts:608`; `spacesRoutes.ts:60` | Đổi sang `can(…, 'social-moderate')`; bỏ alias |
 | 5 | Vận hành | Mật khẩu DB và các khóa vẫn nằm dạng rõ trong `ecosystem.config.cjs`; cổng 5432 để mở (đã quyết định) | `server/ecosystem.config.cjs` | Đổi mật khẩu DB + khóa, đưa ra khỏi repo; giới hạn IP trong `pg_hba.conf`; bật SSL |
@@ -113,7 +113,15 @@ Xong khi: không còn P0; 5 màn hình trên chạy đúng với tài khoản Ad
 - [x] 1.4 Social: đọc / đăng chỉ thành viên; quyền `social-moderate` cho xóa, ghim bài người khác; kiểm `postId` thuộc đúng Space trên URL (số 5). — Xong 07/10.
 - [x] 1.5 Danh mục quyền chuẩn: một file hằng số dùng chung server + client; thống nhất `cms` / `cms_write` / `cms_approve`; thêm `social-moderate`, `notifications`, `space-billing`, `dashboard`; cập nhật các role hiện có theo tên mới. **\[SQL\]** — Xong 07/10.
 - [x] 1.6 Khôi phục `server/tests/` (bỏ khỏi `.gitignore`); test ma trận 2 Space × 4 tầng cho mọi route ghi bằng supertest; CI chạy `tsc` + test mỗi lần push. — Xong 07/10 (44 ca; DB trong test là giả lập).
-- [ ] 1.7 Bảo đảm mọi user (trừ Admin chính) thuộc ít nhất một Space: đăng ký không khớp tên miền → Space 1; gán Space cùng giao dịch tạo user; chặn xóa membership cuối; truy vấn chỉ đọc liệt kê user hiện chưa thuộc Space nào.
+- [ ] 1.7 Bảo đảm mọi user (trừ Admin chính) thuộc ít nhất một Space (chốt 07/10, bỏ gán cứng Space 1):
+    - Xác định Space khi đăng ký theo thứ tự: (1) tên miền riêng của Space qua `findByCustomDomain(host)`; (2) `spaceSlug` / `spaceId` gửi từ form `/:spaceSlug/register`; (3) không xác định được → `400 "Không xác định được Không gian hợp lệ để đăng ký thành viên"`, không tạo tài khoản.
+    - **Tên miền chính (chốt 07/10):** là **`login.bodhilab.io`** — trang đăng nhập riêng của Admin chính, không có đăng ký (chốt 07/10); **không phải** `giac.ngo` — `giac.ngo` là tên miền riêng của Space Giác Ngộ. Lỗi cấu hình cần sửa: `server/ecosystem.config.cjs` (production) đặt `MAIN_DOMAIN=giac.ngo`, trong khi `server/.env` đặt `bodhilab.io` và client viết cứng `login.bodhilab.io` (`App.tsx:49-51`) → trên production, đăng ký ở `giac.ngo` đang bị coi là tên miền chính rồi gán cứng Space 1. Sửa: dùng một biến cấu hình cho đúng host `login.bodhilab.io` (so khớp chính xác, không dùng `endsWith('.bodhilab.io')` vì các subdomain như `tathata.bodhilab.io` là Space); server và client cùng đọc biến này. Không cho đăng ký ở tên miền chính; gốc tên miền chính chỉ dùng để Admin chính đăng nhập. Đăng ký và đăng nhập của mọi người khác phải đi qua Space (tên miền riêng hoặc `/:spaceSlug`). Server chặn cả ở API: `POST /api/auth/register` và Google callback tạo tài khoản mới mà không có Space → 400; đăng nhập (mật khẩu hoặc Google) không có ngữ cảnh Space → chỉ cho Admin chính, người khác 403 kèm hướng dẫn vào trang Space. Client: ẩn nút Đăng ký và form đăng nhập thường ở trang gốc tên miền chính.
+    - Google OAuth: đưa `spaceId` vào `state` đã ký HMAC lúc bấm nút ở trang Space; callback giải mã `state`, kiểm tra Space tồn tại; tài khoản mới không có Space hợp lệ → không tạo, chuyển về trang lỗi.
+    - Tài khoản đã tồn tại đăng nhập (kể cả Google) ở Space khác: chỉ đăng nhập, không tự thêm vào Space; tham gia bằng thao tác riêng.
+    - Tạo user và gán Space trong cùng một giao dịch DB: gán lỗi → hủy tạo user. **\[SQL\]**
+    - Chặn xóa membership cuối cùng của user (trừ Admin chính) ở `removeMember`.
+    - Client: `RegisterPage.tsx` gửi `spaceSlug` theo URL; nút Google ở `RegisterPage.tsx` / `LoginPage.tsx` thêm `spaceSlug` vào `/api/auth/google`. Màn hình login & register ở Space nào (qua custom domain hoặc slug `/:spaceSlug/login`, `/:spaceSlug/register`) **phải hiển thị ảnh đại diện và màu chủ đạo của Space đó tương ứng ở khung bên phải** (`customSpace?.imageUrl`), chỉ trang admin hệ thống gốc mới dùng logo mặc định.
+    - Truy vấn chỉ đọc liệt kê user hiện chưa thuộc Space nào để xử lý tay.
 
 Xong khi: `grep checkPermission\|canAccessSpace` không còn kết quả ở route ghi; test ma trận xanh.
 
@@ -285,7 +293,7 @@ Mỗi giai đoạn deploy riêng, sau khi test ma trận quyền xanh và đã c
 
 ## Quyết định đã chốt
 
-Chủ dự án đã trả lời đủ 8 câu ngày 06–07/10. Thêm: giữ nguyên `api_token` và không khóa cổng 5432 (07/10).
+Chủ dự án đã trả lời đủ 8 câu ngày 06–07/10. Thêm (07/10): giữ nguyên `api_token` và không khóa cổng 5432; không đăng ký ở tên miền chính, mọi đăng ký phải qua Space, tên miền chính `login.bodhilab.io` (không phải `giac.ngo` — đây là một Space) chỉ để Admin chính đăng nhập; không còn gán cứng Space 1.
 
 - [x] 1\. Mỗi Space chỉ có một Admin (chủ Space), nhiều quản lý, user bắt buộc phải thuộc space. trừ admin root
 - [x] 2\. Admin Space  được tạo tài khoản user mới 

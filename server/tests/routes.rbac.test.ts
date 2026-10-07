@@ -28,7 +28,8 @@ vi.mock('../db.js', () => ({
 vi.mock('../models/user.model.js', () => ({
     userModel: {
         findById: vi.fn(),
-        create: vi.fn(),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        create: vi.fn((data: any) => Promise.resolve({ id: 999, ...data })),
         findAll: vi.fn(),
     },
     enrichUserWithPermissions: vi.fn((u: any) => Promise.resolve(u)),
@@ -64,6 +65,11 @@ vi.mock('../models/spaceMember.model.js', () => ({
     spaceMemberModel: {
         add: vi.fn().mockResolvedValue(true),
         remove: vi.fn().mockResolvedValue(true),
+        getSpacesByUser: vi.fn((userId: any) => {
+            if (Number(userId) === 102) return Promise.resolve([{ spaceId: 1 }]);
+            if (Number(userId) === 100) return Promise.resolve([{ spaceId: 1 }, { spaceId: 2 }]);
+            return Promise.resolve([]);
+        }),
     },
 }));
 
@@ -116,6 +122,7 @@ import { pool } from '../db.js';
 import { userModel } from '../models/user.model.js';
 import { roleModel } from '../models/role.model.js';
 import { documentModel } from '../models/document.model.js';
+import { spaceMemberModel } from '../models/spaceMember.model.js';
 
 describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
     const JWT_SECRET = process.env.JWT_SECRET!;
@@ -207,6 +214,14 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                     return { rowCount: 1, rows: [{ '?column?': 1 }] };
                 }
                 return { rowCount: 0, rows: [] };
+            }
+
+            // Space by ID: SELECT s.* ... FROM spaces s ... WHERE s.id = $1
+            if (sql.includes('FROM spaces s') && sql.includes('WHERE s.id = $1')) {
+                const [spaceId] = params;
+                if (Number(spaceId) === 1) return { rows: [{ id: 1, name: 'Space 1', slug: 'space-1' }], rowCount: 1 };
+                if (Number(spaceId) === 2) return { rows: [{ id: 2, name: 'Space 2', slug: 'space-2' }], rowCount: 1 };
+                return { rows: [], rowCount: 0 };
             }
 
             // User roles in space
@@ -600,6 +615,57 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 .set('Authorization', `Bearer ${tokens.space1Owner}`)
                 .send({ title: 'Legit Article Update' });
             expect(res.status).toBe(200);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────
+    // 10. Registration Strict Space Association & Orphan Member Prevention
+    // ─────────────────────────────────────────────────────────
+    describe('Registration & Membership Isolation', () => {
+        it('should reject registration when no space is provided or resolved (no fallback to Space 1)', async () => {
+            const res = await request(app)
+                .post('/api/auth/register')
+                .send({
+                    name: 'New Test User',
+                    email: 'newuser@example.com',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('Không thể đăng ký: Không xác định được Không gian');
+            expect(userModel.create).not.toHaveBeenCalled();
+        });
+
+        it('should atomically create user and assign to requested space', async () => {
+            const res = await request(app)
+                .post('/api/auth/register')
+                .send({
+                    name: 'New Test User',
+                    email: 'newuser@example.com',
+                    password: 'password123',
+                    spaceId: 1,
+                });
+            expect(res.status).toBe(201);
+            expect(userModel.create).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'New Test User', email: 'newuser@example.com' }),
+                1
+            );
+        });
+
+        it('should reject removing member from their only remaining space unless requester is global admin', async () => {
+            // User 102 only belongs to Space 1; space1Owner tries to remove them
+            const res = await request(app)
+                .delete('/api/spaces/1/members/102')
+                .set('Authorization', `Bearer ${tokens.space1Owner}`);
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('Không thể xoá thành viên khỏi Không gian duy nhất');
+        });
+
+        it('should allow global admin to remove member from their only remaining space', async () => {
+            const res = await request(app)
+                .delete('/api/spaces/1/members/102')
+                .set('Authorization', `Bearer ${tokens.globalAdmin}`);
+            expect(res.status).toBe(204);
+            expect(spaceMemberModel.remove).toHaveBeenCalledWith(1, 102);
         });
     });
 });

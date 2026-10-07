@@ -1,7 +1,7 @@
 
 // client/src/pages/RegisterPage.tsx
-import React, { useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation, useParams } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
 import { apiService } from '../services/apiService';
 import { User, Space } from '../types';
@@ -26,7 +26,7 @@ const translations = {
         signIn: 'Đăng nhập',
         terms: 'Bằng cách tiếp tục, bạn đồng ý với Điều khoản Dịch vụ và Chính sách Bảo mật của chúng tôi.',
         passwordMismatch: 'Mật khẩu xác nhận không khớp.',
-        defaultSpaceJoin: 'Tài khoản của bạn sẽ đóng góp vào Không gian: Giác Ngộ',
+        defaultSpaceJoin: 'Tài khoản của bạn sẽ tham gia Không gian: Giác Ngộ',
         customSpaceJoin: 'Tài khoản sẽ được liên kết với Không gian của tên miền này',
     },
     en: {
@@ -69,17 +69,54 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
     const navigate = useNavigate();
     const location = useLocation();
     const { showToast } = useToast();
+    const params = useParams<{ spaceSlug?: string }>();
 
-    const from = (location.state as any)?.from?.pathname || '/giac-ngo/chat';
+    const targetSpaceSlug = params.spaceSlug || customSpace?.slug;
+    const from = (location.state as any)?.from?.pathname || (targetSpaceSlug ? `/${targetSpaceSlug}/chat` : '/giac-ngo/chat');
 
-    React.useEffect(() => {
+    useEffect(() => {
         const host = window.location.hostname;
-        if (host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io') {
+        const isCustomDomain = host !== 'localhost' && host !== '127.0.0.1' && host !== 'login.bodhilab.io';
+        
+        if (isCustomDomain) {
             apiService.getSpaceByDomain(host).then(space => {
-                if (space) setCustomSpace(space);
+                if (space) {
+                    setCustomSpace(space);
+                    document.title = space.name;
+                    if (space.imageUrl) {
+                        const link: HTMLLinkElement = document.querySelector("link[rel~='icon']") || document.createElement('link');
+                        link.rel = 'icon';
+                        link.href = space.imageUrl;
+                        document.head.appendChild(link);
+                    }
+                } else {
+                    const parts = host.split('.');
+                    const subSlug = parts.length >= 2 ? parts[0] : '';
+                    if (subSlug) {
+                        apiService.getSpaceBySlug(subSlug).then(spaceBySlug => {
+                            if (spaceBySlug) {
+                                setCustomSpace(spaceBySlug);
+                                document.title = spaceBySlug.name;
+                            }
+                        }).catch(() => {});
+                    }
+                }
+            }).catch(() => {});
+        } else if (params.spaceSlug) {
+            apiService.getSpaceBySlug(params.spaceSlug).then(space => {
+                if (space) {
+                    setCustomSpace(space);
+                    document.title = space.name;
+                    if (space.imageUrl) {
+                        const link: HTMLLinkElement = document.querySelector("link[rel~='icon']") || document.createElement('link');
+                        link.rel = 'icon';
+                        link.href = space.imageUrl;
+                        document.head.appendChild(link);
+                    }
+                }
             }).catch(() => {});
         }
-    }, []);
+    }, [params.spaceSlug]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -89,11 +126,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
         }
         setLoading(true);
         try {
-            const userData = await apiService.register({ name, email, password });
+            const userData = await apiService.register({ 
+                name, 
+                email, 
+                password,
+                spaceSlug: targetSpaceSlug,
+                spaceId: customSpace?.id
+            });
             onRegister(userData);
             
-            if (from === '/giac-ngo/chat' && customSpace) {
-                navigate(`/${customSpace.slug}/chat`, { replace: true });
+            if (targetSpaceSlug) {
+                navigate(`/${targetSpaceSlug}/chat`, { replace: true });
             } else {
                 navigate(from, { replace: true });
             }
@@ -105,7 +148,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
     };
 
     const handleGoogleRegisterClick = () => {
-        const redirectTarget = (from === '/giac-ngo/chat' && customSpace) ? `/${customSpace.slug}/chat` : from;
+        const redirectTarget = targetSpaceSlug ? `/${targetSpaceSlug}/chat` : from;
         sessionStorage.setItem('redirectPath', redirectTarget);
     };
 
@@ -187,14 +230,14 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
                     </div>
 
                     <div className="space-y-3">
-                        <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}`} onClick={handleGoogleRegisterClick} className="social-login-btn">
+                        <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}${targetSpaceSlug ? `&spaceSlug=${encodeURIComponent(targetSpaceSlug)}` : ''}`} onClick={handleGoogleRegisterClick} className="social-login-btn">
                             <GoogleIcon className="w-5 h-5" />
                             <span>Google</span>
                         </a>
                     </div>
 
                     <p className="mt-8 text-center text-sm text-text-light">
-                        {t.haveAccount} <Link to="/login" className="font-semibold text-primary hover:underline">{t.signIn}</Link>
+                        {t.haveAccount} <Link to={targetSpaceSlug ? `/${targetSpaceSlug}/login` : '/login'} className="font-semibold text-primary hover:underline">{t.signIn}</Link>
                     </p>
 
                     <p className="mt-8 text-center text-xs text-gray-400">
@@ -202,9 +245,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
                     </p>
 
                     <div className="mt-6 text-center text-xs font-semibold text-primary bg-primary/10 py-2.5 px-4 rounded border border-primary/20">
-                        {window.location.hostname === 'login.bodhilab.io' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' 
-                            ? t.defaultSpaceJoin 
-                            : t.customSpaceJoin}
+                        {customSpace 
+                            ? (language === 'vi' ? `Tài khoản sẽ được liên kết với Không gian: ${customSpace.name}` : `You will be registered to Space: ${customSpace.name}`)
+                            : (language === 'vi' ? 'Vui lòng chọn Không gian để đăng ký thành viên.' : 'Please register through a designated Space.')}
                     </div>
                 </div>
             </div>

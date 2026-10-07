@@ -40,7 +40,25 @@ router.get('/google', async (req: Request, res: Response) => {
         if (allowedOrigins.has(parsed.origin) && parsed.pathname === '/' && !parsed.search && !parsed.hash) returnTo = parsed.origin;
     } catch { /* Invalid or relative redirect targets are rejected. */ }
     if (!returnTo) return res.status(400).json({ message: 'Invalid Google login return address.' });
-    const state = signOAuthState({ returnTo, issuedAt: Date.now(), nonce: crypto.randomBytes(16).toString('hex') });
+
+    // Resolve spaceId from query spaceSlug, spaceId, or request host
+    let resolvedSpaceId: number | undefined;
+    if (req.query.spaceId && Number.isInteger(Number(req.query.spaceId))) {
+        resolvedSpaceId = Number(req.query.spaceId);
+    } else if (typeof req.query.spaceSlug === 'string' && req.query.spaceSlug.trim()) {
+        const spaceRes = await pool.query('SELECT id FROM spaces WHERE slug = $1 LIMIT 1', [req.query.spaceSlug.trim()]);
+        if (spaceRes.rows[0]) resolvedSpaceId = spaceRes.rows[0].id;
+    } else if (requestHost && requestHost !== 'login.bodhilab.io' && requestHost !== 'localhost' && requestHost !== '127.0.0.1') {
+        const spaceRes = await pool.query('SELECT id FROM spaces WHERE custom_domain = $1 LIMIT 1', [requestHost]);
+        if (spaceRes.rows[0]) resolvedSpaceId = spaceRes.rows[0].id;
+    }
+
+    const state = signOAuthState({
+        returnTo,
+        spaceId: resolvedSpaceId,
+        issuedAt: Date.now(),
+        nonce: crypto.randomBytes(16).toString('hex')
+    });
     const authorizeUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         state,

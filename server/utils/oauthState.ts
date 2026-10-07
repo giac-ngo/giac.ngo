@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 import { getJwtSecret } from './jwtSecret.js';
 
-type OAuthState = { returnTo: string; issuedAt: number; nonce: string };
+export type OAuthState = {
+    returnTo: string;
+    spaceId?: number;
+    issuedAt: number;
+    nonce: string;
+};
 
 export function signOAuthState(state: OAuthState): string {
     const payload = Buffer.from(JSON.stringify(state)).toString('base64url');

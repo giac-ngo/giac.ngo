@@ -97,7 +97,7 @@ export const authController = {
 
     async register(req: Request, res: Response) {
         try {
-            const { name, email, password } = req.body;
+            const { name, email, password, spaceId, spaceSlug } = req.body;
             if (!name || !email || !password) {
                 return res.status(400).json({ message: 'Tên, email, và mật khẩu là bắt buộc.' });
             }
@@ -105,30 +105,41 @@ export const authController = {
             if (existingUser) {
                 return res.status(409).json({ message: 'Email này đã được đăng ký. Vui lòng đăng nhập.' });
             }
+
+            // Resolve target Space (no fallback to space 1)
+            let resolvedSpace = null;
+            if (spaceId && Number.isInteger(Number(spaceId))) {
+                resolvedSpace = await spaceModel.findById(Number(spaceId));
+            } else if (typeof spaceSlug === 'string' && spaceSlug.trim()) {
+                resolvedSpace = await spaceModel.findBySlug(spaceSlug.trim());
+            } else {
+                const host = req.headers.host?.split(':')[0]?.toLowerCase();
+                const mainDomain = (process.env.MAIN_DOMAIN || 'login.bodhilab.io').toLowerCase();
+                if (host && host !== mainDomain && host !== 'login.bodhilab.io' && host !== 'localhost' && host !== '127.0.0.1') {
+                    resolvedSpace = await spaceModel.findByCustomDomain(host);
+                }
+            }
+
+            if (!resolvedSpace) {
+                return res.status(400).json({
+                    message: 'Không thể đăng ký: Không xác định được Không gian (Space) hợp lệ. Vui lòng đăng ký qua đường dẫn hoặc tên miền của Không gian.'
+                });
+            }
+
             const newUserPayload = {
                 name, email, password,
                 isActive: true, merits: 0, requestsRemaining: 0,
-                avatarUrl: `https://i.pravatar.cc/150?u=${email}`,
+                avatarUrl: `https://i.pravatar.cc/150?u=${encodeURIComponent(email)}`,
                 roleIds: [], // User mới không gán quyền mặc định (để null/rỗng)
                 template: 'giacngo'
             };
-            const newUser = await userModel.create(newUserPayload);
+
+            // Atomically create user and assign space membership in single DB transaction
+            const newUser = await userModel.create(newUserPayload, resolvedSpace.id);
             if (!newUser) {
                 throw new Error('Không thể tạo người dùng mới.');
             }
-            // Auto-assign to space if registering via custom domain
-            try {
-                const host = req.headers.host?.split(':')[0];
-                const mainDomain = process.env.MAIN_DOMAIN || 'localhost';
-                if (host && host !== mainDomain && !host.endsWith('.' + mainDomain) && host !== 'localhost') {
-                    const space = await spaceModel.findByCustomDomain(host);
-                    if (space) await spaceMemberModel.add(space.id, newUser.id);
-                } else {
-                    await spaceMemberModel.add(1, newUser.id); // Assign to Giác Ngộ (Space 1)
-                }
-            } catch (memberErr) {
-                logger.error('Auto-membership error (non-fatal):', memberErr);
-            }
+
             try {
                 await mailService.sendWelcomeEmail(email, name, 'vi', { host: req.headers.host });
             } catch (mailError) {
@@ -209,9 +220,12 @@ export const authController = {
 
     googleCallback: (oauth2Client: any) => async (req: Request, res: Response) => {
         const { code, state } = req.query;
+        let returnTarget = '/#/login';
         try {
             const oauthState = verifyOAuthState(state);
             if (!oauthState) return res.redirect('/#/login?error=auth_failed');
+            returnTarget = oauthState.returnTo || '/#/login';
+
             const { tokens } = await oauth2Client.getToken(code);
             oauth2Client.setCredentials(tokens);
             const ticket = await oauth2Client.verifyIdToken({
@@ -229,28 +243,31 @@ export const authController = {
 
             let user = await userModel.findByEmail(email);
             if (!user) {
+                // User mới: bắt buộc phải có Space hợp lệ từ oauthState, không fallback Space 1
+                const targetSpaceId = oauthState.spaceId;
+                if (!targetSpaceId) {
+                    logger.warn(`Google signup rejected for ${email}: No space resolved in oauthState.`);
+                    return res.redirect(`${oauthState.returnTo || ''}/#/login?error=no_space`);
+                }
+
+                const space = await spaceModel.findById(targetSpaceId);
+                if (!space) {
+                    logger.warn(`Google signup rejected for ${email}: Space ${targetSpaceId} does not exist.`);
+                    return res.redirect(`${oauthState.returnTo || ''}/#/login?error=invalid_space`);
+                }
+
                 const randomPassword = crypto.randomBytes(20).toString('hex');
+                // Tạo user và thêm thành viên space trong cùng 1 transaction DB
                 user = await userModel.create({
                     name, email, password: randomPassword,
                     avatarUrl: picture, isActive: true, merits: 0, requestsRemaining: 0,
                     roleIds: [], template: 'giacngo'
-                });
+                }, space.id);
+
                 if (!user) {
                     throw new Error('Không thể tạo người dùng mới qua Google.');
                 }
-                // Auto-assign to space if registering via custom domain
-                try {
-                    const host = req.headers.host?.split(':')[0];
-                    const mainDomain = process.env.MAIN_DOMAIN || 'localhost';
-                    if (host && host !== mainDomain && !host.endsWith('.' + mainDomain) && host !== 'localhost') {
-                        const space = await spaceModel.findByCustomDomain(host);
-                        if (space) await spaceMemberModel.add(space.id, user.id);
-                    } else {
-                        await spaceMemberModel.add(1, user.id); // Assign to Giác Ngộ (Space 1)
-                    }
-                } catch (memberErr) {
-                    logger.error('Auto-membership error (non-fatal):', memberErr);
-                }
+
                 try {
                     await mailService.sendWelcomeEmail(email, name, 'vi', { host: req.headers.host });
                 } catch (mailError) {
@@ -258,8 +275,9 @@ export const authController = {
                 }
             }
 
+            // Tài khoản đã có sẵn: chỉ đăng nhập, TUYỆT ĐỐI không tự động gán thêm Space
             if (!user.isActive) {
-                return res.redirect('/#/login?error=account_disabled');
+                return res.redirect(`${oauthState.returnTo || ''}/#/login?error=account_disabled`);
             }
 
             const sanitizedUser = mapAndSanitizeUser(user);
@@ -270,7 +288,7 @@ export const authController = {
             res.redirect(`${redirectBase}/#/auth/callback?user=${base64User}`);
         } catch (error: unknown) {
             logger.error('Google auth callback error:', error);
-            res.redirect('/#/login?error=auth_failed');
+            res.redirect(`${returnTarget}?error=auth_failed`);
         }
     }
 };

@@ -160,7 +160,7 @@ export const userModel = {
         return enrichedUsers.filter((u): u is User => u !== null);
     },
 
-    async create(userData: Partial<User> & Record<string, unknown>): Promise<User | null> {
+    async create(userData: Partial<User> & Record<string, unknown>, spaceId?: number | string | null): Promise<User | null> {
         let { email, password, name, avatarUrl, roleIds, template } = userData as Record<string, unknown> & { email?: string, password?: string, name?: string, avatarUrl?: string, roleIds?: number[], template?: string };
         const client = await pool.connect();
         try {
@@ -191,6 +191,24 @@ export const userModel = {
 
             if (roleIds && roleIds.length > 0) {
                 await updateRolesForUser(newUser.id, roleIds, client);
+            }
+
+            // Gán Space nguyên tử trong cùng transaction (nếu có chỉ định spaceId)
+            if (spaceId !== undefined && spaceId !== null) {
+                const numericSpaceId = Number(spaceId);
+                if (!Number.isInteger(numericSpaceId) || numericSpaceId <= 0) {
+                    throw new Error('Invalid spaceId for new user membership.');
+                }
+                const spaceCheck = await client.query('SELECT 1 FROM spaces WHERE id = $1 LIMIT 1', [numericSpaceId]);
+                if ((spaceCheck.rowCount ?? 0) === 0) {
+                    throw new Error(`Space with id ${numericSpaceId} does not exist.`);
+                }
+                await client.query(
+                    `INSERT INTO space_members (space_id, user_id)
+                     VALUES ($1, $2)
+                     ON CONFLICT (space_id, user_id) DO NOTHING`,
+                    [numericSpaceId, newUser.id]
+                );
             }
 
             await client.query('COMMIT');

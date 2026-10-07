@@ -115,6 +115,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
         apiService.getSpaceBySlug(params.spaceSlug).then(space => {
             if (space) {
                 setCustomSpace(space);
+                document.title = space.name;
+                if (space.imageUrl) {
+                    const link: HTMLLinkElement = document.querySelector("link[rel~='icon']") || document.createElement('link');
+                    link.rel = 'icon';
+                    link.href = space.imageUrl;
+                    document.head.appendChild(link);
+                }
             }
         }).catch(() => {});
     }
@@ -220,7 +227,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
           </div>
           
           <div className="space-y-3">
-            <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}`} onClick={handleGoogleLoginClick} className="social-login-btn">
+            <a href={`/api/auth/google?returnTo=${encodeURIComponent(window.location.origin)}${params.spaceSlug || customSpace?.slug ? `&spaceSlug=${encodeURIComponent(params.spaceSlug || customSpace?.slug || '')}` : ''}`} onClick={handleGoogleLoginClick} className="social-login-btn">
               <GoogleIcon className="w-5 h-5" />
               <span>Google</span>
             </a>

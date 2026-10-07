@@ -428,6 +428,12 @@ export const spacesController = {
 
             if (isNaN(spaceId) || isNaN(userId)) return res.status(400).json({ message: 'Invalid IDs' });
 
+            // Tránh tạo tài khoản mồ côi: nếu người dùng chỉ còn thuộc 1 Space này, không cho xoá trừ khi là Global Admin
+            const userSpaces = await spaceMemberModel.getSpacesByUser(userId);
+            if (userSpaces.length <= 1 && !req.user?.isGlobalAdmin) {
+                return res.status(400).json({ message: 'Không thể xoá thành viên khỏi Không gian duy nhất của họ (tránh tạo tài khoản không thuộc Không gian nào).' });
+            }
+
             await spaceMemberModel.remove(spaceId, userId);
             res.status(204).send();
         } catch (error: unknown) {
