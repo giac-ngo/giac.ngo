@@ -834,6 +834,16 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
             expect(res.status).toBe(403);
             expect(res.body.message).toContain('Path out of bounds');
         });
+
+        it('should forbid path traversal using own user-id followed by .. to escape to global or another directory', async () => {
+            // space1Member id is 4
+            const res = await request(app)
+                .delete('/api/system/upload')
+                .set('Authorization', `Bearer ${tokens.space1Member}`)
+                .send({ filePath: '/uploads/space-1/user-4/../../global/logo.png' });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('You can only delete your own uploaded files');
+        });
     });
 });
 

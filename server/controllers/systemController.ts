@@ -301,9 +301,12 @@ export const systemController = {
                 return res.status(403).json({ message: 'Access denied: Path out of bounds.' });
             }
 
-            // Security check 2: unless Global Admin, user can only delete files in their own user directory
+            // Security check 2: calculate normalized relative path and enforce strict user directory structure
             const isGlobalAdmin = !!req.user?.isGlobalAdmin;
-            const isOwnFile = cleanRel.split(/[\\/]/).includes(`user-${req.user?.id}`);
+            const normRel = path.relative(uploadsDir, targetAbs).replace(/\\/g, '/');
+            const userFolder = `user-${req.user?.id}`;
+            const isOwnFile = normRel.startsWith(`users/${userFolder}/`) || /^space-[^/]+\/user-[^/]+\//.test(normRel) && normRel.split('/')[1] === userFolder;
+
             if (!isGlobalAdmin && !isOwnFile) {
                 return res.status(403).json({ message: 'Forbidden: You can only delete your own uploaded files.' });
             }
