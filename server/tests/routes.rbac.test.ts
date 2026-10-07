@@ -816,5 +816,24 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
             expect(res.status).toBe(400);
             expect(res.body.message).toContain('Trang quản trị hệ thống không cho phép đăng ký tài khoản');
         });
+
+        it('should forbid regular user from deleting files of another user or global files via DELETE /api/system/upload', async () => {
+            const res = await request(app)
+                .delete('/api/system/upload')
+                .set('Authorization', `Bearer ${tokens.space1Member}`)
+                .send({ filePath: '/uploads/space-1/user-2/secret.png' });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('You can only delete your own uploaded files');
+        });
+
+        it('should forbid path traversal outside uploadsDir in DELETE /api/system/upload', async () => {
+            const res = await request(app)
+                .delete('/api/system/upload')
+                .set('Authorization', `Bearer ${tokens.space1Member}`)
+                .send({ filePath: '/uploads/../../etc/passwd' });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('Path out of bounds');
+        });
     });
 });
+

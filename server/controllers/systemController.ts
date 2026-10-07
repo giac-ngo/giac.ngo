@@ -295,10 +295,19 @@ export const systemController = {
             // Strip leading /uploads/ or uploads/
             const cleanRel = filePath.replace(/^\/?uploads\//, '');
             const targetAbs = path.resolve(uploadsDir, cleanRel);
-            // Security check: ensure path is inside uploadsDir
-            if (!targetAbs.startsWith(uploadsDir)) {
-                return res.status(403).json({ message: 'Access denied.' });
+
+            // Security check 1: ensure path is strictly inside uploadsDir
+            if (!targetAbs.startsWith(uploadsDir + path.sep)) {
+                return res.status(403).json({ message: 'Access denied: Path out of bounds.' });
             }
+
+            // Security check 2: unless Global Admin, user can only delete files in their own user directory
+            const isGlobalAdmin = !!req.user?.isGlobalAdmin;
+            const isOwnFile = cleanRel.split(/[\\/]/).includes(`user-${req.user?.id}`);
+            if (!isGlobalAdmin && !isOwnFile) {
+                return res.status(403).json({ message: 'Forbidden: You can only delete your own uploaded files.' });
+            }
+
             if (fs.existsSync(targetAbs)) {
                 await fs.promises.unlink(targetAbs);
             }
