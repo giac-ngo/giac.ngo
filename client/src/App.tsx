@@ -212,10 +212,22 @@ const App: React.FC = () => {
         });
       })
       .catch(() => {
-        // Nếu API trả 401/403 (token hết hạn hoặc bị revoke) thì refresh interceptor sẽ xử lý
-        // Nếu refresh cũng fail → interceptor sẽ redirect về /login
+        // Nếu API trả 401/403 thì refresh interceptor sẽ xử lý
       });
   }, []); // Chỉ chạy 1 lần khi app mount
+
+  // Lắng nghe sự kiện auth:expired từ apiService khi refresh token thất bại
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setUser(null);
+      localStorage.removeItem('user');
+      localStorage.removeItem('apiToken');
+      localStorage.removeItem('token');
+      navigate('/login?error=session_expired', { replace: true, state: { from: location } });
+    };
+    window.addEventListener('auth:expired', handleAuthExpired);
+    return () => window.removeEventListener('auth:expired', handleAuthExpired);
+  }, [location, navigate]);
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);

@@ -11,6 +11,7 @@ const translations = {
         title: 'Cập nhật thông tin',
         nameLabel: 'Tên hiển thị',
         avatarLabel: 'Ảnh đại diện',
+        changeAvatarButton: 'Đổi ảnh đại diện',
         changePasswordLabel: 'Đổi mật khẩu',
         currentPasswordLabel: 'Mật khẩu hiện tại',
         newPasswordLabel: 'Mật khẩu mới',
@@ -28,6 +29,7 @@ const translations = {
         title: 'Update Profile',
         nameLabel: 'Display Name',
         avatarLabel: 'Avatar',
+        changeAvatarButton: 'Change Avatar',
         changePasswordLabel: 'Change Password',
         currentPasswordLabel: 'Current Password',
         newPasswordLabel: 'New Password',
@@ -133,7 +135,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                                     <UserIcon className="w-8 h-8 text-white" />
                                 </div>
                             </div>
-                            <p className="text-sm text-text-light mt-2">{t.avatarLabel}</p>
+                            <button
+                                type="button"
+                                onClick={() => setIsMediaPickerOpen(true)}
+                                className="mt-2 text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                            >
+                                <UserIcon className="w-3.5 h-3.5" />
+                                <span>{t.changeAvatarButton}</span>
+                            </button>
                         </div>
 
                         {/* Name Input */}

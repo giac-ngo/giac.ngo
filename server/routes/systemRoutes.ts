@@ -16,6 +16,7 @@ router.put('/system-config', isAuthenticated, systemController.updateSystemConfi
 router.put('/config', isAuthenticated, systemController.updateSystemConfig); // alias
 router.post('/upload', isAuthenticated, upload.single('file'), systemController.uploadFiles);
 router.post('/upload-multiple', isAuthenticated, upload.single('file'), systemController.uploadFiles); // alias
+router.delete('/upload', isAuthenticated, systemController.deleteUpload);
 router.get('/models/:provider', isAuthenticated, systemController.getAvailableModels);
 
 // Public stats endpoint - no auth required, safe aggregated data only

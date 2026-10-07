@@ -149,10 +149,7 @@ export const documentController = {
         } catch (error: unknown) {
             const rawMsg = error instanceof Error ? error.message : String(error);
             logger.error('extractTextFromFile failed:', rawMsg);
-            const safeMsg = rawMsg.includes('ENOENT') || rawMsg.includes('/tmp') || rawMsg.includes('\\tmp')
-                ? 'Không đọc được tệp, vui lòng thử lại.'
-                : (rawMsg || 'Không đọc được tệp, vui lòng thử lại.');
-            res.status(500).json({ message: safeMsg });
+            res.status(500).json({ message: 'Không đọc được tệp, vui lòng thử lại.' });
         }
     },
 

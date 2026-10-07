@@ -145,9 +145,9 @@ html[data-theme="giacngo"] .quick-action-btn img {
 }
 
 html[data-theme="giacngo"] .quick-action-label {
-    font-size: 0.55rem;
+    font-size: 0.72rem;
     font-weight: 600;
-    color: var(--color-text-light);
+    color: var(--color-text-main);
     text-align: center;
     line-height: 1.2;
     letter-spacing: 0.01em;

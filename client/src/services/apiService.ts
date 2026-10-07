@@ -20,14 +20,19 @@ const handleResponse = async (res: Response) => {
 };
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: { resolve: (token: string) => void; reject: (err: any) => void }[] = [];
 
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-    refreshSubscribers.push(cb);
+const subscribeTokenRefresh = (resolve: (token: string) => void, reject: (err: any) => void) => {
+    refreshSubscribers.push({ resolve, reject });
 };
 
 const onRefreshed = (token: string) => {
-    refreshSubscribers.forEach((cb) => cb(token));
+    refreshSubscribers.forEach((cb) => cb.resolve(token));
+    refreshSubscribers = [];
+};
+
+const onRefreshFailed = (err: any) => {
+    refreshSubscribers.forEach((cb) => cb.reject(err));
     refreshSubscribers = [];
 };
 
@@ -101,19 +106,22 @@ const authedFetch = async (url: string, options: RequestInit = {}): Promise<Resp
                     }
                 } catch (err) {
                     isRefreshing = false;
-                    // Clear tokens if refresh fails to prevent infinite loop of 401s
+                    // Clear tokens and inform all waiting requests
                     localStorage.removeItem('user');
                     localStorage.removeItem('apiToken');
                     localStorage.removeItem('token');
+                    onRefreshFailed(err);
+                    window.dispatchEvent(new CustomEvent('auth:expired'));
                     return res;
                 }
             }
 
             // Queue requests during refresh
-            return new Promise<Response>((resolve) => {
-                subscribeTokenRefresh((newToken) => {
-                    resolve(makeRequest(newToken));
-                });
+            return new Promise<Response>((resolve, reject) => {
+                subscribeTokenRefresh(
+                    (newToken) => resolve(makeRequest(newToken)),
+                    (err) => reject(err)
+                );
             });
         }
     }
@@ -556,6 +564,11 @@ export const apiService = {
     uploadFiles: (formData: FormData) => authedFetch('/api/system/upload', {
         method: 'POST',
         body: formData
+    }).then(handleResponse),
+
+    deleteUpload: (filePath: string) => authedFetch('/api/system/upload', {
+        method: 'DELETE',
+        body: JSON.stringify({ filePath })
     }).then(handleResponse),
 
     getMediaLibrary: (spaceId: number | string, page: number = 1, limit: number = 20) => authedFetch(`/api/media/${spaceId}?page=${page}&limit=${limit}`).then(handleResponse),

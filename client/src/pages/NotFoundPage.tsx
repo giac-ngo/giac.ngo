@@ -10,7 +10,7 @@ interface NotFoundPageProps {
 const translations = {
     vi: {
         brand: 'Giác Ngộ',
-        pageNotFound: 'Không Tìm Thấy Trang',
+        pageNotFound: 'Không tìm thấy trang',
         description: 'Trang hoặc không gian bạn đang tìm kiếm không tồn tại, đã bị gỡ bỏ hoặc đường dẫn chưa chính xác.',
         zenQuote: '“Vạn sự do duyên khởi — Chúc bạn luôn an định và sáng suốt trong từng phút giây.”',
         backHome: '← Về Trang Chủ',

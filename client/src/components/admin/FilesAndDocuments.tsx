@@ -1433,6 +1433,7 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
         }
 
         setIsSaving(true);
+        const uploadedFilePaths: string[] = [];
 
         try {
             let payload = { ...editingDocument };
@@ -1445,7 +1446,9 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 formData.append('file', file);
                 const res = await apiService.uploadFiles(formData);
                 if (res.filePaths && res.filePaths[0]) {
-                    (payload as any)[field] = res.filePaths[0];
+                    const uploadedPath = res.filePaths[0];
+                    uploadedFilePaths.push(uploadedPath);
+                    (payload as any)[field] = uploadedPath;
                 } else {
                     throw new Error(`Upload for ${field} failed.`);
                 }
@@ -1483,6 +1486,17 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
             setAudioFile(null);
             setAudioEnFile(null);
         } catch (error: any) {
+            // Clean up any files that were uploaded in this failed transaction
+            if (uploadedFilePaths.length > 0) {
+                for (const pathToDelete of uploadedFilePaths) {
+                    try {
+                        await apiService.deleteUpload(pathToDelete);
+                    } catch (cleanupErr) {
+                        console.error('Failed to cleanup uploaded file on save error:', cleanupErr);
+                    }
+                }
+            }
+
             const errMsg = error.message || '';
             let displayMsg = errMsg;
             if (errMsg.includes('spaces you own') || errMsg.includes('spaces you own or manage')) {
@@ -1535,6 +1549,22 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                 'info'
             );
             return;
+        }
+
+        // #129: Khi dịch EN -> VI, nếu tab Tiếng Việt đã có nội dung/kệ thì phải hỏi xác nhận trước khi ghi đè
+        if (targetLang === 'vi') {
+            const hasExistingViContent = Boolean(
+                String(editingDocument.title || '').trim() ||
+                String(editingDocument.summary || '').trim() ||
+                stripHtml(String(editingDocument.content || '')).trim() ||
+                stripHtml(String(editingDocument.explanation || '')).trim()
+            );
+            if (hasExistingViContent) {
+                const confirmed = window.confirm(
+                    'Tab Tiếng Việt đang có nội dung/kệ. Bạn có chắc chắn muốn dịch đè từ Tab Tiếng Anh sang không?'
+                );
+                if (!confirmed) return;
+            }
         }
 
         setIsTranslatingAll(true);
@@ -1743,15 +1773,6 @@ export const FilesAndDocuments: React.FC<{ language: 'vi' | 'en', user: User, is
                         <PlusIcon className="w-5 h-5" />
                         <span>{t.newDocument}</span>
                     </button>
-                    {isGlobalAdmin && !activeSpace && (
-                        <div className="flex flex-col">
-                            <label className="text-xs text-text-light mb-1">{t.space}</label>
-                            <select name="spaceId" value={filters.spaceId} onChange={handleFilterChange} className="p-2 border border-border-color rounded-md text-sm bg-background-light text-text-main">
-                                <option value="">{t.filterAll}</option>
-                                {manageableSpaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        </div>
-                    )}
                 </div>
             </div>
             {/* Filters Section */}

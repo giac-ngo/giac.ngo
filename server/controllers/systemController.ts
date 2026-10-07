@@ -286,6 +286,29 @@ export const systemController = {
         res.json({ filePaths });
     },
 
+    async deleteUpload(req: Request, res: Response) {
+        try {
+            const { filePath } = req.body;
+            if (!filePath || typeof filePath !== 'string') {
+                return res.status(400).json({ message: 'filePath is required.' });
+            }
+            // Strip leading /uploads/ or uploads/
+            const cleanRel = filePath.replace(/^\/?uploads\//, '');
+            const targetAbs = path.resolve(uploadsDir, cleanRel);
+            // Security check: ensure path is inside uploadsDir
+            if (!targetAbs.startsWith(uploadsDir)) {
+                return res.status(403).json({ message: 'Access denied.' });
+            }
+            if (fs.existsSync(targetAbs)) {
+                await fs.promises.unlink(targetAbs);
+            }
+            res.json({ success: true });
+        } catch (error: any) {
+            logger.error('Failed to delete upload:', error);
+            res.status(500).json({ message: 'Không thể xóa tệp tải lên.' });
+        }
+    },
+
     async getAvailableModels(req: Request, res: Response) {
         const { provider } = req.params;
         const rawUserId = req.query.userId || req.user?.id;
