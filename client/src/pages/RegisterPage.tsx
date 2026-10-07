@@ -97,6 +97,12 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, language
                             if (spaceBySlug) {
                                 setCustomSpace(spaceBySlug);
                                 document.title = spaceBySlug.name;
+                                if (spaceBySlug.imageUrl) {
+                                    const link: HTMLLinkElement = document.querySelector("link[rel~='icon']") || document.createElement('link');
+                                    link.rel = 'icon';
+                                    link.href = spaceBySlug.imageUrl;
+                                    document.head.appendChild(link);
+                                }
                             }
                         }).catch(() => {});
                     }

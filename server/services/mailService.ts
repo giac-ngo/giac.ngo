@@ -4,18 +4,21 @@ import nodemailer from 'nodemailer';
 import { pool } from '../db.js';
 import 'dotenv/config';
 import { logger } from '../utils/logger.js';
+import { resolveSpaceFromHost, getAdminHost } from '../utils/domain.js';
 
 async function getTransportAndFrom(options: Record<string, any> = {}) {
     const { host, spaceId } = options;
-    const mainDomain = process.env.MAIN_DOMAIN || 'localhost';
     let space = null;
 
     if (spaceId) {
         const res = await pool.query('SELECT smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_name, name FROM spaces WHERE id = $1', [spaceId]);
         space = res.rows[0];
-    } else if (host && host !== mainDomain && !host.endsWith('.' + mainDomain) && host !== 'localhost') {
-        const res = await pool.query('SELECT smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_name, name FROM spaces WHERE custom_domain = $1', [host]);
-        space = res.rows[0];
+    } else if (host) {
+        const resolved = await resolveSpaceFromHost(host);
+        if (resolved) {
+            const res = await pool.query('SELECT smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_name, name FROM spaces WHERE id = $1', [resolved.id]);
+            space = res.rows[0];
+        }
     }
     
     // Fallback to main space (ID=1)
@@ -66,7 +69,7 @@ export const mailService = {
     async sendPasswordResetEmail(to: string, token: string, language: string = 'vi', options: Record<string, any> = {}) {
         const t = (translations as Record<string, any>)[language];
         const protocol = options.host && options.host.includes('localhost') ? 'http' : 'https';
-        const hostUrl = options.host ? `${protocol}://${options.host}` : process.env.BASE_URL || 'https://login.bodhilab.io';
+        const hostUrl = options.host ? `${protocol}://${options.host}` : process.env.BASE_URL || `https://${getAdminHost()}`;
         const resetUrl = `${hostUrl}/reset-password?token=${token}`;
         try {
             const { transport, fromString } = await getTransportAndFrom(options);

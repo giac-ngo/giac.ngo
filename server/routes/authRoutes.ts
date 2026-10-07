@@ -7,6 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 import crypto from 'crypto';
 import { signOAuthState } from '../utils/oauthState.js';
 import { pool } from '../db.js';
+import { isAdminHost, isLocalhost, resolveSpaceFromHost } from '../utils/domain.js';
 
 const router = Router();
 
@@ -43,14 +44,17 @@ router.get('/google', async (req: Request, res: Response) => {
 
     // Resolve spaceId from query spaceSlug, spaceId, or request host
     let resolvedSpaceId: number | undefined;
-    if (req.query.spaceId && Number.isInteger(Number(req.query.spaceId))) {
+    if (isAdminHost(requestHost)) {
+        // Admin host (login.bodhilab.io): never associate with a space
+        resolvedSpaceId = undefined;
+    } else if (req.query.spaceId && Number.isInteger(Number(req.query.spaceId))) {
         resolvedSpaceId = Number(req.query.spaceId);
     } else if (typeof req.query.spaceSlug === 'string' && req.query.spaceSlug.trim()) {
         const spaceRes = await pool.query('SELECT id FROM spaces WHERE slug = $1 LIMIT 1', [req.query.spaceSlug.trim()]);
         if (spaceRes.rows[0]) resolvedSpaceId = spaceRes.rows[0].id;
-    } else if (requestHost && requestHost !== 'login.bodhilab.io' && requestHost !== 'localhost' && requestHost !== '127.0.0.1') {
-        const spaceRes = await pool.query('SELECT id FROM spaces WHERE custom_domain = $1 LIMIT 1', [requestHost]);
-        if (spaceRes.rows[0]) resolvedSpaceId = spaceRes.rows[0].id;
+    } else if (!isLocalhost(requestHost)) {
+        const space = await resolveSpaceFromHost(requestHost);
+        if (space) resolvedSpaceId = space.id;
     }
 
     const state = signOAuthState({

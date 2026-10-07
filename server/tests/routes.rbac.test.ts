@@ -14,6 +14,7 @@ vi.mock('../db.js', () => ({
             release: vi.fn(),
         }),
     },
+    verifyPassword: vi.fn().mockResolvedValue(true),
     mapRowToCamelCase: (row: any) => {
         if (!row) return null;
         const newObj: Record<string, any> = {};
@@ -28,9 +29,10 @@ vi.mock('../db.js', () => ({
 vi.mock('../models/user.model.js', () => ({
     userModel: {
         findById: vi.fn(),
-        findByEmail: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn(),
         create: vi.fn((data: any) => Promise.resolve({ id: 999, ...data })),
         findAll: vi.fn(),
+        regenerateApiToken: vi.fn((id: any) => Promise.resolve({ id, apiToken: 'test-token' })),
     },
     enrichUserWithPermissions: vi.fn((u: any) => Promise.resolve(u)),
 }));
@@ -65,6 +67,11 @@ vi.mock('../models/spaceMember.model.js', () => ({
     spaceMemberModel: {
         add: vi.fn().mockResolvedValue(true),
         remove: vi.fn().mockResolvedValue(true),
+        isMember: vi.fn((spaceId: any, userId: any) => {
+            if (Number(spaceId) === 1 && [100, 101, 102].includes(Number(userId))) return Promise.resolve(true);
+            if (Number(spaceId) === 2 && [200].includes(Number(userId))) return Promise.resolve(true);
+            return Promise.resolve(false);
+        }),
         getSpacesByUser: vi.fn((userId: any) => {
             if (Number(userId) === 102) return Promise.resolve([{ spaceId: 1 }]);
             if (Number(userId) === 100) return Promise.resolve([{ spaceId: 1 }, { spaceId: 2 }]);
@@ -129,12 +136,12 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
 
     // Test Users
     const users = {
-        globalAdmin: { id: 1, email: 'admin@giacngo.vn', name: 'Global Admin', isGlobalAdmin: true, isActive: true },
-        space1Owner: { id: 100, email: 'owner@space1.vn', name: 'Space 1 Owner', isGlobalAdmin: false, isActive: true },
-        space1Manager: { id: 101, email: 'manager@space1.vn', name: 'Space 1 Manager', isGlobalAdmin: false, isActive: true },
-        space1Member: { id: 102, email: 'member@space1.vn', name: 'Space 1 Member', isGlobalAdmin: false, isActive: true },
-        space2Owner: { id: 200, email: 'owner@space2.vn', name: 'Space 2 Owner', isGlobalAdmin: false, isActive: true },
-        stranger: { id: 999, email: 'stranger@nowhere.vn', name: 'Stranger', isGlobalAdmin: false, isActive: true },
+        globalAdmin: { id: 1, email: 'admin@giacngo.vn', name: 'Global Admin', isGlobalAdmin: true, isActive: true, apiToken: 'token-admin' },
+        space1Owner: { id: 100, email: 'owner@space1.vn', name: 'Space 1 Owner', isGlobalAdmin: false, isActive: true, apiToken: 'token-owner' },
+        space1Manager: { id: 101, email: 'manager@space1.vn', name: 'Space 1 Manager', isGlobalAdmin: false, isActive: true, apiToken: 'token-manager' },
+        space1Member: { id: 102, email: 'member@space1.vn', name: 'Space 1 Member', isGlobalAdmin: false, isActive: true, apiToken: 'token-member' },
+        space2Owner: { id: 200, email: 'owner@space2.vn', name: 'Space 2 Owner', isGlobalAdmin: false, isActive: true, apiToken: 'token-owner2' },
+        stranger: { id: 999, email: 'stranger@nowhere.vn', name: 'Stranger', isGlobalAdmin: false, isActive: true, apiToken: 'token-stranger' },
     };
 
     const tokens = {
@@ -153,6 +160,18 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
         (userModel.findById as any).mockImplementation(async (id: number) => {
             const found = Object.values(users).find(u => u.id === Number(id));
             return found || null;
+        });
+
+        // userModel.findByEmail router
+        (userModel.findByEmail as any).mockImplementation(async (email: string) => {
+            const found = Object.values(users).find(u => u.email === email);
+            return found || null;
+        });
+
+        // userModel.regenerateApiToken router
+        (userModel.regenerateApiToken as any).mockImplementation(async (id: any) => {
+            const found = Object.values(users).find(u => u.id === Number(id));
+            return found ? { ...found, apiToken: 'test-token' } : { id, apiToken: 'test-token' };
         });
 
         // roleModel.findById router
@@ -219,8 +238,23 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
             // Space by ID: SELECT s.* ... FROM spaces s ... WHERE s.id = $1
             if (sql.includes('FROM spaces s') && sql.includes('WHERE s.id = $1')) {
                 const [spaceId] = params;
-                if (Number(spaceId) === 1) return { rows: [{ id: 1, name: 'Space 1', slug: 'space-1' }], rowCount: 1 };
-                if (Number(spaceId) === 2) return { rows: [{ id: 2, name: 'Space 2', slug: 'space-2' }], rowCount: 1 };
+                if (Number(spaceId) === 1) return { rows: [{ id: 1, name: 'Space 1', slug: 'space-1', userId: 100 }], rowCount: 1 };
+                if (Number(spaceId) === 2) return { rows: [{ id: 2, name: 'Space 2', slug: 'space-2', userId: 200 }], rowCount: 1 };
+                return { rows: [], rowCount: 0 };
+            }
+
+            // Space by slug: SELECT s.* ... FROM spaces s ... WHERE s.slug = $1
+            if (sql.includes('FROM spaces s') && sql.includes('WHERE s.slug = $1')) {
+                const [slug] = params;
+                if (slug === 'space-1') return { rows: [{ id: 1, name: 'Space 1', slug: 'space-1', userId: 100 }], rowCount: 1 };
+                if (slug === 'space-2') return { rows: [{ id: 2, name: 'Space 2', slug: 'space-2', userId: 200 }], rowCount: 1 };
+                return { rows: [], rowCount: 0 };
+            }
+
+            // Space by custom_domain: SELECT s.* ... FROM spaces s ... WHERE s.custom_domain = $1
+            if (sql.includes('FROM spaces s') && sql.includes('WHERE s.custom_domain = $1')) {
+                const [domain] = params;
+                if (domain === 'space-1.vn' || domain === 'giac.ngo') return { rows: [{ id: 1, name: 'Space 1', slug: 'space-1', userId: 100 }], rowCount: 1 };
                 return { rows: [], rowCount: 0 };
             }
 
@@ -666,6 +700,84 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 .set('Authorization', `Bearer ${tokens.globalAdmin}`);
             expect(res.status).toBe(204);
             expect(spaceMemberModel.remove).toHaveBeenCalledWith(1, 102);
+        });
+
+        it('should reject login on login.bodhilab.io for non-admin user even without sending context', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'login.bodhilab.io')
+                .send({
+                    email: 'owner@space1.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('Chỉ tài khoản Super Admin mới được đăng nhập tại đây');
+        });
+
+        it('should allow login on login.bodhilab.io for Super Admin even without sending context', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'login.bodhilab.io')
+                .send({
+                    email: 'admin@giacngo.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(200);
+            expect(res.body.email).toBe('admin@giacngo.vn');
+        });
+
+        it('should immediately reject registration on login.bodhilab.io even with spaceSlug in body', async () => {
+            const res = await request(app)
+                .post('/api/auth/register')
+                .set('Host', 'login.bodhilab.io')
+                .send({
+                    name: 'Hacker',
+                    email: 'hacker@example.com',
+                    password: 'password123',
+                    spaceSlug: 'space-1',
+                });
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('Trang quản trị hệ thống không cho phép đăng ký tài khoản');
+        });
+
+        it('should reject login on space domain if user is not member or owner of that space', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'space-1.bodhilab.io')
+                .send({
+                    email: 'stranger@nowhere.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(403);
+            expect(res.body.message).toContain('Tài khoản của bạn chưa đăng ký tại không gian này');
+        });
+
+        it('should allow login on space domain if user is space member', async () => {
+            const res = await request(app)
+                .post('/api/auth/login')
+                .set('Host', 'space-1.bodhilab.io')
+                .send({
+                    email: 'owner@space1.vn',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(200);
+            expect(res.body.email).toBe('owner@space1.vn');
+        });
+
+        it('should allow registration on subdomain host (space-1.bodhilab.io) by resolving space from subdomain', async () => {
+            const res = await request(app)
+                .post('/api/auth/register')
+                .set('Host', 'space-1.bodhilab.io')
+                .send({
+                    name: 'Subdomain User',
+                    email: 'subuser@example.com',
+                    password: 'password123',
+                });
+            expect(res.status).toBe(201);
+            expect(userModel.create).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'Subdomain User', email: 'subuser@example.com' }),
+                1
+            );
         });
     });
 });

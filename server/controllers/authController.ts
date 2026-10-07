@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import { User } from '../types/index.js';
 import { getJwtSecret } from '../utils/jwtSecret.js';
 import { verifyOAuthState } from '../utils/oauthState.js';
+import { isAdminHost, isLocalhost, resolveSpaceFromHost, getMainDomain, getAdminHost } from '../utils/domain.js';
 
 const generateAccessToken = (user: User) => {
     return jwt.sign(
@@ -34,7 +35,7 @@ const mapAndSanitizeUser = (user: User | null) => {
 
 export const authController = {
     async login(req: Request, res: Response) {
-        const { email, password, context, spaceSlug } = req.body;
+        const { email, password, context, spaceSlug, spaceId } = req.body;
         try {
             let user = await userModel.findByEmail(email);
             if (!user || !user.isActive) {
@@ -45,43 +46,40 @@ export const authController = {
                 return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác.' });
             }
 
-            // --- Two-tier login validation ---
             // Enrich user with permissions for the check
             const { enrichUserWithPermissions } = await import('../models/user.model.js');
             const enrichedUser = await enrichUserWithPermissions(user);
 
-            if (context === 'admin') {
-                // Root domain login: only super admin allowed
-                if (!enrichedUser) {
-                    return res.status(403).json({ message: 'Không thể xác thực quyền hạn.' });
-                }
-                const isSuperAdmin = !!enrichedUser.isGlobalAdmin;
-                if (!isSuperAdmin) {
+            const host = req.headers.host?.split(':')[0]?.toLowerCase() || '';
+
+            // Quy tắc 1: Nếu đăng nhập tại ADMIN_HOST (login.bodhilab.io), CHỈ CHO PHÉP Super Admin
+            // Tự động kiểm tra dựa trên host (không phụ thuộc vào client gửi context)
+            if (isAdminHost(host) || context === 'admin') {
+                if (!enrichedUser?.isGlobalAdmin) {
                     return res.status(403).json({ message: 'Chỉ tài khoản Super Admin mới được đăng nhập tại đây.' });
                 }
-            } else if (context === 'space' && spaceSlug) {
-                // Space domain login: chỉ cho phép Owner hoặc Member đã đăng ký
-                let space = await spaceModel.findBySlug(spaceSlug);
-                // The custom domain is the stable identifier for domain-based
-                // login links; recover if a stale URL slug was sent by the client.
-                if (!space) {
-                    const host = req.headers.host?.split(':')[0]?.toLowerCase();
-                    const mainDomain = (process.env.MAIN_DOMAIN || 'localhost').toLowerCase();
-                    const adminHost = (process.env.ADMIN_HOST || `login.${mainDomain}`).toLowerCase();
-                    if (host && host !== mainDomain && host !== adminHost && host !== 'localhost' && host !== '127.0.0.1') {
-                        space = await spaceModel.findByCustomDomain(host);
+            } else {
+                // Quy tắc 2: Tên miền Không gian hoặc client chỉ định Space
+                let targetSpace = await resolveSpaceFromHost(host);
+
+                if (!targetSpace) {
+                    if (spaceSlug && typeof spaceSlug === 'string' && spaceSlug.trim()) {
+                        targetSpace = await spaceModel.findBySlug(spaceSlug.trim());
+                    } else if (spaceId && Number.isInteger(Number(spaceId))) {
+                        targetSpace = await spaceModel.findById(Number(spaceId));
                     }
                 }
-                if (!space) {
+
+                if (targetSpace) {
+                    const isOwner = targetSpace.userId === user.id;
+                    const isMember = await spaceMemberModel.isMember(targetSpace.id, user.id);
+                    if (!isOwner && !isMember && !enrichedUser?.isGlobalAdmin) {
+                        return res.status(403).json({ message: 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' });
+                    }
+                } else if (!isLocalhost(host) && host !== getMainDomain()) {
                     return res.status(404).json({ message: 'Không tìm thấy không gian này.' });
                 }
-                const isOwner = space.userId === user.id;
-                const isMember = await spaceMemberModel.isMember(space.id, user.id);
-                if (!isOwner && !isMember) {
-                    return res.status(403).json({ message: 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' });
-                }
             }
-            // --- End two-tier validation ---
 
             if (!user.apiToken) {
                 logger.info(`User ${user.email} logged in without an API token. Generating one now.`);
@@ -97,6 +95,13 @@ export const authController = {
 
     async register(req: Request, res: Response) {
         try {
+            const host = req.headers.host?.split(':')[0]?.toLowerCase() || '';
+
+            // Quy tắc 1: Nếu gọi ở ADMIN_HOST (login.bodhilab.io), CHẶN NGAY LẬP TỨC 400 (không xét body)
+            if (isAdminHost(host)) {
+                return res.status(400).json({ message: 'Trang quản trị hệ thống không cho phép đăng ký tài khoản.' });
+            }
+
             const { name, email, password, spaceId, spaceSlug } = req.body;
             if (!name || !email || !password) {
                 return res.status(400).json({ message: 'Tên, email, và mật khẩu là bắt buộc.' });
@@ -106,17 +111,14 @@ export const authController = {
                 return res.status(409).json({ message: 'Email này đã được đăng ký. Vui lòng đăng nhập.' });
             }
 
-            // Resolve target Space (no fallback to space 1)
-            let resolvedSpace = null;
-            if (spaceId && Number.isInteger(Number(spaceId))) {
-                resolvedSpace = await spaceModel.findById(Number(spaceId));
-            } else if (typeof spaceSlug === 'string' && spaceSlug.trim()) {
-                resolvedSpace = await spaceModel.findBySlug(spaceSlug.trim());
-            } else {
-                const host = req.headers.host?.split(':')[0]?.toLowerCase();
-                const mainDomain = (process.env.MAIN_DOMAIN || 'login.bodhilab.io').toLowerCase();
-                if (host && host !== mainDomain && host !== 'login.bodhilab.io' && host !== 'localhost' && host !== '127.0.0.1') {
-                    resolvedSpace = await spaceModel.findByCustomDomain(host);
+            // Quy tắc 2: Xác định Space (ưu tiên host/subdomain trước, rồi mới tới spaceId/spaceSlug gửi từ dev/localhost)
+            let resolvedSpace = await resolveSpaceFromHost(host);
+
+            if (!resolvedSpace) {
+                if (spaceId && Number.isInteger(Number(spaceId))) {
+                    resolvedSpace = await spaceModel.findById(Number(spaceId));
+                } else if (typeof spaceSlug === 'string' && spaceSlug.trim()) {
+                    resolvedSpace = await spaceModel.findBySlug(spaceSlug.trim());
                 }
             }
 
@@ -278,6 +280,36 @@ export const authController = {
             // Tài khoản đã có sẵn: chỉ đăng nhập, TUYỆT ĐỐI không tự động gán thêm Space
             if (!user.isActive) {
                 return res.redirect(`${oauthState.returnTo || ''}/#/login?error=account_disabled`);
+            }
+
+            const { enrichUserWithPermissions } = await import('../models/user.model.js');
+            const enrichedUser = await enrichUserWithPermissions(user);
+
+            // Kiểm tra phân quyền truy cập tương tự đăng nhập bằng mật khẩu:
+            let returnHost = '';
+            if (oauthState.returnTo) {
+                try {
+                    returnHost = new URL(oauthState.returnTo).hostname.toLowerCase();
+                } catch {}
+            }
+
+            // Nếu đăng nhập trên ADMIN_HOST: chỉ Super Admin mới được đăng nhập
+            if (isAdminHost(returnHost)) {
+                if (!enrichedUser?.isGlobalAdmin) {
+                    logger.warn(`Google login rejected for ${email}: Not super admin on ${returnHost}`);
+                    return res.redirect(`${oauthState.returnTo}/#/login?error=admin_only`);
+                }
+            } else if (oauthState.spaceId) {
+                // Nếu đăng nhập trên trang Space: phải là Owner hoặc Member (hoặc Super Admin)
+                const space = await spaceModel.findById(oauthState.spaceId);
+                if (space) {
+                    const isOwner = space.userId === user.id;
+                    const isMember = await spaceMemberModel.isMember(space.id, user.id);
+                    if (!isOwner && !isMember && !enrichedUser?.isGlobalAdmin) {
+                        logger.warn(`Google login rejected for ${email}: User is not member of space ${space.id}`);
+                        return res.redirect(`${oauthState.returnTo || ''}/#/login?error=not_member`);
+                    }
+                }
             }
 
             const sanitizedUser = mapAndSanitizeUser(user);

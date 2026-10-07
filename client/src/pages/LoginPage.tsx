@@ -71,6 +71,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, language }) => {
       showToast(language === 'vi' ? 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.' : 'Your account has been disabled. Please contact the administrator.', 'error');
     } else if (errorParam === 'session_expired') {
       showToast(language === 'vi' ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' : 'Your session has expired. Please log in again.', 'error');
+    } else if (errorParam === 'not_member') {
+      showToast(language === 'vi' ? 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' : 'Your account is not registered in this space. Please register first.', 'error');
+    } else if (errorParam === 'admin_only') {
+      showToast(language === 'vi' ? 'Chỉ tài khoản Super Admin mới được đăng nhập tại đây.' : 'Only Super Admin accounts can sign in here.', 'error');
+    } else if (errorParam === 'no_space' || errorParam === 'invalid_space') {
+      showToast(language === 'vi' ? 'Không xác định được Không gian hợp lệ để đăng ký.' : 'Could not determine a valid Space to register.', 'error');
+    } else if (errorParam === 'auth_failed') {
+      showToast(language === 'vi' ? 'Đăng nhập Google không thành công. Vui lòng thử lại.' : 'Google authentication failed. Please try again.', 'error');
     }
   }, []);
 
