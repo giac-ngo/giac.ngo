@@ -605,8 +605,8 @@ export const updateSocialPost = async (req: AuthenticatedRequest, res: Response)
         const { rows: [post] } = await pool.query('SELECT user_id FROM social_posts WHERE id = $1 AND space_id = $2', [postId, spaceId]);
         if (!post) return res.status(404).json({ message: 'Post not found.' });
         
-        const isUserAdmin = (req.user as any)?.role === 'admin' || (req.user as any)?.role === 'root_admin' || isAdmin(req.user as any);
-        if (post.user_id !== userId && !isUserAdmin) return res.status(403).json({ message: 'Không có quyền chỉnh sửa.' });
+        const canEdit = post.user_id === userId || (await can(req.user, 'social-moderate', { spaceId }));
+        if (!canEdit) return res.status(403).json({ message: 'Không có quyền chỉnh sửa.' });
 
         // Handle images: uploaded files + kept existing URLs
         const safeSpaceId = String(spaceId).replace(/[^a-zA-Z0-9_-]/g, '_');
