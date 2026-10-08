@@ -18,7 +18,7 @@ import { User, SystemConfig } from './types';
 import { apiService } from './services/apiService';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { isRootDomain } from './utils/domain';
+import { isRootDomain, getCachedSpaceSlug, setCachedSpaceSlug } from './utils/domain';
 import { UserBillingManagement } from './components/admin/UserBillingManagement'; // Added import
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
@@ -84,14 +84,20 @@ const LoginRedirect: React.FC = () => {
     return <Navigate to="/admin" replace />;
   }
   
-  const slug = host.split('.')[0]; // 'tathata' from 'tathata.bodhilab.io'
-  return <Navigate to={`/${slug}/chat`} replace />;
+  const slug = getCachedSpaceSlug(host);
+  if (slug) {
+    return <Navigate to={`/${slug}/chat`} replace />;
+  }
+  return <Navigate to="/chat" replace />;
 };
 
 // On custom subdomains: redirect bare paths like /chat → /mirror/chat
 const SlugRedirect: React.FC<{ path: string }> = ({ path }) => {
   const host = window.location.hostname;
-  const slug = host.split('.')[0]; // 'mirror' from 'mirror.bodhilab.io'
+  const slug = getCachedSpaceSlug(host);
+  if (!slug) {
+    return <Navigate to={`/${path}`} replace />;
+  }
   return <Navigate to={`/${slug}/${path}`} replace />;
 };
 
@@ -159,6 +165,9 @@ const App: React.FC = () => {
     if (!isCustomDomain) return;
     apiService.getSpaceByDomain(host).then((space: any) => {
       if (!space) return;
+      if (space.slug) {
+        setCachedSpaceSlug(host, space.slug);
+      }
       document.title = space.name;
       // Use dedicated faviconUrl, NOT cover image (imageUrl)
       const iconHref = space.faviconUrl;
@@ -347,9 +356,18 @@ const App: React.FC = () => {
 
             {/* Admin Route (must be before dynamic slug routes) */}
             <Route path="/admin/:section?" element={
-              isRootDomain()
-                ? <ProtectedRoute user={user}>{user && <AdminPage user={user} onLogout={handleLogout} language={language} setLanguage={setLanguage} systemConfig={systemConfig} onSystemConfigUpdate={handleSystemConfigUpdate} onUserUpdate={handleUserUpdate} isGlobalAdmin={!!user?.isGlobalAdmin} />}</ProtectedRoute>
-                : <ProtectedRoute user={user}><SlugRedirect path="admin" /></ProtectedRoute>
+              <ProtectedRoute user={user}>
+                {user && <AdminPage
+                  user={user}
+                  onLogout={handleLogout}
+                  language={language}
+                  setLanguage={setLanguage}
+                  systemConfig={systemConfig}
+                  onSystemConfigUpdate={handleSystemConfigUpdate}
+                  onUserUpdate={handleUserUpdate}
+                  isGlobalAdmin={!!user?.isGlobalAdmin}
+                />}
+              </ProtectedRoute>
             } />
 
             <Route path="/:spaceSlug/admin/:section?" element={

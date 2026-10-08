@@ -18,7 +18,7 @@ import { RoleManagement } from '../components/admin/RoleManagement';
 import { PaymentSettings } from '../components/admin/PaymentSettings';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { ChangePasswordModal } from '../components/user/ChangePasswordModal';
-import { isRootDomain } from '../utils/domain';
+import { isRootDomain, isCustomDomain, getCachedSpaceSlug, setCachedSpaceSlug } from '../utils/domain';
 import { isGlobalOnlyPermission } from '../constants/permissions';
 import { EditProfileModal } from '../components/user/EditProfileModal';
 import { DocumentTextIcon, DashboardIcon, AiIcon, UserIcon, SettingsIcon, ConversationIcon, PricingIcon, BillingIcon, TemplateIcon, FineTuneIcon, CryptoIcon, RoleIcon, ChatBubbleIcon, MapPinIcon, RadioIcon, MeditationIcon, BellIcon, PhotoIcon } from '../components/Icons';
@@ -136,17 +136,15 @@ interface AdminPageProps {
 
 const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLanguage, systemConfig, onSystemConfigUpdate, onUserUpdate, inferredSpaceSlug, isGlobalAdmin }) => {
   const params = useParams<{ section?: AdminTab, spaceSlug?: string }>();
-  // On custom domains (e.g. mirror.bodhilab.io/admin), params.spaceSlug is empty
-  // so we detect the slug from the subdomain hostname
+  // On custom domains (e.g. mirror.bodhilab.io/admin or giac.ngo/admin), detect slug accurately
+  const host = window.location.hostname;
   const hostnameSlug = (() => {
-    const host = window.location.hostname;
-    const isRoot = isRootDomain(host);
-    if (isRoot) return '';
-    // e.g. 'mirror' from 'mirror.bodhilab.io'; skip if it's a pure custom domain (no dots in subdomain part)
-    const parts = host.split('.');
-    return parts.length >= 2 ? parts[0] : '';
+    if (isRootDomain(host)) return '';
+    return getCachedSpaceSlug(host);
   })();
-  const spaceSlug = params.spaceSlug || inferredSpaceSlug || (isGlobalAdmin ? '' : (hostnameSlug || 'giac-ngo'));
+  const rawSlug = params.spaceSlug || inferredSpaceSlug || hostnameSlug;
+  // If slug is 'giac' (legacy typo from host.split('.')[0]), correct it to 'giac-ngo'
+  const spaceSlug = (rawSlug === 'giac' ? 'giac-ngo' : rawSlug) || (isGlobalAdmin && isRootDomain(host) ? '' : 'giac-ngo');
   const section = params.section;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>(section || getFirstAllowedTab(user));
@@ -285,10 +283,29 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
 
 
   useEffect(() => {
-    if (!spaceSlug) return;
-    apiService.getSpaceBySlug(spaceSlug)
-      .then((space: Space) => setCurrentSpace(space))
-      .catch((err: Error) => console.error('Failed to load space:', err));
+    const currentHost = window.location.hostname;
+    if (isCustomDomain(currentHost)) {
+      apiService.getSpaceByDomain(currentHost)
+        .then((space: Space) => {
+          if (space) {
+            setCurrentSpace(space);
+            if (space.slug) setCachedSpaceSlug(currentHost, space.slug);
+          } else if (spaceSlug) {
+            return apiService.getSpaceBySlug(spaceSlug).then(s => setCurrentSpace(s));
+          }
+        })
+        .catch(() => {
+          if (spaceSlug) {
+            apiService.getSpaceBySlug(spaceSlug)
+              .then((space: Space) => setCurrentSpace(space))
+              .catch(err => console.error('Failed to load space:', err));
+          }
+        });
+    } else if (spaceSlug) {
+      apiService.getSpaceBySlug(spaceSlug)
+        .then((space: Space) => setCurrentSpace(space))
+        .catch((err: Error) => console.error('Failed to load space:', err));
+    }
   }, [spaceSlug]);
 
   // Load spaces this user can manage — used for access check & passed to sub-components
@@ -479,10 +496,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     return Boolean(user.permissions?.includes(tab));
   };
   const effectiveSpaceSlug = spaceSlug || '';
-  // Bodhi global admin → Bodhi logo | Space admin → space cover image (imageUrl only, no Bodhi fallback)
-  const logoUrl = isGlobalAdmin
-    ? 'https://www.bodhilab.io/assets/bodhi-technology-lab-logo-DRtZYi2v.webp'
-    : (currentSpace?.imageUrl || '');
+  // Logo selection:
+  // 1. If inside a Space (currentSpace exists or on space domain/slug): show that Space's logo
+  // 2. Fallback for giac-ngo if imageUrl not set: /themes/giacngo/giac-ngo-logo-6.png
+  // 3. Only if on root platform admin (no space context) AND isGlobalAdmin: show Bodhi logo
+  const isGiacNgoContext = spaceSlug === 'giac-ngo' || window.location.hostname.includes('giac.ngo');
+  const spaceLogo = currentSpace?.imageUrl || (isGiacNgoContext ? '/themes/giacngo/giac-ngo-logo-6.png' : '');
+  const isPlatformRootAdmin = Boolean(isGlobalAdmin && isRootDomain() && !currentSpace && !spaceSlug);
+  const logoUrl = spaceLogo || (isPlatformRootAdmin ? 'https://www.bodhilab.io/assets/bodhi-technology-lab-logo-DRtZYi2v.webp' : (currentSpace?.imageUrl || '/themes/giacngo/giac-ngo-logo-6.png'));
 
 
   return (
@@ -490,8 +511,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
           {!isSidebarCollapsed && logoUrl && (
-            <Link to={isGlobalAdmin && !spaceSlug ? '/admin/dashboard' : `/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
-              <img src={logoUrl} alt="Logo" className={isGlobalAdmin ? "h-10" : "h-12"} />
+            <Link to={isPlatformRootAdmin ? '/admin/dashboard' : `/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
+              <img src={logoUrl} alt="Logo" className={isPlatformRootAdmin ? "h-10" : "h-12 object-contain max-h-12"} />
             </Link>
           )}
           <button

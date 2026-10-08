@@ -32,3 +32,35 @@ export const isRootDomain = (host: string = window.location.hostname): boolean =
 export const isCustomDomain = (host: string = window.location.hostname): boolean => {
     return !isRootDomain(host);
 };
+
+/**
+ * Extracts space slug for a given host synchronously from cache or known mappings.
+ */
+export const getCachedSpaceSlug = (host: string = window.location.hostname): string => {
+    const cleanHost = host.split(':')[0].toLowerCase().trim();
+    try {
+        const cached = sessionStorage.getItem('space_slug_' + cleanHost) || localStorage.getItem('space_slug_' + cleanHost);
+        if (cached) return cached;
+    } catch (e) {}
+
+    // If it's a subdomain on MAIN_DOMAIN (e.g. tathata.bodhilab.io)
+    if (cleanHost.endsWith('.' + MAIN_DOMAIN) && cleanHost !== ADMIN_HOST && cleanHost !== ('www.' + MAIN_DOMAIN)) {
+        const sub = cleanHost.replace('.' + MAIN_DOMAIN, '');
+        if (sub && sub !== 'login' && sub !== 'www') return sub;
+    }
+
+    // Known root domain mapping for giac.ngo
+    if (cleanHost === 'giac.ngo' || cleanHost === 'www.giac.ngo') {
+        return 'giac-ngo';
+    }
+
+    return '';
+};
+
+export const setCachedSpaceSlug = (host: string, slug: string): void => {
+    const cleanHost = host.split(':')[0].toLowerCase().trim();
+    try {
+        sessionStorage.setItem('space_slug_' + cleanHost, slug);
+        localStorage.setItem('space_slug_' + cleanHost, slug);
+    } catch (e) {}
+};
