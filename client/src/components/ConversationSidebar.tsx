@@ -202,6 +202,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
     const [renamingId, setRenamingId] = useState<number | null>(null);
     const [renameValue, setRenameValue] = useState('');
+    const userMenuRef = useRef<HTMLDivElement>(null);
     const hasAdminPermission = !!user && (
         !!user.isGlobalAdmin ||
         (user.roleIds && user.roleIds.length > 0) ||

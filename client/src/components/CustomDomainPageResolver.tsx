@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { Space, User } from '../types';
 import { MeritPaymentModal } from './MeritPaymentModal';
-import { ADMIN_HOST, isCustomDomain } from '../utils/domain';
 
 interface Props {
     fallback: React.ReactNode;

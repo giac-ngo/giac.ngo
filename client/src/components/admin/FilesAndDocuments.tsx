@@ -1,7 +1,7 @@
 
 // client/src/components/admin/FilesAndDocuments.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { PencilIcon, TrashIcon, EyeIcon, PlusIcon, GenerateIcon, SpinnerIcon, BoldIcon, ItalicIcon, UnderlineIcon, ListOrderedIcon, ListIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, PaperclipIcon, SoundWaveIcon, SettingsIcon, ThumbsUpIcon, BookOpenIcon, EraserIcon, LanguageIcon, SparkleIcon, RepeatIcon } from '../Icons';
+import { PencilIcon, TrashIcon, EyeIcon, PlusIcon, SpinnerIcon, BoldIcon, ItalicIcon, UnderlineIcon, ListOrderedIcon, ListIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, PaperclipIcon, SoundWaveIcon, SettingsIcon, ThumbsUpIcon, BookOpenIcon, EraserIcon, SparkleIcon, RepeatIcon } from '../Icons';
 import { useToast } from '../ToastProvider';
 import { apiService } from '../../services/apiService';
 import { Document, DocumentAuthor, DocumentType, DocumentTopic, Tag, User, ModelType, DocumentConfig, Space } from '../../types';
