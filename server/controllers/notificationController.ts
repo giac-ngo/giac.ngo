@@ -56,11 +56,15 @@ async function getRecipients(targetGroup: string, user: User | null | undefined,
                 // Space manager chỉ được gửi cho thành viên trong các space mà mình sở hữu/quản lý
                 query = `
                     SELECT u.id, u.name, u.email, COALESCE((
-                        SELECT MIN(space_id) FROM space_members WHERE user_id = u.id AND space_id IN (SELECT id FROM spaces WHERE user_id = $1)
-                    ), (SELECT MIN(id) FROM spaces WHERE user_id = $1)) as space_id
+                        SELECT MIN(space_id) FROM space_members WHERE user_id = u.id AND space_id IN (SELECT id FROM spaces WHERE user_id = $1 UNION SELECT space_id FROM space_admins WHERE user_id = $1)
+                    ), (SELECT MIN(id) FROM spaces WHERE user_id = $1 UNION SELECT space_id FROM space_admins WHERE user_id = $1)) as space_id
                     FROM users u 
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1) UNION SELECT user_id FROM spaces WHERE user_id = $1)
+                    AND u.id IN (
+                        SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1 UNION SELECT space_id FROM space_admins WHERE user_id = $1) 
+                        UNION 
+                        SELECT user_id FROM spaces WHERE user_id = $1
+                    )
                     ORDER BY u.id ASC
                 `;
                 params.push(user.id);
@@ -145,7 +149,10 @@ export const notificationController = {
             } else {
                 // Fallback: lấy template từ space đầu tiên của user hiện tại
                 const userSpaceRes = await pool.query(
-                    'SELECT email_template FROM spaces WHERE user_id = $1 AND email_template IS NOT NULL ORDER BY id ASC LIMIT 1',
+                    `SELECT email_template FROM spaces 
+                     WHERE (user_id = $1 OR id IN (SELECT space_id FROM space_admins WHERE user_id = $1)) 
+                       AND email_template IS NOT NULL 
+                     ORDER BY id ASC LIMIT 1`,
                     [req.user?.id]
                 );
                 emailTemplate = userSpaceRes.rows[0]?.email_template || null;
@@ -263,7 +270,12 @@ export const notificationController = {
                     SELECT u.id, u.name, u.email
                     FROM users u
                     WHERE u.is_active = true AND u.email IS NOT NULL
-                    AND u.id IN (SELECT user_id FROM space_members WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1) UNION SELECT user_id FROM spaces WHERE user_id = $1)
+                    AND u.id IN (
+                        SELECT user_id FROM space_members 
+                        WHERE space_id IN (SELECT id FROM spaces WHERE user_id = $1 UNION SELECT space_id FROM space_admins WHERE user_id = $1) 
+                        UNION 
+                        SELECT user_id FROM spaces WHERE user_id = $1
+                    )
                     AND (u.name ILIKE $2 OR u.email ILIKE $2)
                     ORDER BY u.name ASC
                     LIMIT 200

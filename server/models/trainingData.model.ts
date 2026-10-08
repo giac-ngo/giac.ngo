@@ -163,9 +163,9 @@ export const trainingDataModel = {
 
         const params: unknown[] = [];
 
-        // Filter by owner if userId is provided
+        // Filter by space owner or space admin if userId is provided
         if (userId) {
-            query += ` AND s.user_id = $1`;
+            query += ` AND (s.user_id = $1 OR s.id IN (SELECT space_id FROM space_admins WHERE user_id = $1))`;
             params.push(userId);
         }
 

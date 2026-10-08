@@ -45,7 +45,11 @@ export const aiConfigModel = {
 
         if (user && user.id) {
             // A logged-in user can see public AIs, their own AIs, and AIs they've purchased.
-            const spaceRes = await pool.query('SELECT id FROM spaces WHERE user_id = $1', [user.id]);
+            const spaceRes = await pool.query(`
+                SELECT id FROM spaces WHERE user_id = $1
+                UNION
+                SELECT space_id AS id FROM space_admins WHERE user_id = $1
+            `, [user.id]);
             const userSpaceIds = spaceRes.rows.map((r: Record<string, unknown>) => r.id);
 
             let userClause = 'ac.is_public = true';
@@ -90,6 +94,8 @@ export const aiConfigModel = {
                 ac.owner_id = $1
                 OR ac.space_id IN (
                     SELECT id FROM spaces WHERE user_id = $1
+                    UNION
+                    SELECT space_id AS id FROM space_admins WHERE user_id = $1
                     UNION
                     SELECT r.space_id FROM user_roles ur
                     JOIN roles r ON r.id = ur.role_id

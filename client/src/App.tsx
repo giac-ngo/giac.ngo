@@ -84,20 +84,74 @@ const LoginRedirect: React.FC = () => {
     return <Navigate to="/admin" replace />;
   }
   
-  const slug = getCachedSpaceSlug(host);
-  if (slug) {
-    return <Navigate to={`/${slug}/chat`} replace />;
+  const [slug, setSlug] = useState<string>(() => getCachedSpaceSlug(host));
+  const [loading, setLoading] = useState<boolean>(!slug);
+  const [notFound, setNotFound] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (slug) return;
+    apiService.getSpaceByDomain(host)
+      .then((space) => {
+        if (space && space.slug) {
+          setCachedSpaceSlug(host, space.slug);
+          setSlug(space.slug);
+        } else {
+          setNotFound(true);
+        }
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [host, slug]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-background-light">
+        <span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
-  return <Navigate to="/chat" replace />;
+
+  if (notFound || !slug) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Navigate to={`/${slug}/chat`} replace />;
 };
 
-// On custom subdomains: redirect bare paths like /chat → /mirror/chat
+// On custom subdomains: redirect bare paths like /chat → /slug/chat
 const SlugRedirect: React.FC<{ path: string }> = ({ path }) => {
   const host = window.location.hostname;
-  const slug = getCachedSpaceSlug(host);
-  if (!slug) {
-    return <Navigate to={`/${path}`} replace />;
+  const [slug, setSlug] = useState<string>(() => getCachedSpaceSlug(host));
+  const [loading, setLoading] = useState<boolean>(!slug);
+  const [notFound, setNotFound] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (slug) return;
+    apiService.getSpaceByDomain(host)
+      .then((space) => {
+        if (space && space.slug) {
+          setCachedSpaceSlug(host, space.slug);
+          setSlug(space.slug);
+        } else {
+          setNotFound(true);
+        }
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [host, slug]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-background-light">
+        <span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
+
+  if (notFound || !slug) {
+    return <Navigate to="/" replace />;
+  }
+
   return <Navigate to={`/${slug}/${path}`} replace />;
 };
 

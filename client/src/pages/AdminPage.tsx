@@ -142,9 +142,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     if (isRootDomain(host)) return '';
     return getCachedSpaceSlug(host);
   })();
-  const rawSlug = params.spaceSlug || inferredSpaceSlug || hostnameSlug;
-  // If slug is 'giac' (legacy typo from host.split('.')[0]), correct it to 'giac-ngo'
-  const spaceSlug = (rawSlug === 'giac' ? 'giac-ngo' : rawSlug) || (isGlobalAdmin && isRootDomain(host) ? '' : 'giac-ngo');
+  const spaceSlug = params.spaceSlug || inferredSpaceSlug || hostnameSlug || '';
   const section = params.section;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>(section || getFirstAllowedTab(user));
@@ -456,7 +454,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
 
   const NavItem: React.FC<{ tab: AdminTab; label: string; icon: React.ReactElement<{ className?: string }> }> = ({ tab, label, icon }) => (
     <button
-      onClick={() => navigate(`${isGlobalAdmin && !spaceSlug ? '/admin' : `/${spaceSlug || 'giac-ngo'}/admin`}/${tab}`)}
+      onClick={() => {
+        const basePath = isCustomDomain() || (isRootDomain() && !spaceSlug)
+          ? '/admin'
+          : `/${spaceSlug || currentSpace?.slug || ''}/admin`.replace('//', '/');
+        navigate(`${basePath}/${tab}`);
+      }}
       className={`w-full flex items-center p-3 rounded-lg text-sm font-medium transition-colors ${activeTab === tab
         ? 'bg-primary-light text-primary'
         : 'text-text-light hover:bg-background-light'
@@ -495,24 +498,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     // 4. Space Manager with delegated permissions
     return Boolean(user.permissions?.includes(tab));
   };
-  const effectiveSpaceSlug = spaceSlug || '';
+  const effectiveSpaceSlug = spaceSlug || currentSpace?.slug || '';
   // Logo selection:
-  // 1. If inside a Space (currentSpace exists or on space domain/slug): show that Space's logo
-  // 2. Fallback for giac-ngo if imageUrl not set: /themes/giacngo/giac-ngo-logo-6.png
-  // 3. Only if on root platform admin (no space context) AND isGlobalAdmin: show Bodhi logo
-  const isGiacNgoContext = spaceSlug === 'giac-ngo' || window.location.hostname.includes('giac.ngo');
-  const spaceLogo = currentSpace?.imageUrl || (isGiacNgoContext ? '/themes/giacngo/giac-ngo-logo-6.png' : '');
+  // 1. If Space has imageUrl: show image
+  // 2. If Global Admin on root platform without space: show Bodhi logo
+  // 3. Otherwise: show space name as styled text
   const isPlatformRootAdmin = Boolean(isGlobalAdmin && isRootDomain() && !currentSpace && !spaceSlug);
-  const logoUrl = spaceLogo || (isPlatformRootAdmin ? 'https://www.bodhilab.io/assets/bodhi-technology-lab-logo-DRtZYi2v.webp' : (currentSpace?.imageUrl || '/themes/giacngo/giac-ngo-logo-6.png'));
+  const logoUrl = currentSpace?.imageUrl || (isPlatformRootAdmin ? 'https://www.bodhilab.io/assets/bodhi-technology-lab-logo-DRtZYi2v.webp' : '');
+
+  const adminDashboardLink = isCustomDomain() || isPlatformRootAdmin || !effectiveSpaceSlug
+    ? '/admin/dashboard'
+    : `/${effectiveSpaceSlug}/admin/dashboard`;
 
 
   return (
     <div className="admin-page-container flex h-screen overflow-hidden bg-background-light" data-color-mode={colorMode}>
       <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
-          {!isSidebarCollapsed && logoUrl && (
-            <Link to={isPlatformRootAdmin ? '/admin/dashboard' : `/${effectiveSpaceSlug || 'giac-ngo'}/admin/dashboard`} className="flex items-center">
-              <img src={logoUrl} alt="Logo" className={isPlatformRootAdmin ? "h-10" : "h-12 object-contain max-h-12"} />
+          {!isSidebarCollapsed && (
+            <Link to={adminDashboardLink} className="flex items-center max-w-[180px] overflow-hidden">
+              {logoUrl ? (
+                <img src={logoUrl} alt={currentSpace?.name || "Logo"} className={isPlatformRootAdmin ? "h-10" : "h-12 object-contain max-h-12"} />
+              ) : currentSpace?.name ? (
+                <span className="font-bold text-base text-text-main truncate text-center leading-tight py-1">{currentSpace.name}</span>
+              ) : (
+                <span className="font-bold text-base text-text-main truncate text-center leading-tight py-1">Admin</span>
+              )}
             </Link>
           )}
           <button

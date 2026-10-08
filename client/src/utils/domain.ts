@@ -49,11 +49,6 @@ export const getCachedSpaceSlug = (host: string = window.location.hostname): str
         if (sub && sub !== 'login' && sub !== 'www') return sub;
     }
 
-    // Known root domain mapping for giac.ngo
-    if (cleanHost === 'giac.ngo' || cleanHost === 'www.giac.ngo') {
-        return 'giac-ngo';
-    }
-
     return '';
 };
 

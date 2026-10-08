@@ -205,7 +205,9 @@ export const systemController = {
                 const spacesWithDashboard = await pool.query(`
                     SELECT s.id FROM spaces s WHERE s.user_id = $1
                     UNION
-                    SELECT r.space_id FROM user_roles ur
+                    SELECT sa.space_id AS id FROM space_admins sa WHERE sa.user_id = $1
+                    UNION
+                    SELECT r.space_id AS id FROM user_roles ur
                     JOIN roles r ON r.id = ur.role_id
                     WHERE ur.user_id = $1 AND r.space_id IS NOT NULL AND 'dashboard' = ANY(r.permissions)
                 `, [req.user.id]);

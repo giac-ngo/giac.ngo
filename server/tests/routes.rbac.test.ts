@@ -52,6 +52,29 @@ vi.mock('../models/billing.model.js', () => ({
     },
 }));
 
+vi.mock('../models/system.model.js', () => ({
+    systemModel: {
+        getConfig: vi.fn().mockResolvedValue({ id: 1, template: 'default' }),
+        getDashboardStats: vi.fn().mockImplementation((spaceIds: any) => {
+            const hasSpace1 = Array.isArray(spaceIds) && spaceIds.includes(1);
+            return Promise.resolve({
+                totalUsers: hasSpace1 ? 10 : 0,
+                totalAiConfigs: hasSpace1 ? 5 : 0,
+                totalConversations: hasSpace1 ? 20 : 0,
+                interactingUsers: hasSpace1 ? 2 : 0,
+                topAIs: [],
+                recentConversations: [],
+                totalDocuments: hasSpace1 ? 15 : 0,
+                totalSpaces: hasSpace1 ? 1 : 0,
+                totalDharmaTalks: hasSpace1 ? 2 : 0,
+                topDocuments: [],
+                topSpaces: [],
+                topDharmaTalks: [],
+            });
+        }),
+    },
+}));
+
 vi.mock('../models/role.model.js', () => ({
     roleModel: {
         findById: vi.fn(),
@@ -142,6 +165,7 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
         space1Member: { id: 102, email: 'member@space1.vn', name: 'Space 1 Member', isGlobalAdmin: false, isActive: true, apiToken: 'token-member' },
         space2Owner: { id: 200, email: 'owner@space2.vn', name: 'Space 2 Owner', isGlobalAdmin: false, isActive: true, apiToken: 'token-owner2' },
         stranger: { id: 999, email: 'stranger@nowhere.vn', name: 'Stranger', isGlobalAdmin: false, isActive: true, apiToken: 'token-stranger' },
+        space1SecondaryAdmin: { id: 103, email: 'admin2@space1.vn', name: 'Space 1 Admin 2', isGlobalAdmin: false, isActive: true, apiToken: 'token-admin2' },
     };
 
     const tokens = {
@@ -151,6 +175,7 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
         space1Member: jwt.sign({ id: users.space1Member.id }, JWT_SECRET),
         space2Owner: jwt.sign({ id: users.space2Owner.id }, JWT_SECRET),
         stranger: jwt.sign({ id: users.stranger.id }, JWT_SECRET),
+        space1SecondaryAdmin: jwt.sign({ id: 103 }, JWT_SECRET),
     };
 
     beforeEach(() => {
@@ -209,8 +234,13 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 }
                 return { rows: [], rowCount: 0 };
             }
+            // Notification members query:
+            if (sql.includes('SELECT u.id, u.name, u.email') && sql.includes('FROM users u')) {
+                return { rows: [{ id: 102, name: 'Space 1 Member', email: 'member@space1.vn' }], rowCount: 1 };
+            }
+
             // Space membership: SELECT 1 FROM spaces ... UNION SELECT 1 FROM space_members ...
-            if (sql.includes('space_members')) {
+            if (sql.includes('space_members') && (sql.includes('SELECT 1 FROM') || sql.includes('SELECT 1 from'))) {
                 const [spaceId, userId] = params;
                 const sid = Number(spaceId);
                 const uid = Number(userId);
@@ -225,13 +255,47 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 return { rowCount: 0, rows: [] };
             }
 
+            // Dashboard spaces check for space_admins
+            if (sql.includes('space_admins sa WHERE sa.user_id = $1') || (sql.includes('spaces s WHERE s.user_id = $1') && sql.includes('space_admins sa'))) {
+                const [userId] = params;
+                if (Number(userId) === 103) {
+                    return { rows: [{ id: 1 }], rowCount: 1 };
+                }
+            }
+
+            // AI configs manageable query for space_admins:
+            if (sql.includes('ac.owner_id = $1') && sql.includes('space_admins')) {
+                const [userId] = params;
+                if (Number(userId) === 103) {
+                    return { rows: [{ id: 501, name: 'Space 1 AI', space_id: 1 }], rowCount: 1 };
+                }
+                if (Number(userId) === 200) {
+                    return { rows: [{ id: 502, name: 'Space 2 AI', space_id: 2 }], rowCount: 1 };
+                }
+                return { rows: [], rowCount: 0 };
+            }
+
+            // Notification recipients query for space_admins:
+            if (sql.includes('SELECT u.id, u.name, u.email') && sql.includes('FROM users u') && sql.includes('ILIKE')) {
+                return { rows: [{ id: 102, name: 'Space 1 Member', email: 'member@space1.vn' }], rowCount: 1 };
+            }
+
+            // Training data QA for space_admins:
+            if (sql.includes("tds.type = 'qa'") && sql.includes('space_admins')) {
+                const [userId] = params;
+                if (Number(userId) === 103) {
+                    return { rows: [{ id: 701, ai_name: 'Space 1 AI', question: 'Question 1', answer: 'Answer 1' }], rowCount: 1 };
+                }
+                return { rows: [], rowCount: 0 };
+            }
+
             // Space admin check: SELECT 1 FROM spaces ... UNION ALL SELECT 1 FROM space_admins ...
             if (sql.includes('space_admins')) {
                 const [spaceId, userId] = params;
                 const sid = Number(spaceId);
                 const uid = Number(userId);
-                // Space 1 admin: 100 (owner)
-                if (sid === 1 && uid === 100) {
+                // Space 1 admin: 100 (owner) or 103 (secondary admin)
+                if (sid === 1 && (uid === 100 || uid === 103)) {
                     return { rowCount: 1, rows: [{ '?column?': 1 }] };
                 }
                 // Space 2 admin: 200 (owner)
@@ -859,6 +923,45 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 .send({ filePath: '/uploads/space-1/user-4/../../global/logo.png' });
             expect(res.status).toBe(403);
             expect(res.body.message).toContain('You can only delete your own uploaded files');
+        });
+    });
+
+    describe('Secondary Space Admin (space_admins) Privilege Isolation & Access', () => {
+        it('allows secondary space admin to view Dashboard stats of Space 1 but receives empty for Space 2', async () => {
+            // Space 1 Dashboard stats
+            const res1 = await request(app)
+                .get('/api/system/dashboard/stats?spaceId=1')
+                .set('Authorization', `Bearer ${tokens.space1SecondaryAdmin}`);
+            expect(res1.status).toBe(200);
+            expect(res1.body.totalUsers).toBe(10);
+            expect(res1.body.totalDocuments).toBe(15);
+
+            // Space 2 Dashboard stats (should return empty 0s due to space isolation)
+            const res2 = await request(app)
+                .get('/api/system/dashboard/stats?spaceId=2')
+                .set('Authorization', `Bearer ${tokens.space1SecondaryAdmin}`);
+            expect(res2.status).toBe(200);
+            expect(res2.body.totalUsers).toBe(0);
+        });
+
+        it('allows secondary space admin to see manageable AIs in Space 1 and not Space 2', async () => {
+            const res = await request(app)
+                .post('/api/ai-configs/manageable')
+                .set('Authorization', `Bearer ${tokens.space1SecondaryAdmin}`);
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body.some((ai: any) => ai.spaceId === 1)).toBe(true);
+            expect(res.body.some((ai: any) => ai.spaceId === 2)).toBe(false);
+        });
+
+        it('allows secondary space admin to retrieve notification members-list for Space 1', async () => {
+            const res = await request(app)
+                .get('/api/notifications/members-list?spaceId=1')
+                .set('Authorization', `Bearer ${tokens.space1SecondaryAdmin}`);
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body.members)).toBe(true);
+            expect(res.body.members.length).toBeGreaterThan(0);
+            expect(res.body.members[0].email).toBe('member@space1.vn');
         });
     });
 });
