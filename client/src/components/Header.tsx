@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { User, SystemConfig, Space } from '../types';
 import { LoginIcon, SettingsIcon, LogoutIcon, ChevronDownIcon, FacebookIcon, InstagramIcon, MenuIcon, XIcon, UserIcon, ThreadsIcon } from '../components/Icons';
 import { apiService } from '../services/apiService';
+import UserAvatar from './UserAvatar';
 
 interface HeaderProps {
     user: User | null;
@@ -229,12 +230,12 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
                                 onMouseLeave={handleUserMenuLeave}
                             >
                                 {hasManagedSpace ? (
-                                    <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/chat`} title={t.practiceSpace}>
-                                        <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent hover:ring-primary transition-all" />
+                                    <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/chat`} title={t.practiceSpace} className="flex items-center">
+                                        <UserAvatar name={user.name} url={user.avatarUrl} size={32} className="ring-2 ring-offset-2 ring-transparent hover:ring-primary transition-all cursor-pointer" />
                                     </Link>
                                 ) : (
-                                    <div className="cursor-default">
-                                        <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent hover:ring-primary transition-all" />
+                                    <div className="cursor-default flex items-center">
+                                        <UserAvatar name={user.name} url={user.avatarUrl} size={32} className="ring-2 ring-offset-2 ring-transparent hover:ring-primary transition-all" />
                                     </div>
                                 )}
 
