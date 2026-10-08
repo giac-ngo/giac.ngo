@@ -179,13 +179,22 @@ async function run() {
             console.log(`   ✅ Đã kích hoạt cờ is_global_admin = true.`);
         }
 
-        // 7. Gán vai trò Super Admin (Role ID: 1) vào user_roles một cách an toàn
-        await client.query(`
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT $1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = $1 AND role_id = 1)
-        `, [user.id]);
-        console.log(`   ✅ Đã gán vai trò Super Admin vào user_roles.`);
+        // 7. Gán vai trò Admin vào user_roles một cách an toàn
+        const superRoleRes = await client.query(`
+            SELECT id FROM roles 
+            WHERE space_id IS NULL OR name ILIKE '%Owner%' OR name ILIKE '%Admin%' 
+            ORDER BY array_length(permissions, 1) DESC NULLS LAST 
+            LIMIT 1
+        `);
+        if (superRoleRes.rows.length > 0) {
+            const roleId = superRoleRes.rows[0].id;
+            await client.query(`
+                INSERT INTO user_roles (user_id, role_id)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id, role_id) DO NOTHING
+            `, [user.id, roleId]);
+            console.log(`   ✅ Đã gán vai trò Super Admin (Role ID: ${roleId}) vào user_roles.`);
+        }
 
         await client.query('COMMIT');
 
