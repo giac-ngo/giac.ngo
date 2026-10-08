@@ -373,7 +373,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
             <div className="flex-grow min-h-0 flex flex-col">
                 <div className="quick-actions-container">
-                    <div className="quick-actions-grid">
+                    <div className="quick-actions-grid flex gap-2 w-full">
                         <Link
                             to={`/${spaceSlug}/chat`}
                             onClick={(e) => {
@@ -382,25 +382,25 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                     showToast(language === 'vi' ? 'Không gian này chưa khởi tạo AI.' : 'AI not initialized for this space.', 'info');
                                 }
                             }}
-                            className={`quick-action-btn ${viewMode === 'chat' ? 'active' : ''}`} title={t.chatMode}
+                            className={`quick-action-btn flex-1 min-w-0 ${viewMode === 'chat' ? 'active' : ''}`} title={t.chatMode}
                         >
                             <img src="/themes/giacngo/2.png" alt={t.chatMode} />
                             <span className="quick-action-label">{language === 'vi' ? 'Trò chuyện' : 'Chat'}</span>
                         </Link>
                         {Boolean(currentSpace?.hasMeditation) && (
-                            <Link to={`/${spaceSlug}/meditationtimer`} className={`quick-action-btn ${viewMode === 'meditationtimer' ? 'active' : ''}`} title={t.meditationMode}>
+                            <Link to={`/${spaceSlug}/meditationtimer`} className={`quick-action-btn flex-1 min-w-0 ${viewMode === 'meditationtimer' ? 'active' : ''}`} title={t.meditationMode}>
                                 <img src="/themes/giacngo/5.png" alt={t.meditationMode} />
                                 <span className="quick-action-label">{language === 'vi' ? 'Thiền' : 'Meditate'}</span>
                             </Link>
                         )}
                         {Boolean(currentSpace?.hasLibrary) && (
-                            <Link to={`/${spaceSlug}/library`} className={`quick-action-btn ${viewMode === 'library' ? 'active' : ''}`} title={t.libraryMode}>
+                            <Link to={`/${spaceSlug}/library`} className={`quick-action-btn flex-1 min-w-0 ${viewMode === 'library' ? 'active' : ''}`} title={t.libraryMode}>
                                 <img src="/themes/giacngo/3.png" alt={t.libraryMode} />
                                 <span className="quick-action-label">{language === 'vi' ? 'Thư viện' : 'Library'}</span>
                             </Link>
                         )}
                         {Boolean(currentSpace?.hasDharmaTalks) && (
-                            <Link to={`/${spaceSlug}/dharmatalks`} className={`quick-action-btn ${viewMode === 'dharmatalks' ? 'active' : ''}`} title={t.dharmaTalksMode}>
+                            <Link to={`/${spaceSlug}/dharmatalks`} className={`quick-action-btn flex-1 min-w-0 ${viewMode === 'dharmatalks' ? 'active' : ''}`} title={t.dharmaTalksMode}>
                                 <img src="/themes/giacngo/4.png" alt={t.dharmaTalksMode} />
                                 <span className="quick-action-label">{language === 'vi' ? 'Pháp thoại' : 'Dharma'}</span>
                             </Link>
