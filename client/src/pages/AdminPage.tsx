@@ -19,6 +19,7 @@ import { PaymentSettings } from '../components/admin/PaymentSettings';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { ChangePasswordModal } from '../components/user/ChangePasswordModal';
 import { isRootDomain } from '../utils/domain';
+import { isGlobalOnlyPermission } from '../constants/permissions';
 import { EditProfileModal } from '../components/user/EditProfileModal';
 import { DocumentTextIcon, DashboardIcon, AiIcon, UserIcon, SettingsIcon, ConversationIcon, PricingIcon, BillingIcon, TemplateIcon, FineTuneIcon, CryptoIcon, RoleIcon, ChatBubbleIcon, MapPinIcon, RadioIcon, MeditationIcon, BellIcon, PhotoIcon } from '../components/Icons';
 import { FilesAndDocuments } from '../components/admin/FilesAndDocuments';
@@ -325,10 +326,31 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       }
     }
 
+    // Space Owner check: matches current space or spaces the user manages
+    const isSpaceOwner = Boolean(
+      !isGlobalAdmin && (
+        (currentSpace && (Number(currentSpace.userId) === Number(user?.id) || Number((currentSpace as any).user_id) === Number(user?.id))) ||
+        mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (Number(s.userId) === Number(user?.id) || Number((s as any).user_id) === Number(user?.id)))
+      )
+    );
+
+    const hasPermission = (tab: AdminTab): boolean => {
+      // 1. Global Admin has full platform access
+      if (isGlobalAdmin) return true;
+
+      // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
+      if (isGlobalOnlyPermission(tab)) return false;
+
+      // 3. Space Owner has full tenant access within their own Space
+      if (isSpaceOwner) return true;
+
+      // 4. Space Manager with delegated permissions
+      return Boolean(user.permissions?.includes(tab));
+    };
+
     // Tab selection — chạy cho cả global admin (/admin) lẫn space admin (/:slug/admin)
-    const isSpaceOwner = currentSpace?.userId === user.id;
     const newTab = section || getFirstAllowedTab(user);
-    const isPermitted = user.permissions?.includes(newTab) || isSpaceOwner || !!isGlobalAdmin;
+    const isPermitted = hasPermission(newTab);
     const effectiveSlug = spaceSlug || 'giac-ngo';
     const baseAdminPath = isGlobalAdmin && !spaceSlug ? '/admin' : `/${effectiveSlug}/admin`;
     if (isPermitted) {
@@ -349,9 +371,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const renderContent = () => {
     if (!systemConfig) return null;
 
-    const isSpaceOwner = currentSpace?.userId === user.id;
-    const currentTabAllowed = user.permissions?.includes(activeTab) || isSpaceOwner || !!isGlobalAdmin;
-    if (!currentTabAllowed) {
+    if (!hasPermission(activeTab)) {
       return <div className="p-8">Bạn không có quyền truy cập vào mục này.</div>;
     }
 
@@ -422,7 +442,26 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     </button>
   );
 
-  const hasPermission = (tab: AdminTab) => user.permissions?.includes(tab);
+  const isSpaceOwner = Boolean(
+    !isGlobalAdmin && (
+      (currentSpace && (Number(currentSpace.userId) === Number(user?.id) || Number((currentSpace as any).user_id) === Number(user?.id))) ||
+      mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (Number(s.userId) === Number(user?.id) || Number((s as any).user_id) === Number(user?.id)))
+    )
+  );
+
+  const hasPermission = (tab: AdminTab): boolean => {
+    // 1. Global Admin has full platform access
+    if (isGlobalAdmin) return true;
+
+    // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
+    if (isGlobalOnlyPermission(tab)) return false;
+
+    // 3. Space Owner has full tenant access within their own Space
+    if (isSpaceOwner) return true;
+
+    // 4. Space Manager with delegated permissions
+    return Boolean(user.permissions?.includes(tab));
+  };
   const effectiveSpaceSlug = spaceSlug || '';
   // Bodhi global admin → Bodhi logo | Space admin → space cover image (imageUrl only, no Bodhi fallback)
   const logoUrl = isGlobalAdmin
@@ -449,30 +488,40 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
           </button>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {hasPermission('dashboard') && <NavItem tab="dashboard" label={t.dashboard} icon={<DashboardIcon />} />}
-          {hasPermission('notifications') && <NavItem tab="notifications" label={t.notificationManagement} icon={<BellIcon />} />}
-          {hasPermission('files') && <NavItem tab="files" label={t.filesAndDocuments} icon={<DocumentTextIcon />} />}
-          {hasPermission('media-library') && <NavItem tab="media-library" label={t.mediaLibrary} icon={<PhotoIcon />} />}
-          {hasPermission('cms_write') && <NavItem tab="cms_write" label={t.cmsWrite} icon={<DocumentTextIcon />} />}
-          {hasPermission('cms_approve') && <NavItem tab="cms_approve" label={t.cmsApprove} icon={<DocumentTextIcon />} />}
-          {hasPermission('spaces') && <NavItem tab="spaces" label={t.spaceManagement} icon={<MapPinIcon />} />}
-          {hasPermission('templates') && <NavItem tab="templates" label={t.templateManagement} icon={<TemplateIcon />} />}
-          {hasPermission('meditation') && <NavItem tab="meditation" label={t.meditationManagement} icon={<MeditationIcon />} />}
-          {hasPermission('dharma-talks') && <NavItem tab="dharma-talks" label={t.dharmaTalkManagement} icon={<RadioIcon />} />}
-          {hasPermission('comments') && <NavItem tab="comments" label={t.commentManagement} icon={<ChatBubbleIcon />} />}
-          {hasPermission('ai') && <NavItem tab="ai" label={t.aiManagement} icon={<AiIcon />} />}
-          {hasPermission('conversations') && <NavItem tab="conversations" label={t.conversationManagement} icon={<ConversationIcon />} />}
-          {hasPermission('finetune') && <NavItem tab="finetune" label={t.fineTuneManagement} icon={<FineTuneIcon />} />}
-          {hasPermission('pricing') && <NavItem tab="pricing" label={t.pricingManagement} icon={<PricingIcon />} />}
-          {hasPermission('user-billing') && <NavItem tab="user-billing" label={t.transactionsAndTopUp} icon={<BillingIcon />} />}
+          {!isGlobalAdmin && !mySpacesLoaded && !currentSpace ? (
+            <div className="flex flex-col space-y-3 p-2 animate-pulse">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="h-9 bg-border-color/20 rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {hasPermission('dashboard') && <NavItem tab="dashboard" label={t.dashboard} icon={<DashboardIcon />} />}
+              {hasPermission('notifications') && <NavItem tab="notifications" label={t.notificationManagement} icon={<BellIcon />} />}
+              {hasPermission('files') && <NavItem tab="files" label={t.filesAndDocuments} icon={<DocumentTextIcon />} />}
+              {hasPermission('media-library') && <NavItem tab="media-library" label={t.mediaLibrary} icon={<PhotoIcon />} />}
+              {hasPermission('cms_write') && <NavItem tab="cms_write" label={t.cmsWrite} icon={<DocumentTextIcon />} />}
+              {hasPermission('cms_approve') && <NavItem tab="cms_approve" label={t.cmsApprove} icon={<DocumentTextIcon />} />}
+              {hasPermission('spaces') && <NavItem tab="spaces" label={t.spaceManagement} icon={<MapPinIcon />} />}
+              {hasPermission('templates') && <NavItem tab="templates" label={t.templateManagement} icon={<TemplateIcon />} />}
+              {hasPermission('meditation') && <NavItem tab="meditation" label={t.meditationManagement} icon={<MeditationIcon />} />}
+              {hasPermission('dharma-talks') && <NavItem tab="dharma-talks" label={t.dharmaTalkManagement} icon={<RadioIcon />} />}
+              {hasPermission('comments') && <NavItem tab="comments" label={t.commentManagement} icon={<ChatBubbleIcon />} />}
+              {hasPermission('ai') && <NavItem tab="ai" label={t.aiManagement} icon={<AiIcon />} />}
+              {hasPermission('conversations') && <NavItem tab="conversations" label={t.conversationManagement} icon={<ConversationIcon />} />}
+              {hasPermission('finetune') && <NavItem tab="finetune" label={t.fineTuneManagement} icon={<FineTuneIcon />} />}
+              {hasPermission('pricing') && <NavItem tab="pricing" label={t.pricingManagement} icon={<PricingIcon />} />}
+              {hasPermission('user-billing') && <NavItem tab="user-billing" label={t.transactionsAndTopUp} icon={<BillingIcon />} />}
 
-          {hasPermission('space-billing') && <NavItem tab="space-billing" label={t.spaceBilling} icon={<BillingIcon />} />}
-          {hasPermission('manual-billing') && <NavItem tab="manual-billing" label={t.manualBilling} icon={<CryptoIcon />} />}
-          {hasPermission('payment-settings') && <NavItem tab="payment-settings" label={t.paymentSettings} icon={<SettingsIcon />} />}
-          {hasPermission('withdrawals') && <NavItem tab="withdrawals" label={t.withdrawalManagement} icon={<BillingIcon />} />}
-          {hasPermission('users') && <NavItem tab="users" label={t.userManagement} icon={<UserIcon />} />}
-          {hasPermission('roles') && <NavItem tab="roles" label={t.roleManagement} icon={<RoleIcon />} />}
-          {hasPermission('settings') && <NavItem tab="settings" label={t.settings} icon={<SettingsIcon />} />}
+              {hasPermission('space-billing') && <NavItem tab="space-billing" label={t.spaceBilling} icon={<BillingIcon />} />}
+              {hasPermission('manual-billing') && <NavItem tab="manual-billing" label={t.manualBilling} icon={<CryptoIcon />} />}
+              {hasPermission('payment-settings') && <NavItem tab="payment-settings" label={t.paymentSettings} icon={<SettingsIcon />} />}
+              {hasPermission('withdrawals') && <NavItem tab="withdrawals" label={t.withdrawalManagement} icon={<BillingIcon />} />}
+              {hasPermission('users') && <NavItem tab="users" label={t.userManagement} icon={<UserIcon />} />}
+              {hasPermission('roles') && <NavItem tab="roles" label={t.roleManagement} icon={<RoleIcon />} />}
+              {hasPermission('settings') && <NavItem tab="settings" label={t.settings} icon={<SettingsIcon />} />}
+            </>
+          )}
         </nav>
 
         <div className="p-4 border-t border-border-color flex-shrink-0">
