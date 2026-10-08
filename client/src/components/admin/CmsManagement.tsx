@@ -45,7 +45,7 @@ export const CmsManagement: React.FC<Props> = ({ space, language, user, activeTa
   const isApproveTab = activeTab === 'cms_approve';
 
   const isGlobalAdmin = user?.permissions?.includes('roles');
-  const isSpaceOwner = space?.userId === user?.id;
+  const isSpaceOwner = space?.userId === user?.id || space?.isOwner || (space?.id ? user?.adminSpaceIds?.includes(Number(space.id)) : false);
   const hasApprove = user?.permissions?.includes('cms_approve');
   const canApprove = isGlobalAdmin || isSpaceOwner || hasApprove;
 

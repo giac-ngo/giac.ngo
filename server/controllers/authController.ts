@@ -13,6 +13,7 @@ import { User } from '../types/index.js';
 import { getJwtSecret } from '../utils/jwtSecret.js';
 import { verifyOAuthState } from '../utils/oauthState.js';
 import { isAdminHost, isLocalhost, resolveSpaceFromHost, getMainDomain, getAdminHost } from '../utils/domain.js';
+import { isSpaceAdmin } from '../utils/policy.js';
 
 const generateAccessToken = (user: User) => {
     return jwt.sign(
@@ -71,9 +72,9 @@ export const authController = {
                 }
 
                 if (targetSpace) {
-                    const isOwner = targetSpace.userId === user.id;
+                    const isAdmin = await isSpaceAdmin(user.id, targetSpace.id);
                     const isMember = await spaceMemberModel.isMember(targetSpace.id, user.id);
-                    if (!isOwner && !isMember && !enrichedUser?.isGlobalAdmin) {
+                    if (!isAdmin && !isMember && !enrichedUser?.isGlobalAdmin) {
                         return res.status(403).json({ message: 'Tài khoản của bạn chưa đăng ký tại không gian này. Vui lòng đăng ký trước.' });
                     }
                 } else if (!isLocalhost(host)) {

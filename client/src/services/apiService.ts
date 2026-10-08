@@ -2,7 +2,8 @@
 import { 
     Message, User, Space, AIConfig, Role, SpacePage, 
     SocialPost, SocialComment, 
-    SocialNotification, Tag, Transaction, WithdrawalRequest, PricingPlan 
+    SocialNotification, Tag, Transaction, WithdrawalRequest, PricingPlan,
+    SpaceAdmin
 } from '../types';
 
 const handleResponse = async (res: Response) => {
@@ -657,6 +658,17 @@ export const apiService = {
         method: 'DELETE'
     }).then(handleResponse),
     removeSpaceMember: (spaceId: number | string, userId: number) => authedFetch(`/api/spaces/${spaceId}/members/${userId}`, {
+        method: 'DELETE'
+    }).then(handleResponse),
+
+    // ── Space Admins ────────────────────────────────────────────────────────────
+    getSpaceAdmins: (spaceId: number | string): Promise<SpaceAdmin[]> => authedFetch(`/api/spaces/${spaceId}/admins`).then(handleResponse),
+    addSpaceAdmins: (spaceId: number | string, data: { emails?: string[]; userIds?: number[]; createIfMissing?: boolean; defaultPassword?: string }): Promise<{ success: boolean; results: any[] }> => authedFetch(`/api/spaces/${spaceId}/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).then(handleResponse),
+    removeSpaceAdmin: (spaceId: number | string, userId: number | string): Promise<{ success: boolean; message: string }> => authedFetch(`/api/spaces/${spaceId}/admins/${userId}`, {
         method: 'DELETE'
     }).then(handleResponse),
 

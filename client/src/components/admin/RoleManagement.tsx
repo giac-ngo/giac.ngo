@@ -238,7 +238,12 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
         }
     };
 
-    const isSpaceOwner = !isGlobalAdmin && !!space && (space.userId === user?.id || (space as any).user_id === user?.id);
+    const isSpaceOwner = !isGlobalAdmin && !!space && (
+        space.userId === user?.id ||
+        (space as any).user_id === user?.id ||
+        space.isOwner ||
+        (space.id ? user?.adminSpaceIds?.includes(Number(space.id)) : false)
+    );
     const isUserAssignedThisRole = !isGlobalAdmin && !isSpaceOwner && !!selectedRole?.id && selectedRole.id !== 'new' && (user?.roleIds?.includes(selectedRole.id as number) || false);
     const isReadOnly = selectedRole?._readOnly === true || isUserAssignedThisRole;
 

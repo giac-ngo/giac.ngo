@@ -210,7 +210,7 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 return { rows: [], rowCount: 0 };
             }
             // Space membership: SELECT 1 FROM spaces ... UNION SELECT 1 FROM space_members ...
-            if (sql.includes('space_members') || sql.includes('UNION')) {
+            if (sql.includes('space_members')) {
                 const [spaceId, userId] = params;
                 const sid = Number(spaceId);
                 const uid = Number(userId);
@@ -220,6 +220,22 @@ describe('Real Route Supertest RBAC Matrix & IDOR Prevention', () => {
                 }
                 // Space 2 members: 200 (owner)
                 if (sid === 2 && [200].includes(uid)) {
+                    return { rowCount: 1, rows: [{ '?column?': 1 }] };
+                }
+                return { rowCount: 0, rows: [] };
+            }
+
+            // Space admin check: SELECT 1 FROM spaces ... UNION ALL SELECT 1 FROM space_admins ...
+            if (sql.includes('space_admins')) {
+                const [spaceId, userId] = params;
+                const sid = Number(spaceId);
+                const uid = Number(userId);
+                // Space 1 admin: 100 (owner)
+                if (sid === 1 && uid === 100) {
+                    return { rowCount: 1, rows: [{ '?column?': 1 }] };
+                }
+                // Space 2 admin: 200 (owner)
+                if (sid === 2 && uid === 200) {
                     return { rowCount: 1, rows: [{ '?column?': 1 }] };
                 }
                 return { rowCount: 0, rows: [] };

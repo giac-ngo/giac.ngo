@@ -11,7 +11,7 @@ export const enrichUserWithPermissions = async (user: Partial<User> & Record<str
 
     // apiKeys logic removed
 
-    const [rolesRes, ownedAisRes, grantedAisRes, subRes] = await Promise.all([
+    const [rolesRes, ownedAisRes, grantedAisRes, subRes, adminSpacesRes] = await Promise.all([
         pool.query(`
             SELECT r.* FROM roles r
             JOIN user_roles ur ON r.id = ur.role_id
@@ -19,12 +19,18 @@ export const enrichUserWithPermissions = async (user: Partial<User> & Record<str
         `, [user.id]),
         pool.query('SELECT ai_config_id, requests_remaining FROM user_owned_ais WHERE user_id = $1', [user.id]),
         pool.query('SELECT ai_config_id FROM ai_user_access WHERE user_id = $1', [user.id]),
-        pool.query('SELECT daily_msg_used, daily_reset_date, daily_limit_bonus, expires_at FROM user_subscriptions WHERE user_id = $1', [user.id])
+        pool.query('SELECT daily_msg_used, daily_reset_date, daily_limit_bonus, expires_at FROM user_subscriptions WHERE user_id = $1', [user.id]),
+        pool.query(`
+            SELECT id FROM spaces WHERE user_id = $1
+            UNION
+            SELECT space_id AS id FROM space_admins WHERE user_id = $1
+        `, [user.id]).catch(() => ({ rows: [] }))
     ]);
 
     const roles = rolesRes.rows.map(mapRowToCamelCase);
     const roleIds = roles.map((r: Record<string, unknown>) => r.id);
     const permissions = new Set(roles.flatMap((r: Record<string, unknown>) => r.permissions || []));
+    const adminSpaceIds = adminSpacesRes.rows.map((r: Record<string, unknown>) => Number(r.id));
     const ownedAis = ownedAisRes.rows.map((r: Record<string, unknown>) => ({
         aiConfigId: r.ai_config_id,
         // @ts-ignore
@@ -41,7 +47,7 @@ export const enrichUserWithPermissions = async (user: Partial<User> & Record<str
     const dailyLimitBonus = bonusActive ? (sub?.daily_limit_bonus || 0) : 0;
 
     // @ts-ignore
-    return { ...user, roleIds, permissions: Array.from(permissions), ownedAis, grantedAiConfigIds, dailyMsgUsed, dailyLimitBonus } as User;
+    return { ...user, roleIds, permissions: Array.from(permissions), adminSpaceIds, ownedAis, grantedAiConfigIds, dailyMsgUsed, dailyLimitBonus } as User;
 }
 
 interface CachedUser {

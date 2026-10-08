@@ -89,6 +89,16 @@ export interface User {
   subscriptionPlanId?: number | null;
   dailyMsgUsed?: number;
   dailyLimitBonus?: number;
+  adminSpaceIds?: number[];
+}
+
+export interface SpaceAdmin {
+  id: number;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+  isOwner: boolean;
+  createdAt?: string;
 }
 
 export interface Role {
@@ -433,6 +443,7 @@ export interface SpaceType {
 export interface Space {
   id: number | 'new';
   userId: number | null;
+  isOwner?: boolean;
   spaceSort?: number;
   slug: string;
   name: string;

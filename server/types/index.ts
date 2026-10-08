@@ -27,6 +27,7 @@ export interface User {
     dailyLimitBonus?: number;
     requestsRemaining?: number;
     merits?: number;
+    adminSpaceIds?: number[];
     [key: string]: any;
 }
 
@@ -43,6 +44,7 @@ export interface Space {
     id: number;
     userId?: number;
     slug?: string;
+    isOwner?: boolean;
     name: string;
     description?: string;
     imageUrl?: string;

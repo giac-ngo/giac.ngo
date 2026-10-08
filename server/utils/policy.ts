@@ -53,12 +53,8 @@ export async function can(
     }
     const spaceId = Number(rawSpaceId);
 
-    // 3. Space Owner is tenant administrator for this Space
-    const ownerRes = await pool.query(
-        'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 LIMIT 1',
-        [spaceId, user.id]
-    );
-    if ((ownerRes.rowCount ?? 0) > 0) return true;
+    // 3. Space Admin (Owner or in space_admins) is tenant administrator for this Space
+    if (await isSpaceAdmin(user.id, spaceId)) return true;
 
     // 4. Space Manager with role permission in this specific Space
     // Normalize CMS permissions
@@ -83,7 +79,23 @@ export async function can(
 }
 
 /**
- * Checks if a user is the owner of a Space.
+ * Checks if a user is an Admin of a Space (Owner or appointed in space_admins).
+ */
+export async function isSpaceAdmin(userId: number | undefined | null, spaceId: number | string | undefined | null): Promise<boolean> {
+    if (!userId || !spaceId || !/^\d+$/.test(String(spaceId))) return false;
+    const res = await pool.query(
+        `SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2
+         UNION ALL
+         SELECT 1 FROM space_admins WHERE space_id = $1 AND user_id = $2
+         LIMIT 1`,
+        [Number(spaceId), userId]
+    );
+    return (res.rowCount ?? 0) > 0;
+}
+
+/**
+ * Checks if a user is the primary owner of a Space (spaces.user_id = user.id).
+ * Reserved for: Stripe Connect / PayOS payout credentials, changing space ownership, deleting space.
  */
 export async function isSpaceOwner(userId: number | undefined | null, spaceId: number | string | undefined | null): Promise<boolean> {
     if (!userId || !spaceId || !/^\d+$/.test(String(spaceId))) return false;
@@ -92,6 +104,20 @@ export async function isSpaceOwner(userId: number | undefined | null, spaceId: n
         [Number(spaceId), userId]
     );
     return (res.rowCount ?? 0) > 0;
+}
+
+/**
+ * Returns all space IDs where the user is an admin (owner or space_admins).
+ */
+export async function getUserAdminSpaceIds(userId: number | undefined | null): Promise<number[]> {
+    if (!userId) return [];
+    const res = await pool.query(
+        `SELECT id FROM spaces WHERE user_id = $1
+         UNION
+         SELECT space_id AS id FROM space_admins WHERE user_id = $1`,
+        [userId]
+    );
+    return res.rows.map(r => Number(r.id));
 }
 
 /**

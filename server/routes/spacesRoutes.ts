@@ -73,6 +73,11 @@ router.post('/:id/members', requireSpacePermission('users'), spacesController.ad
 router.put('/:id/members/:userId/role', requireSpacePermission('users'), spacesController.addMember); // updateMemberRole - reuse addMember or add specific handler
 router.delete('/:id/members/:userId', requireSpacePermission('users'), spacesController.removeMember);
 
+// --- Space Admin Management ---
+router.get('/:id/admins', requireSpacePermission('spaces'), spacesController.getSpaceAdmins);
+router.post('/:id/admins', requireSpacePermission('spaces'), spacesController.addSpaceAdmins);
+router.delete('/:id/admins/:userId', requireSpacePermission('spaces'), spacesController.removeSpaceAdmin);
+
 // Route to handle views on a space (public)
 router.post('/:id/view', spacesController.incrementViews);
 

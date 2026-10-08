@@ -17,6 +17,7 @@ export function toPublicUser(user: Partial<User> | null | undefined): Record<str
         isGlobalAdmin: !!user.isGlobalAdmin,
         roleIds: user.roleIds || [],
         permissions: user.permissions || [],
+        adminSpaceIds: user.adminSpaceIds || [],
         merits: typeof user.merits === 'number' ? user.merits : 0,
         requestsRemaining: typeof user.requestsRemaining === 'number' ? user.requestsRemaining : 0,
         subscriptionPlanId: user.subscriptionPlanId || null,

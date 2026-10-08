@@ -202,8 +202,12 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
     const [renamingId, setRenamingId] = useState<number | null>(null);
     const [renameValue, setRenameValue] = useState('');
-    const userMenuRef = useRef<HTMLDivElement>(null);
-    const hasAdminPermission = !!user && (!!user.isGlobalAdmin || (user.roleIds && user.roleIds.length > 0) || (currentSpace && currentSpace.userId === user.id));
+    const hasAdminPermission = !!user && (
+        !!user.isGlobalAdmin ||
+        (user.roleIds && user.roleIds.length > 0) ||
+        (user.adminSpaceIds && user.adminSpaceIds.length > 0) ||
+        (currentSpace && (currentSpace.userId === user.id || currentSpace.isOwner || user.adminSpaceIds?.includes(Number(currentSpace.id))))
+    );
     const currentTheme = user?.template || systemConfig?.template || 'giacngo';
     const logoUrl = (currentSpace?.imageUrl && currentSpace.imageUrl.trim() !== '')
         ? currentSpace.imageUrl

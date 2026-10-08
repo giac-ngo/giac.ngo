@@ -68,7 +68,11 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
     const location = useLocation();
     const currentTheme = user?.template || systemConfig.template;
     const logoUrl = systemConfig.templateSettings[currentTheme].logoUrl;
-    const hasAdminPermission = user?.permissions?.some(p => p !== 'user-billing');
+    const hasAdminPermission = Boolean(
+        user?.isGlobalAdmin ||
+        (user?.adminSpaceIds && user.adminSpaceIds.length > 0) ||
+        user?.permissions?.some(p => p !== 'user-billing')
+    );
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -87,11 +91,11 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
         const fetchUserSpace = async () => {
             if (user) {
                 try {
-                    const spaces = await apiService.getSpaces();
-                    const myOwnedSpaces = spaces.filter((s: Space) => s.userId === user.id);
+                    const spaces = await apiService.getMySpaces().catch(() => apiService.getSpaces());
+                    const myAdminSpaces = spaces.filter((s: Space) => s.userId === user.id || s.isOwner || user.adminSpaceIds?.includes(Number(s.id)));
 
-                    if (myOwnedSpaces && myOwnedSpaces.length > 0) {
-                        setUserSlug(myOwnedSpaces[0].slug);
+                    if (myAdminSpaces && myAdminSpaces.length > 0) {
+                        setUserSlug(myAdminSpaces[0].slug);
                         setHasManagedSpace(true);
                     } else if (spaces && spaces.length > 0) {
                         // If user is a member of any space or super admin sees all spaces

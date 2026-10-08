@@ -1,7 +1,7 @@
 
 // client/src/components/admin/SpaceManagement.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Space, User, SpaceType } from '../../types';
+import { Space, User, SpaceType, SpaceAdmin } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
 import { PlusIcon, PencilIcon, TrashIcon, SearchIcon, XIcon, EyeIcon, EyeOffIcon, CopyIcon, HeartIcon, UsersIcon, PhotoIcon } from '../Icons';
@@ -324,13 +324,88 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
 
     // Editing State
     const [editingSpace, setEditingSpace] = useState<Partial<Space> | null>(null);
-    const [activeModalTab, setActiveModalTab] = useState<'info' | 'config'>('info');
+    const [activeModalTab, setActiveModalTab] = useState<'info' | 'config' | 'admins'>('info');
     const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [pagesSpaceId, setPagesSpaceId] = useState<number | null>(null);
     const [ownerSearch, setOwnerSearch] = useState('');
     const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
     const ownerDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Space Admins State
+    const [spaceAdmins, setSpaceAdmins] = useState<SpaceAdmin[]>([]);
+    const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
+    const [adminEmailsInput, setAdminEmailsInput] = useState('');
+    const [createMissingUsers, setCreateMissingUsers] = useState(true);
+    const [defaultPasswordInput, setDefaultPasswordInput] = useState('');
+    const [addAdminResults, setAddAdminResults] = useState<any[] | null>(null);
+    const [isAddingAdmins, setIsAddingAdmins] = useState(false);
+
+    const fetchSpaceAdmins = useCallback(async (spaceId: number | string) => {
+        setIsLoadingAdmins(true);
+        try {
+            const list = await apiService.getSpaceAdmins(spaceId);
+            setSpaceAdmins(list || []);
+        } catch (err: any) {
+            console.error('Failed to load space admins:', err);
+        } finally {
+            setIsLoadingAdmins(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isModalOpen && editingSpace && editingSpace.id && editingSpace.id !== 'new') {
+            fetchSpaceAdmins(editingSpace.id);
+        } else {
+            setSpaceAdmins([]);
+            setAddAdminResults(null);
+            setAdminEmailsInput('');
+        }
+    }, [isModalOpen, editingSpace?.id, fetchSpaceAdmins]);
+
+    const handleAddAdmins = async () => {
+        if (!editingSpace || editingSpace.id === 'new') return;
+        const emails = adminEmailsInput
+            .split(/[\n,;]+/)
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+        if (emails.length === 0) {
+            showToast('Vui lòng nhập ít nhất một email hợp lệ.', 'error');
+            return;
+        }
+        setIsAddingAdmins(true);
+        try {
+            const res = await apiService.addSpaceAdmins(editingSpace.id as number, {
+                emails,
+                createIfMissing: createMissingUsers,
+                defaultPassword: defaultPasswordInput || 'password'
+            });
+            setAddAdminResults(res.results || []);
+            showToast('Đã xử lý danh sách Admin Space', 'success');
+            fetchSpaceAdmins(editingSpace.id as number);
+            setAdminEmailsInput('');
+        } catch (err: any) {
+            showToast(err.message || 'Lỗi khi thêm Admin Space', 'error');
+        } finally {
+            setIsAddingAdmins(false);
+        }
+    };
+
+    const handleRemoveAdmin = async (targetUser: SpaceAdmin) => {
+        if (!editingSpace || editingSpace.id === 'new') return;
+        if (targetUser.isOwner) {
+            showToast('Không thể gỡ quyền của Chủ sở hữu Không gian', 'error');
+            return;
+        }
+        if (!window.confirm(`Bạn có chắc muốn gỡ quyền Admin Space của "${targetUser.name || targetUser.email}"?`)) return;
+        try {
+            await apiService.removeSpaceAdmin(editingSpace.id as number, targetUser.id);
+            showToast('Đã gỡ quyền Admin Space thành công', 'success');
+            fetchSpaceAdmins(editingSpace.id as number);
+        } catch (err: any) {
+            showToast(err.message || 'Lỗi khi gỡ Admin Space', 'error');
+        }
+    };
 
     const isSuperAdmin = !!isGlobalAdmin;
 
@@ -683,12 +758,27 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                             >
                                 Thông tin chung
                             </button>
-                            {(isSuperAdmin || editingSpace.userId === user.id) && (
+                            {(isSuperAdmin || editingSpace.userId === user.id || editingSpace.isOwner || (editingSpace.id && user.adminSpaceIds?.includes(Number(editingSpace.id)))) && (
                                 <button
                                     onClick={() => setActiveModalTab('config')}
                                     className={`pb-3 font-bold transition-colors ${activeModalTab === 'config' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
                                 >
                                     Cấu hình mở rộng
+                                </button>
+                            )}
+                            {editingSpace.id !== 'new' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveModalTab('admins')}
+                                    className={`pb-3 font-bold transition-colors flex items-center gap-2 ${activeModalTab === 'admins' ? 'border-b-2 border-primary text-primary' : 'text-text-light hover:text-text-main border-b-2 border-transparent'}`}
+                                >
+                                    <UsersIcon className="w-4 h-4" />
+                                    Admin Space
+                                    {spaceAdmins.length > 0 && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-normal">
+                                            {spaceAdmins.length}
+                                        </span>
+                                    )}
                                 </button>
                             )}
                         </div>
@@ -964,7 +1054,7 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                                 </div>
                             )}
 
-                            {activeModalTab === 'config' && (isSuperAdmin || editingSpace.userId === user.id) && (
+                            {activeModalTab === 'config' && (isSuperAdmin || editingSpace.userId === user.id || editingSpace.isOwner || (editingSpace.id && user.adminSpaceIds?.includes(Number(editingSpace.id)))) && (
                                 <div className="max-w-3xl mx-auto space-y-8">
                                     {/* API Keys Group */}
                                     <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
@@ -1097,14 +1187,176 @@ export const SpaceManagement: React.FC<{ language: 'vi' | 'en', user: User, isGl
                                 </div>
                             )}
 
+                            {activeModalTab === 'admins' && editingSpace.id !== 'new' && (
+                                <div className="max-w-4xl mx-auto space-y-6">
+                                    {/* Batch Add Section */}
+                                    <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
+                                        <div className="flex items-center justify-between border-b pb-3">
+                                            <div>
+                                                <h3 className="font-bold text-lg text-text-main flex items-center gap-2">
+                                                    ➕ Thêm Admin Space
+                                                </h3>
+                                                <p className="text-xs text-text-light mt-1">
+                                                    Admin Space có toàn quyền quản trị nội dung, AI, thành viên và phân quyền trong Không gian này (ngoại trừ cấu hình rút tiền và xoá Không gian).
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="block text-sm font-semibold text-text-main">
+                                                Danh sách Email (mỗi email một dòng hoặc cách nhau bằng dấu phẩy):
+                                            </label>
+                                            <textarea
+                                                value={adminEmailsInput}
+                                                onChange={e => setAdminEmailsInput(e.target.value)}
+                                                placeholder={"admin@giac.ngo\ncu-si-a@gmail.com, thien-nam@giac.ngo"}
+                                                rows={3}
+                                                className="w-full p-3 border rounded-md text-sm bg-background-light font-mono focus:ring-2 focus:ring-primary/20"
+                                            />
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={createMissingUsers}
+                                                        onChange={e => setCreateMissingUsers(e.target.checked)}
+                                                        className="rounded text-primary focus:ring-primary h-4 w-4"
+                                                    />
+                                                    <span className="text-text-main">Tự động tạo tài khoản nếu email chưa có</span>
+                                                </label>
+
+                                                {createMissingUsers && (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-text-light whitespace-nowrap">Mật khẩu ban đầu:</span>
+                                                        <input
+                                                            type="text"
+                                                            value={defaultPasswordInput}
+                                                            onChange={e => setDefaultPasswordInput(e.target.value)}
+                                                            placeholder="password (mặc định)"
+                                                            className="flex-1 p-1.5 px-3 border rounded-md text-sm bg-background-light"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="pt-2 flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAddAdmins}
+                                                    disabled={isAddingAdmins || !adminEmailsInput.trim()}
+                                                    className="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                                                >
+                                                    {isAddingAdmins && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                                    Thêm vào danh sách Admin
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Status Results from last batch */}
+                                        {addAdminResults && addAdminResults.length > 0 && (
+                                            <div className="mt-4 p-4 rounded-lg bg-background-light border border-border-color space-y-2">
+                                                <div className="flex justify-between items-center text-xs font-semibold text-text-light">
+                                                    <span>Kết quả xử lý ({addAdminResults.length}):</span>
+                                                    <button type="button" onClick={() => setAddAdminResults(null)} className="hover:text-text-main">✕ Đóng</button>
+                                                </div>
+                                                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                                    {addAdminResults.map((r, i) => (
+                                                        <div key={i} className="flex items-center justify-between text-xs p-2 rounded bg-background-panel border border-border-color/50">
+                                                            <span className="font-mono">{r.email || `User #${r.userId}`}</span>
+                                                            <span className={`px-2 py-0.5 rounded-full font-medium ${
+                                                                r.status === 'added' ? 'bg-green-100 text-green-800' :
+                                                                r.status === 'created' ? 'bg-emerald-100 text-emerald-800 font-bold' :
+                                                                r.status === 'already_admin' ? 'bg-amber-100 text-amber-800' :
+                                                                'bg-red-100 text-red-800'
+                                                            }`}>
+                                                                {r.message}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Existing Space Admins List */}
+                                    <div className="bg-background-panel p-6 rounded-lg border border-border-color space-y-4">
+                                        <div className="flex items-center justify-between border-b pb-3">
+                                            <h3 className="font-bold text-lg text-text-main flex items-center gap-2">
+                                                🛡️ Danh sách Admin Space ({spaceAdmins.length})
+                                            </h3>
+                                            <button
+                                                type="button"
+                                                onClick={() => editingSpace?.id && fetchSpaceAdmins(editingSpace.id)}
+                                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                                            >
+                                                Làm mới
+                                            </button>
+                                        </div>
+
+                                        {isLoadingAdmins ? (
+                                            <div className="py-8 text-center text-sm text-text-light">Đang tải danh sách admin...</div>
+                                        ) : spaceAdmins.length === 0 ? (
+                                            <div className="py-8 text-center text-sm text-text-light">Chưa có admin nào trong Không gian này.</div>
+                                        ) : (
+                                            <div className="divide-y divide-border-color">
+                                                {spaceAdmins.map((admin) => (
+                                                    <div key={admin.id} className="py-3 flex items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <img
+                                                                src={admin.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(admin.name || admin.email)}`}
+                                                                alt={admin.name}
+                                                                className="w-10 h-10 rounded-full object-cover border border-border-color flex-shrink-0"
+                                                            />
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="font-semibold text-text-main text-sm truncate">{admin.name}</p>
+                                                                    {admin.isOwner ? (
+                                                                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">👑 Chủ sở hữu</span>
+                                                                    ) : (
+                                                                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800">🛡️ Admin Space</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-text-light font-mono truncate">{admin.email}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                                            {admin.createdAt && !admin.isOwner && (
+                                                                <span className="text-xs text-text-light hidden sm:inline">
+                                                                    Thêm ngày {new Date(admin.createdAt).toLocaleDateString('vi-VN')}
+                                                                </span>
+                                                            )}
+                                                            {!admin.isOwner && (isSuperAdmin || editingSpace.userId === user.id) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveAdmin(admin)}
+                                                                    className="px-3 py-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-md transition-colors"
+                                                                    title="Gỡ quyền Admin Space"
+                                                                >
+                                                                    Gỡ quyền
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
 
                         <div className="p-5 border-t border-border-color bg-background-light flex justify-end gap-3 rounded-b-xl">
-                            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 bg-background-panel border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-background-light">{t.cancel}</button>
-                            <button onClick={handleSave} disabled={isSaving} className="px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover disabled:opacity-70 flex items-center gap-2">
-                                {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>}
-                                {t.save}
+                            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 bg-background-panel border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-background-light">
+                                {activeModalTab === 'admins' ? 'Đóng' : t.cancel}
                             </button>
+                            {activeModalTab !== 'admins' && (
+                                <button onClick={handleSave} disabled={isSaving} className="px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover disabled:opacity-70 flex items-center gap-2">
+                                    {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>}
+                                    {t.save}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

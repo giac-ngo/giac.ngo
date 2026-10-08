@@ -154,7 +154,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
 
                 // Set default space for regular users
                 if (!user.permissions?.includes('roles') && spaces && spaces.length > 0) {
-                    const userSpace = spaces.find(s => s.userId === user.id);
+                    const userSpace = spaces.find(s => s.userId === user.id || s.isOwner || user.adminSpaceIds?.includes(Number(s.id)));
                     if (userSpace) {
                         setSpaceIdFilter(String(userSpace.id));
                     }

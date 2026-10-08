@@ -4,7 +4,7 @@ import { spaceModel } from '../models/space.model.js';
 import { spaceMemberModel } from '../models/spaceMember.model.js';
 import { userModel } from '../models/user.model.js';
 import { isAdmin, getUserManagedSpaceIds, isSpaceMember, hasSpacePermission } from '../middleware/authMiddleware.js';
-import { can } from '../utils/policy.js';
+import { can, isSpaceAdmin, isSpaceOwner } from '../utils/policy.js';
 import { pool } from '../db.js';
 
 
@@ -13,6 +13,7 @@ import { toPublicUser } from '../utils/sanitizeUser.js';
 import { toPublicSpace, toAdminSpace } from '../utils/sanitizeSpace.js';
 
 const canManageSpaceSettings = async (user: any, spaceId: number): Promise<boolean> => {
+    if (await isSpaceAdmin(user?.id, spaceId)) return true;
     for (const permission of ['spaces', 'settings', 'payment-settings']) {
         if (await can(user, permission, { spaceId })) return true;
     }
@@ -428,6 +429,11 @@ export const spacesController = {
 
             if (isNaN(spaceId) || isNaN(userId)) return res.status(400).json({ message: 'Invalid IDs' });
 
+            // Admin Space bị gỡ khỏi space_members: Chặn, phải gỡ quyền admin trước
+            if (await isSpaceAdmin(userId, spaceId)) {
+                return res.status(400).json({ message: 'Không thể xoá thành viên đang giữ quyền Admin Space. Vui lòng gỡ quyền Admin trước.' });
+            }
+
             // Tránh tạo tài khoản mồ côi: nếu người dùng chỉ còn thuộc 1 Space này, không cho xoá trừ khi là Global Admin
             const userSpaces = await spaceMemberModel.getSpacesByUser(userId);
             if (userSpaces.length <= 1 && !req.user?.isGlobalAdmin) {
@@ -458,20 +464,181 @@ export const spacesController = {
 
             // Global admin sees all spaces (with masked keys for safe admin management)
             if (user.isGlobalAdmin) {
-                return res.json(allSpaces.map(toAdminSpace));
+                return res.json(allSpaces.map(s => ({
+                    ...toAdminSpace(s),
+                    isOwner: s.userId === user.id
+                })));
             }
 
-            // Only spaces the user owns OR has explicit 'spaces' management permission in
+            // Only spaces the user owns OR is admin in OR has explicit 'spaces' management permission in
             const manageableSpaces: any[] = [];
             for (const s of allSpaces) {
-                if (s.userId === user.id || await hasSpacePermission(user, s.id as number, 'spaces')) {
-                    manageableSpaces.push(toAdminSpace(s));
+                const isAdmin = await isSpaceAdmin(user.id, s.id as number);
+                if (isAdmin || await hasSpacePermission(user, s.id as number, 'spaces')) {
+                    manageableSpaces.push({
+                        ...toAdminSpace(s),
+                        isOwner: s.userId === user.id
+                    });
                 }
             }
             res.json(manageableSpaces);
         } catch (error: unknown) {
             console.error('Error fetching my spaces:', error);
             res.status(500).json({ message: 'Lỗi khi tải danh sách không gian.' });
+        }
+    },
+
+    async getSpaceAdmins(req: Request, res: Response) {
+        try {
+            const spaceId = parseInt(String(req.params.id), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID' });
+
+            const user = req.user as any;
+            if (!user?.isGlobalAdmin && !(await isSpaceAdmin(user?.id, spaceId))) {
+                return res.status(403).json({ message: 'Chỉ Admin Space hoặc Super Admin mới có quyền xem danh sách Admin.' });
+            }
+
+            const query = `
+                SELECT u.id, u.name, u.email, u.avatar_url, (s.user_id = u.id) AS is_owner, sa.created_at
+                FROM spaces s
+                JOIN users u ON u.id = s.user_id OR u.id IN (SELECT user_id FROM space_admins WHERE space_id = s.id)
+                LEFT JOIN space_admins sa ON sa.space_id = s.id AND sa.user_id = u.id
+                WHERE s.id = $1
+                ORDER BY is_owner DESC, sa.created_at ASC, u.id ASC;
+            `;
+            const result = await pool.query(query, [spaceId]);
+            const admins = result.rows.map(r => ({
+                id: r.id,
+                name: r.name,
+                email: r.email,
+                avatarUrl: r.avatar_url,
+                isOwner: Boolean(r.is_owner),
+                createdAt: r.created_at
+            }));
+
+            res.json(admins);
+        } catch (error) {
+            console.error('Error fetching space admins:', error);
+            res.status(500).json({ message: 'Lỗi khi tải danh sách Admin Space.' });
+        }
+    },
+
+    async addSpaceAdmins(req: Request, res: Response) {
+        try {
+            const spaceId = parseInt(String(req.params.id), 10);
+            if (isNaN(spaceId)) return res.status(400).json({ message: 'Invalid space ID' });
+
+            const user = req.user as any;
+            if (!user?.isGlobalAdmin && !(await isSpaceAdmin(user?.id, spaceId))) {
+                return res.status(403).json({ message: 'Chỉ Admin Space hoặc Super Admin mới có quyền thêm Admin.' });
+            }
+
+            const space = await spaceModel.findById(spaceId);
+            if (!space) return res.status(404).json({ message: 'Space not found' });
+
+            const { emails = [], userIds = [], createIfMissing = false, defaultPassword } = req.body;
+            const targetEmails: string[] = Array.isArray(emails) ? emails.map((e: string) => String(e).trim().toLowerCase()).filter(Boolean) : [];
+            const targetUserIds: number[] = Array.isArray(userIds) ? userIds.map((id: any) => Number(id)).filter(id => !isNaN(id)) : [];
+
+            const results: Array<{ email?: string; userId?: number; status: string; message: string; name?: string }> = [];
+
+            // Xử lý theo userIds nếu có
+            for (const uid of targetUserIds) {
+                if (uid === space.userId) {
+                    results.push({ userId: uid, status: 'already_admin', message: 'Người dùng là Chủ sở hữu' });
+                    continue;
+                }
+                const existingAdmin = await pool.query('SELECT 1 FROM space_admins WHERE space_id = $1 AND user_id = $2', [spaceId, uid]);
+                if (existingAdmin.rows.length > 0) {
+                    results.push({ userId: uid, status: 'already_admin', message: 'Đã là Admin Space' });
+                    continue;
+                }
+                await pool.query('INSERT INTO space_admins (space_id, user_id, added_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [spaceId, uid, user.id]);
+                await spaceMemberModel.add(spaceId, uid).catch(() => {});
+                userModel.invalidateCache(uid);
+                results.push({ userId: uid, status: 'added', message: 'Thêm Admin Space thành công' });
+            }
+
+            // Xử lý theo emails
+            for (const email of targetEmails) {
+                const foundUser = await userModel.findByEmail(email);
+                if (foundUser) {
+                    if (foundUser.id === space.userId) {
+                        results.push({ email, userId: foundUser.id, name: foundUser.name, status: 'already_admin', message: 'Người dùng là Chủ sở hữu' });
+                        continue;
+                    }
+                    const existingAdmin = await pool.query('SELECT 1 FROM space_admins WHERE space_id = $1 AND user_id = $2', [spaceId, foundUser.id]);
+                    if (existingAdmin.rows.length > 0) {
+                        results.push({ email, userId: foundUser.id, name: foundUser.name, status: 'already_admin', message: 'Đã là Admin Space' });
+                        continue;
+                    }
+                    await pool.query('INSERT INTO space_admins (space_id, user_id, added_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [spaceId, foundUser.id, user.id]);
+                    await spaceMemberModel.add(spaceId, foundUser.id).catch(() => {});
+                    userModel.invalidateCache(foundUser.id);
+                    results.push({ email, userId: foundUser.id, name: foundUser.name, status: 'added', message: 'Thêm Admin Space thành công' });
+                } else {
+                    if (createIfMissing) {
+                        const pwd = typeof defaultPassword === 'string' && defaultPassword.length >= 6 ? defaultPassword : 'password';
+                        const newUser = await userModel.create({
+                            name: email.split('@')[0],
+                            email,
+                            password: pwd,
+                            isActive: true,
+                            merits: 0,
+                            requestsRemaining: 0,
+                            roleIds: [],
+                            avatarUrl: `https://i.pravatar.cc/150?u=${encodeURIComponent(email)}`,
+                            template: 'giacngo'
+                        }, spaceId);
+
+                        if (newUser) {
+                            await pool.query('INSERT INTO space_admins (space_id, user_id, added_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [spaceId, newUser.id, user.id]);
+                            userModel.invalidateCache(newUser.id);
+                            results.push({ email, userId: newUser.id, name: newUser.name, status: 'created', message: 'Đã tạo tài khoản và gán Admin Space' });
+                        } else {
+                            results.push({ email, status: 'error', message: 'Không thể tạo tài khoản mới' });
+                        }
+                    } else {
+                        results.push({ email, status: 'not_found', message: 'Tài khoản chưa tồn tại trong hệ thống' });
+                    }
+                }
+            }
+
+            res.json({ success: true, results });
+        } catch (error) {
+            console.error('Error adding space admins:', error);
+            res.status(500).json({ message: 'Lỗi khi thêm Admin Space.' });
+        }
+    },
+
+    async removeSpaceAdmin(req: Request, res: Response) {
+        try {
+            const spaceId = parseInt(String(req.params.id), 10);
+            const targetUserId = parseInt(String(req.params.userId), 10);
+            if (isNaN(spaceId) || isNaN(targetUserId)) return res.status(400).json({ message: 'Invalid IDs' });
+
+            const user = req.user as any;
+            const space = await spaceModel.findById(spaceId);
+            if (!space) return res.status(404).json({ message: 'Space not found' });
+
+            // Quy tắc mục 2: Gỡ Admin Space phụ: Admin chính + Admin Space chính (chủ sở hữu)
+            const isOwner = space.userId === user?.id;
+            if (!user?.isGlobalAdmin && !isOwner) {
+                return res.status(403).json({ message: 'Chỉ Chủ sở hữu Không gian hoặc Super Admin mới có quyền gỡ Admin Space.' });
+            }
+
+            // Chặn gỡ chủ sở hữu
+            if (targetUserId === space.userId) {
+                return res.status(400).json({ message: 'Không thể gỡ quyền Admin của Chủ sở hữu Không gian.' });
+            }
+
+            await pool.query('DELETE FROM space_admins WHERE space_id = $1 AND user_id = $2', [spaceId, targetUserId]);
+            userModel.invalidateCache(targetUserId);
+
+            res.json({ success: true, message: 'Đã gỡ quyền Admin Space thành công.' });
+        } catch (error) {
+            console.error('Error removing space admin:', error);
+            res.status(500).json({ message: 'Lỗi khi gỡ Admin Space.' });
         }
     },
 };

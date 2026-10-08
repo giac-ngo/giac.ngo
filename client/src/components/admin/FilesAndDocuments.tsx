@@ -924,7 +924,7 @@ const CategoryManagerModal: React.FC<{
     // Use initialSpaceId if provided, otherwise fallback to default logic
     const defaultSpaceId = initialSpaceId
         ? initialSpaceId
-        : (isSuperAdmin ? (spaces.length > 0 ? spaces[0].id : '') : (spaces.find(s => s.userId === user.id)?.id || ''));
+        : (isSuperAdmin ? (spaces.length > 0 ? spaces[0].id : '') : (spaces.find(s => s.userId === user.id || s.isOwner || user.adminSpaceIds?.includes(Number(s.id)))?.id || ''));
 
     const [newItem, setNewItem] = useState({ name: '', nameEn: '', spaceId: String(defaultSpaceId), typeId: '', authorId: '', numberIndex: '' });
     const [editingItem, setEditingItem] = useState<{ id: number; name: string; nameEn: string; spaceId: string; typeId?: string; authorId?: string; numberIndex?: string } | null>(null);
@@ -942,7 +942,7 @@ const CategoryManagerModal: React.FC<{
             // Re-calculate default space ID on open to ensure it captures latest props
             const currentDefaultSpaceId = initialSpaceId
                 ? initialSpaceId
-                : (isSuperAdmin ? (spaces.length > 0 ? spaces[0].id : '') : (spaces.find(s => s.userId === user.id)?.id || ''));
+                : (isSuperAdmin ? (spaces.length > 0 ? spaces[0].id : '') : (spaces.find(s => s.userId === user.id || s.isOwner || user.adminSpaceIds?.includes(Number(s.id)))?.id || ''));
 
             setNewItem({ name: '', nameEn: '', spaceId: String(currentDefaultSpaceId), typeId: initialTypeId, authorId: initialAuthorId, numberIndex: '' });
             setEditingItem(null);

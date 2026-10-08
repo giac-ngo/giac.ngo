@@ -130,16 +130,31 @@ export const checkSelfOrPermission = (permission: string) => {
 
 export const getUserManagedSpaceIds = async (userId: number | undefined): Promise<number[]> => {
     if (!userId) return [];
-    // Include spaces owned by user AND spaces where user is a member
-    const result = await pool.query(
-        `SELECT DISTINCT id FROM (
-            SELECT id FROM spaces WHERE user_id = $1
-            UNION
-            SELECT space_id AS id FROM space_members WHERE user_id = $1
-        ) AS combined`,
-        [userId]
-    );
-    return result.rows.map((row: Record<string, unknown>) => Number(row.id));
+    try {
+        // Include spaces owned by user, spaces where user is space admin, AND member spaces
+        const result = await pool.query(
+            `SELECT DISTINCT id FROM (
+                SELECT id FROM spaces WHERE user_id = $1
+                UNION
+                SELECT space_id AS id FROM space_admins WHERE user_id = $1
+                UNION
+                SELECT space_id AS id FROM space_members WHERE user_id = $1
+            ) AS combined`,
+            [userId]
+        );
+        return result.rows.map((row: Record<string, unknown>) => Number(row.id));
+    } catch {
+        // Fallback if space_admins table not yet migrated
+        const result = await pool.query(
+            `SELECT DISTINCT id FROM (
+                SELECT id FROM spaces WHERE user_id = $1
+                UNION
+                SELECT space_id AS id FROM space_members WHERE user_id = $1
+            ) AS combined`,
+            [userId]
+        );
+        return result.rows.map((row: Record<string, unknown>) => Number(row.id));
+    }
 };
 
 export const isAdmin = (user: User | null | undefined) => {
@@ -150,11 +165,19 @@ export const isSpaceMember = async (user: User | null | undefined, spaceId: numb
     if (isAdmin(user)) return true;
     if (!user || !user.id || !/^\d+$/.test(String(spaceId))) return false;
     const numericSpaceId = Number(spaceId);
-    const result = await pool.query(
-        'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 UNION SELECT 1 FROM space_members WHERE space_id = $1 AND user_id = $2 LIMIT 1',
-        [numericSpaceId, user.id]
-    );
-    return (result.rowCount ?? 0) > 0;
+    try {
+        const result = await pool.query(
+            'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 UNION SELECT 1 FROM space_admins WHERE space_id = $1 AND user_id = $2 UNION SELECT 1 FROM space_members WHERE space_id = $1 AND user_id = $2 LIMIT 1',
+            [numericSpaceId, user.id]
+        );
+        return (result.rowCount ?? 0) > 0;
+    } catch {
+        const result = await pool.query(
+            'SELECT 1 FROM spaces WHERE id = $1 AND user_id = $2 UNION SELECT 1 FROM space_members WHERE space_id = $1 AND user_id = $2 LIMIT 1',
+            [numericSpaceId, user.id]
+        );
+        return (result.rowCount ?? 0) > 0;
+    }
 };
 
 /**

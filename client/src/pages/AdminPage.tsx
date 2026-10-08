@@ -111,9 +111,8 @@ type AdminTab = 'dashboard' | 'ai' | 'users' | 'roles' | 'settings' | 'domain' |
 
 
 const getFirstAllowedTab = (user: User): AdminTab => {
-  // A super admin (who can manage roles) defaults to dashboard
-  // Prioritize dashboard if the user has permission for it
-  if (user.permissions?.includes('dashboard')) return 'dashboard';
+  // A super admin or space admin defaults to dashboard
+  if (user.permissions?.includes('dashboard') || (user.adminSpaceIds && user.adminSpaceIds.length > 0)) return 'dashboard';
 
   const allowedTabs: AdminTab[] = [
     'dashboard', 'user-billing', 'space-billing', 'ai', 'users', 'conversations', 'pricing', 'manual-billing', 'payment-settings',
@@ -334,6 +333,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       )
     );
 
+    // Space Admin check: Space Owner OR secondary Space Admin
+    const isSpaceAdminUser = Boolean(
+      !isGlobalAdmin && (
+        isSpaceOwner ||
+        Boolean(currentSpace && user?.adminSpaceIds?.includes(Number(currentSpace.id))) ||
+        mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (s.isOwner || user?.adminSpaceIds?.includes(Number(s.id))))
+      )
+    );
+
     const hasPermission = (tab: AdminTab): boolean => {
       // 1. Global Admin has full platform access
       if (isGlobalAdmin) return true;
@@ -341,8 +349,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
       if (isGlobalOnlyPermission(tab)) return false;
 
-      // 3. Space Owner has full tenant access within their own Space
-      if (isSpaceOwner) return true;
+      // 3. Space Admin (Chủ sở hữu hoặc Admin Space phụ) có toàn quyền trong Không gian
+      if (isSpaceAdminUser) return true;
 
       // 4. Space Manager with delegated permissions
       return Boolean(user.permissions?.includes(tab));
@@ -449,6 +457,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     )
   );
 
+  const isSpaceAdminUser = Boolean(
+    !isGlobalAdmin && (
+      isSpaceOwner ||
+      Boolean(currentSpace && user?.adminSpaceIds?.includes(Number(currentSpace.id))) ||
+      mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (s.isOwner || user?.adminSpaceIds?.includes(Number(s.id))))
+    )
+  );
+
   const hasPermission = (tab: AdminTab): boolean => {
     // 1. Global Admin has full platform access
     if (isGlobalAdmin) return true;
@@ -456,8 +472,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
     if (isGlobalOnlyPermission(tab)) return false;
 
-    // 3. Space Owner has full tenant access within their own Space
-    if (isSpaceOwner) return true;
+    // 3. Space Admin (Chủ sở hữu hoặc Admin Space phụ) có toàn quyền trong Không gian
+    if (isSpaceAdminUser) return true;
 
     // 4. Space Manager with delegated permissions
     return Boolean(user.permissions?.includes(tab));

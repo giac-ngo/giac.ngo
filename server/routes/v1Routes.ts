@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { documentModel } from '../models/document.model.js';
 import { getJwtSecret } from '../utils/jwtSecret.js';
+import { isSpaceAdmin } from '../utils/policy.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -30,7 +31,7 @@ const checkSpaceAccess = async (spaceId: number, userId: number, isGlobalAdmin: 
     if (isGlobalAdmin) return true;
     const space = await spaceModel.findById(spaceId);
     if (!space) return false;
-    if (space.userId === userId) return true;
+    if (await isSpaceAdmin(userId, spaceId)) return true;
     return await spaceMemberModel.isMember(spaceId, userId);
 };
 
@@ -164,9 +165,9 @@ router.post('/login', v1LoginLimiter, async (req: Request, res: Response, next: 
         if (!space) {
             return res.status(404).json({ message: `Không tìm thấy không gian có ID: ${spaceId}.` });
         }
-        const isOwner = space.userId === user.id;
+        const isOwnerOrAdmin = await isSpaceAdmin(user.id, space.id);
         const isMember = await spaceMemberModel.isMember(space.id, user.id);
-        if (!isOwner && !isMember) {
+        if (!isOwnerOrAdmin && !isMember) {
             return res.status(403).json({ message: 'Tài khoản chưa đăng ký trong không gian này.' });
         }
 

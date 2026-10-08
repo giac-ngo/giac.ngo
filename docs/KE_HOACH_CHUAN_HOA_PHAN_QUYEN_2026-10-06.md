@@ -6,7 +6,7 @@ Oct 6, 2026 · @Minh Duy · cập nhật 07/10/2026
 
 Mục tiêu: đưa toàn bộ backend về đúng mô hình 4 tầng (Admin chính → Admin Space → Quản lý Space → User) trong khoảng 4 tuần, vá 5 lỗi P0 trong 1–2 ngày đầu.
 
-- **Hiện trạng (07/10):** Giai đoạn 0 và 1 đã sửa xong trong code và qua review; toàn bộ thay đổi (42 file sửa + 8 file mới) **chưa commit**, migration chưa chạy, chưa deploy. Code trên VPS vẫn là commit `d6cdffd`.
+- **Hiện trạng (07/10, 22:50):** Giai đoạn 0, 1, phần lớn Giai đoạn 2 và việc 1.7 đã sửa xong trong code, qua review và đã commit (đến commit `d8af632`). Migration gỡ quyền chưa chạy; chưa xác nhận deploy lên VPS. Xem **Checklist tiến độ** ngay dưới.
 - **Gốc lỗi đã xử lý:** `checkPermission()` không còn được dùng ở route nào; `canAccessSpace()` chỉ còn nghĩa "là thành viên"; mọi kiểm tra quyền đi qua một hàm `can()` trong `server/utils/policy.ts`.
 - **Dữ liệu DB khớp sẵn mô hình** (`is_global_admin`, `spaces.user_id`, `roles.space_id`, `space_members`), nên phần lớn việc là sửa middleware và controller, ít thay đổi schema.
 
@@ -15,6 +15,73 @@ Nguyên tắc làm việc:
 1. Mọi câu SQL mới hoặc sửa ở backend phải được chủ dự án duyệt trước (quy tắc trong `cau_truc.md`). Kế hoạch đánh dấu **\[SQL\]** cho các việc đó.
 2. Vá theo gốc: một hàm chính sách dùng chung, không vá từng route riêng lẻ.
 3. Mỗi giai đoạn có test hồi quy và tiêu chí xong trước khi deploy.
+
+## Checklist tiến độ
+
+Đánh dấu theo code đã đối chiếu đến 07/10, 22:50 (commit `d8af632`). ✓ = đã làm trong code; "đã deploy" chỉ đánh dấu khi chạy trên VPS.
+
+**Vá khẩn cấp (P0)**
+
+- [x] P0-1…P0-9 của kế hoạch 02/10: cấu hình hệ thống, khóa Space, hồ sơ / SQL injection, token người khác, merit / rút tiền, đọc file qua chat, chat tin cấu hình từ client, tài liệu không cần đăng nhập, upload
+- [x] Iframe trang tùy chỉnh: chặn `postMessage` giả, bỏ `allow-same-origin`, `allow-top-navigation`
+- [x] Reset Weaviate, xuất giao dịch, xem giao dịch người khác chỉ Admin chính
+- [x] OAuth CMS ký `state`; Google bỏ `custom_domain` khỏi danh sách chuyển hướng
+- [ ] P0-10 đổi khóa bí mật, tạo lại `api_token`, khóa cổng 5432 — chủ dự án quyết định không làm (07/10)
+
+**Phân quyền (Giai đoạn 1)**
+
+- [x] Lớp chính sách `can()` trong `server/utils/policy.ts`; không còn `checkPermission` ở route
+- [x] Tài liệu + danh mục, Role, CMS (+ chặn IDOR), Social, Thông báo, Media, Stripe Connect theo đúng Space
+- [x] Danh mục quyền chuẩn (`cms_write` / `cms_approve`, `social-moderate`, `notifications`, `space-billing`, `dashboard`)
+- [x] Mọi user thuộc ít nhất một Space; `login.bodhilab.io` và `bodhilab.io` chỉ Admin chính đăng nhập, không đăng ký; hỗ trợ subdomain
+- [x] Rate limit `/api/v1/login`; gom cấu hình tên miền (`ADMIN_HOST`, `MAIN_DOMAIN`) ở server và client
+- [x] Test: 54 ca (theo báo cáo, DB giả lập)
+
+**AI và phiên đăng nhập (Giai đoạn 2)**
+
+- [x] Truy vấn AI công khai không trả system prompt; `getVisibleAiConfigs` dùng `req.user`
+- [x] `estimate-context`, `trained-conversations` chỉ người quản lý AI; `latest-conversation` dùng `req.user`
+- [x] `voice-key`, `translate` kiểm quyền; gói giá của Space chỉ chứa AI cùng Space
+- [ ] `voice-key`: giới hạn tần suất và tính phí
+- [ ] Phiên đăng nhập mới: refresh token băm, xoay vòng, cookie `HttpOnly` (giữ `api_token` cũ)
+
+**Tiền và merit (Giai đoạn 3)**
+
+- [x] Trừ merit nguyên tử khi mua gói, tăng lượt
+- [x] Danh sách cúng dường công khai: cột an toàn, tối đa 100 dòng
+- [x] Xử lý chênh lệch merit cũ — bỏ, giữ nguyên theo quyết định (#301, ~128 nghìn merit, 50.000 merit QR)
+- [ ] Sổ cái + đối soát hằng ngày
+- [ ] PayOS: số tiền tối thiểu, quy đổi VND → merit một chỗ
+- [ ] Chủ Space duyệt cúng dường QR (endpoint + màn duyệt)
+
+**Hiệu năng và cấu trúc (Giai đoạn 4)**
+
+- [x] Cache user 45 giây; pool DB `max`, `idleTimeoutMillis`, `connectionTimeoutMillis`
+- [ ] Đưa DDL pgvector vào migration; phân trang SQL; build JS thay `tsx`; `React.lazy`; dọn file thừa; migration nền
+
+**Lỗi còn mở (review + Lark)**
+
+- [ ] #136 Toast 401 lặp (P2-6)
+- [ ] #111 Lỗi lộ đường dẫn / `error.message` (P2-10) — mới che một phần
+- [ ] #113 Ảnh bìa mồ côi khi lưu tài liệu lỗi
+- [ ] #129 Dịch EN→VI ghi đè kệ tiếng Việt
+- [ ] #128 Reset password ra trang lỗi; chữ "Không Tìm Thấy Trang"
+- [ ] #75 Thêm nút đổi ảnh đại diện trong `EditProfileModal`
+- [ ] #6 Stripe: xác nhận khóa thật trên VPS, thanh toán thử
+- [ ] #126 Index lại bài "Bạch Ngôn" vào pgvector
+- [ ] Giao diện: #127, #137, #138, #139, #91
+- [ ] Bỏ alias `/api/spaces/managed/:userId`
+- [ ] Đường "Legacy Token" — chấp nhận rủi ro; tùy chọn tắt sau
+
+**Triển khai**
+
+- [x] Commit code (đến `d8af632`)
+- [ ] Chạy migration gỡ `manual-billing`, `finetune` khỏi role của Space (đã duyệt câu SQL ngày 06/10)
+- [ ] Chốt và chạy câu đổi quyền `cms` cũ → `cms_write` + `cms_approve`
+- [ ] Deploy + `pm2 restart`
+- [ ] Kiểm tra Nginx có `proxy_set_header Host $host;` cho mọi tên miền
+- [ ] Đăng nhập thử: Admin chính / user thường ở `login.bodhilab.io`; thành viên / người ngoài ở `giac.ngo`
+- [ ] Commit thư mục `docs/`
 
 ## Mô hình phân quyền đích
 
