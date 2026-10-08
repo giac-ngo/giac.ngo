@@ -635,15 +635,27 @@ html[data-theme="giacngo"] .ai-selector-button .chevron {
 html[data-theme="giacngo"] .ai-selector-dropdown {
     position: absolute;
     top: 100%;
-    right: 0;
-    width: 18rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 17.5rem;
+    max-width: calc(100vw - 80px);
     background-color: var(--color-background-panel);
     border: 1px solid var(--color-border-color);
     border-radius: 0.75rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
     z-index: 50;
     overflow: hidden;
     margin-top: 0.5rem;
+}
+
+@media (min-width: 640px) {
+    html[data-theme="giacngo"] .ai-selector-dropdown {
+        left: auto;
+        right: 0;
+        transform: none;
+        width: 18rem;
+        max-width: 18rem;
+    }
 }
 
 html[data-theme="giacngo"] .marketplace-button {
@@ -701,20 +713,29 @@ html[data-theme="giacngo"] .chat-messages-container {
     flex-grow: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 1.5rem;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
 }
 
 html[data-theme="giacngo"] .chat-messages-list {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
 }
 
 html[data-theme="giacngo"] .chat-message-row {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    max-width: 80%;
+    max-width: 85%;
     margin-bottom: 1rem;
+    box-sizing: border-box;
 }
 
 html[data-theme="giacngo"] .chat-message-row.user {
@@ -732,12 +753,17 @@ html[data-theme="giacngo"] .chat-message-content {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 html[data-theme="giacngo"] .chat-message-bubble {
     padding: 0.75rem 1rem;
     border-radius: 1rem;
     word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 html[data-theme="giacngo"] .chat-message-bubble.user {
@@ -759,6 +785,21 @@ html[data-theme="giacngo"] .chat-message-toolbar {
     gap: 0.25rem;
     margin-top: 0.5rem;
     transition: opacity 0.2s ease-in-out;
+}
+
+html[data-theme="giacngo"] .markdown-content {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+html[data-theme="giacngo"] .markdown-content pre,
+html[data-theme="giacngo"] .markdown-content code {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    max-width: 100%;
 }
 
 html[data-theme="giacngo"] .markdown-content p {
@@ -1016,6 +1057,41 @@ html[data-theme="giacngo"] .dharma-talk-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    html[data-theme="giacngo"] .chat-messages-container {
+        padding: 0.75rem 0.5rem;
+        overflow-x: hidden;
+    }
+    html[data-theme="giacngo"] .chat-message-row {
+        max-width: 95%;
+        margin-bottom: 0.75rem;
+    }
+    html[data-theme="giacngo"] .chat-message-bubble {
+        padding: 0.65rem 0.85rem;
+    }
+    html[data-theme="giacngo"] .chat-input-area {
+        padding: 0.5rem 0.5rem 0.75rem;
+    }
+    html[data-theme="giacngo"] .welcome-ai-suggestions {
+        grid-template-columns: 1fr;
+        gap: 0.65rem;
+        width: 100%;
+        max-width: 100%;
+    }
+    html[data-theme="giacngo"] .welcome-ai-description {
+        width: 100%;
+        max-width: 100%;
+        padding: 0 0.5rem;
+        box-sizing: border-box;
+    }
+    html[data-theme="giacngo"] .welcome-screen-ai {
+        padding: 1rem 0.5rem 3rem;
+        max-width: 100%;
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
 }
 
 @media (max-width: 640px) {

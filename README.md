@@ -1,5 +1,7 @@
 # Giác Ngộ — Nền Tảng Tu Tập Tâm Linh AI
 
+[Tiếng Việt](README.md) | [English](README_EN.md)
+
 **Giác Ngộ** là nền tảng web toàn diện kết hợp thực hành tâm linh truyền thống với Trí tuệ Nhân tạo. Mỗi "Không gian" (Space) là một cộng đồng tu tập độc lập, nơi hành giả có thể tiếp cận kinh sách, pháp thoại, thiền dẫn, trợ lý AI chuyên sâu và kết nối với cộng đồng.
 
 🌐 **Live:** [giac.ngo](https://giac.ngo)  
@@ -19,8 +21,11 @@
 - **Đa mô hình:** Google Gemini Flash/Pro, OpenAI GPT-4o, Grok
 - **Nhận dạng giọng nói (STT):** Nói chuyện bằng tiếng Việt & tiếng Anh
 - **Đọc câu trả lời (TTS):** Nhiều giọng đọc tự nhiên (Kore, Puck, Echo...)
-- **Xử lý hình ảnh & OCR:** Gửi ảnh để AI phân tích, trích xuất văn bản
-- **Upload tài liệu:** PDF, DOCX → AI tóm tắt & lưu vào bộ nhớ RAG
+- **Xử lý hình ảnh & OCR (PDF & Ảnh):**
+  - Trích xuất văn bản thông minh từ tài liệu ảnh (PNG, JPG, WebP) và file PDF (bao gồm cả tài liệu scan/chụp ảnh).
+  - Nhận diện chữ Hán, chữ Nôm, Tiếng Việt và Tiếng Anh với độ chính xác cao nhờ tích hợp Vision AI.
+  - Phân tích trực tiếp nội dung hình ảnh/PDF đính kèm ngay trong khung chat.
+- **Upload tài liệu & RAG Vector DB:** PDF, DOCX, TXT → AI tự động bóc tách, trích xuất text, tóm tắt & lưu vào bộ nhớ vector Weaviate để đối chiếu ngữ cảnh.
 - **Lịch sử hội thoại:** Lưu trữ, đổi tên, xem lại mọi cuộc trò chuyện
 - **Phản hồi chất lượng:** Like/Dislike từng câu trả lời AI
 
@@ -76,7 +81,7 @@
 ### 📂 CMS Nội Dung
 - Rich Text Editor với Auto-Translate Việt ↔ Anh (Gemini/GPT)
 - TTS: Tạo file audio từ nội dung (nhiều giọng đọc)
-- OCR & Extraction từ PDF / ảnh scan
+- **OCR & Extraction:** Bóc tách văn bản tự động từ tệp PDF (kể cả PDF scan dạng ảnh) và hình ảnh (JPG, PNG, WebP)
 - Quản lý Pháp Thoại, Thiền Dẫn, Kinh Sách
 - Quản lý Space: Tên, Slug, màu sắc, ảnh bìa, custom domain
 
@@ -198,8 +203,8 @@
 - ✅ STT (nói → text) — tiếng Việt & Anh
 - ✅ TTS (text → giọng đọc, nhiều giọng)
 - ✅ Voice Chat (hội thoại trực tiếp, ghi âm)
-- ✅ Xử lý ảnh & OCR
-- ✅ Upload PDF/DOCX → RAG
+- ✅ Xử lý ảnh & OCR thông minh (PDF scan & Hình ảnh)
+- ✅ Upload PDF/DOCX/TXT → OCR & nạp vào RAG Vector DB
 - ✅ Lịch sử hội thoại, Like/Dislike AI
 - ✅ System Prompt, Q&A, Fine-tuning
 - ✅ Test Chat + Add to Training

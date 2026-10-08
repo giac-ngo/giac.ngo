@@ -231,10 +231,10 @@ export const PracticeSpaceHeader: React.FC<PracticeSpaceHeaderProps> = ({
                                         <p className="px-3 py-2 text-xs font-semibold text-text-light uppercase">{t.aiListTitle}</p>
                                         {aiConfigs.map(ai => (
                                             <button key={ai.id} onClick={() => handleSelectAi(ai)} className={`w-full text-left flex items-center gap-3 p-2 rounded-md ${ai.id === currentAiConfig?.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
-                                                <img src={ai.avatarUrl} alt={ai.name} className="w-8 h-8 rounded-full" />
-                                                <div>
-                                                    <p className="font-semibold text-sm">{(language === 'en' && ai.nameEn) ? ai.nameEn : ai.name}</p>
-                                                    <p className="text-xs text-text-light">{(language === 'en' && ai.descriptionEn) ? ai.descriptionEn : ai.description}</p>
+                                                <img src={ai.avatarUrl} alt={ai.name} className="w-8 h-8 rounded-full flex-shrink-0 object-cover" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-sm truncate">{(language === 'en' && ai.nameEn) ? ai.nameEn : ai.name}</p>
+                                                    <p className="text-xs text-text-light line-clamp-2">{(language === 'en' && ai.descriptionEn) ? ai.descriptionEn : ai.description}</p>
                                                 </div>
                                             </button>
                                         ))}
