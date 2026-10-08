@@ -330,30 +330,44 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       // Global admin có thể vào /:spaceSlug/admin để quản lý riêng space đó, hoặc /admin để quản lý chung.
       // Không redirect về /admin nữa để giữ context của space.
     } else {
-      // Space admin: phải có spaceSlug và slug phải thuộc spaces của mình
-      if (!spaceSlug) return;
-      const hasAccess = mySpaces.some((s: Space) => s.slug === spaceSlug);
+      // Space admin: phải thuộc spaces của mình (hoặc space_admins)
+      const targetSpaceId = currentSpace ? Number(currentSpace.id) : null;
+      const targetSlug = spaceSlug || currentSpace?.slug;
+      if (!targetSlug && !targetSpaceId) return;
+
+      const hasAccess = targetSpaceId
+        ? (mySpaces.some((s: Space) => Number(s.id) === targetSpaceId) || user?.adminSpaceIds?.includes(targetSpaceId))
+        : (targetSlug ? mySpaces.some((s: Space) => s.slug === targetSlug) : false);
+
       if (!hasAccess) {
         // Không thuộc space này → redirect về trang public của space
-        navigate(`/${spaceSlug}/chat`, { replace: true });
+        const redirectPath = isCustomDomain() ? '/chat' : `/${targetSlug || ''}/chat`;
+        navigate(redirectPath, { replace: true });
         return;
       }
     }
 
     // Space Owner check: matches current space or spaces the user manages
+    const targetSpaceId = currentSpace ? Number(currentSpace.id) : null;
+    const matchingMySpace = mySpaces.find(s => {
+      if (targetSpaceId) return Number(s.id) === targetSpaceId;
+      if (spaceSlug) return s.slug === spaceSlug;
+      return false;
+    });
+
     const isSpaceOwner = Boolean(
       !isGlobalAdmin && (
         (currentSpace && (Number(currentSpace.userId) === Number(user?.id) || Number((currentSpace as any).user_id) === Number(user?.id))) ||
-        mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (Number(s.userId) === Number(user?.id) || Number((s as any).user_id) === Number(user?.id)))
+        (matchingMySpace && (matchingMySpace.isOwner || Number(matchingMySpace.userId) === Number(user?.id) || Number((matchingMySpace as any).user_id) === Number(user?.id)))
       )
     );
 
-    // Space Admin check: Space Owner OR secondary Space Admin
+    // Space Admin check: Space Owner OR secondary Space Admin of current space
     const isSpaceAdminUser = Boolean(
       !isGlobalAdmin && (
         isSpaceOwner ||
-        Boolean(currentSpace && user?.adminSpaceIds?.includes(Number(currentSpace.id))) ||
-        mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (s.isOwner || user?.adminSpaceIds?.includes(Number(s.id))))
+        Boolean(targetSpaceId && user?.adminSpaceIds?.includes(targetSpaceId)) ||
+        Boolean(matchingMySpace && (matchingMySpace.isOwner || user?.adminSpaceIds?.includes(Number(matchingMySpace.id))))
       )
     );
 
@@ -371,11 +385,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       return Boolean(user.permissions?.includes(tab));
     };
 
-    // Tab selection — chạy cho cả global admin (/admin) lẫn space admin (/:slug/admin)
+    // Tab selection — chạy cho cả global admin (/admin) lẫn space admin (/:slug/admin hoặc /admin trên custom domain)
     const newTab = section || getFirstAllowedTab(user);
     const isPermitted = hasPermission(newTab);
-    const effectiveSlug = spaceSlug || 'giac-ngo';
-    const baseAdminPath = isGlobalAdmin && !spaceSlug ? '/admin' : `/${effectiveSlug}/admin`;
+    const effectiveSlug = spaceSlug || currentSpace?.slug;
+    const baseAdminPath = (isCustomDomain() || (isGlobalAdmin && !spaceSlug) || !effectiveSlug)
+      ? '/admin'
+      : `/${effectiveSlug}/admin`;
     if (isPermitted) {
       setActiveTab(newTab);
       // Luôn đảm bảo URL có đầy đủ /:spaceSlug/admin/:section hoặc /admin/:section để F5 không bị mất vị trí
@@ -470,18 +486,25 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     </button>
   );
 
+  const currentTargetSpaceId = currentSpace ? Number(currentSpace.id) : null;
+  const currentMatchingMySpace = mySpaces.find(s => {
+    if (currentTargetSpaceId) return Number(s.id) === currentTargetSpaceId;
+    if (spaceSlug) return s.slug === spaceSlug;
+    return false;
+  });
+
   const isSpaceOwner = Boolean(
     !isGlobalAdmin && (
       (currentSpace && (Number(currentSpace.userId) === Number(user?.id) || Number((currentSpace as any).user_id) === Number(user?.id))) ||
-      mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (Number(s.userId) === Number(user?.id) || Number((s as any).user_id) === Number(user?.id)))
+      (currentMatchingMySpace && (currentMatchingMySpace.isOwner || Number(currentMatchingMySpace.userId) === Number(user?.id) || Number((currentMatchingMySpace as any).user_id) === Number(user?.id)))
     )
   );
 
   const isSpaceAdminUser = Boolean(
     !isGlobalAdmin && (
       isSpaceOwner ||
-      Boolean(currentSpace && user?.adminSpaceIds?.includes(Number(currentSpace.id))) ||
-      mySpaces.some(s => (s.slug === spaceSlug || !spaceSlug) && (s.isOwner || user?.adminSpaceIds?.includes(Number(s.id))))
+      Boolean(currentTargetSpaceId && user?.adminSpaceIds?.includes(currentTargetSpaceId)) ||
+      Boolean(currentMatchingMySpace && (currentMatchingMySpace.isOwner || user?.adminSpaceIds?.includes(Number(currentMatchingMySpace.id))))
     )
   );
 
@@ -630,7 +653,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
                   {language === 'vi' ? 'Trang chủ' : 'Home'}
                 </a>
               ) : (
-                <Link to={`/${effectiveSpaceSlug}/chat`} className="block w-full text-center px-4 py-2 text-sm font-medium text-text-main border border-border-color rounded-md hover:bg-background-light">
+                <Link to={isCustomDomain() || !effectiveSpaceSlug ? '/chat' : `/${effectiveSpaceSlug}/chat`} className="block w-full text-center px-4 py-2 text-sm font-medium text-text-main border border-border-color rounded-md hover:bg-background-light">
                   {t.toAppPage}
                 </Link>
               )}
