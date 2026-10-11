@@ -516,6 +516,50 @@ async function buildHtmlPage(page, space, assets) {
     html = html.replace(/user\s*&&\s*user\.apiToken/g, 'user && (user.apiToken || user.id || localStorage.getItem("apiToken"))');
     html = html.replace(/u\s*&&\s*u\.apiToken/g, 'u && (u.apiToken || u.id || localStorage.getItem("apiToken"))');
 
+    // Hide internal model name in custom page template and prevent "Chưa có AI Agent nào." flash while loading
+    html = html.replace(
+        /<span class="model-tag">\$\{escHtml\(ai\.modelName \|\| 'AI'\)\}<\/span>/g,
+        '<span class="model-tag">${currentLang === "en" ? "AI Assistant" : "Trợ lý AI"}</span>'
+    );
+    html = html.replace(
+        /allAgents = \[\.\.\.featured, \.\.\.rest\];/g,
+        'allAgents = [...featured, ...rest]; window._agentsLoaded = true;'
+    );
+    html = html.replace(
+        /if \(!shown\.length\) \{\s*grid\.innerHTML = '<p style="text-align:center;color:#8c7b75;grid-column:1\/-1;">Chưa có AI Agent nào\.<\/p>';\s*return;\s*\}/g,
+        `if (!shown.length) {
+        if (!window._agentsLoaded) {
+          grid.innerHTML = '<p style="text-align:center;color:#8c7b75;grid-column:1/-1;">' + (currentLang === 'en' ? 'Loading AI Agents...' : 'Đang tải AI Agents...') + '</p>';
+          return;
+        }
+        grid.innerHTML = '<p style="text-align:center;color:#8c7b75;grid-column:1/-1;">' + (currentLang === 'en' ? 'No AI Agents available yet.' : 'Chưa có AI Agent nào.') + '</p>';
+        return;
+      }`
+    );
+
+    // Only show Admin menu button on homepage if user actually has Admin permissions
+    html = html.replace(
+        /if \(adminMenu\) adminMenu\.style\.display = 'flex';\s*const mobileAdmin = document\.getElementById\('mobile-admin-btn'\);\s*if \(mobileAdmin\) mobileAdmin\.style\.display = 'flex';/g,
+        `const hasAdminAccess = Boolean(user && (user.isGlobalAdmin || (Array.isArray(user.adminSpaceIds) && user.adminSpaceIds.length > 0) || (Array.isArray(user.permissions) && user.permissions.length > 0)));
+          if (adminMenu) adminMenu.style.display = hasAdminAccess ? 'flex' : 'none';
+          const mobileAdmin = document.getElementById('mobile-admin-btn');
+          if (mobileAdmin) mobileAdmin.style.display = hasAdminAccess ? 'flex' : 'none';`
+    );
+
+    // Keep /themes/giacngo/chua.png icon on Home desktop #admin-user-menu-item instead of overwriting with 🛡️ emoji textContent
+    html = html.replace(
+        /if \(adminUserMenu\) adminUserMenu\.textContent = t\.adminUserMenu;/g,
+        `if (adminUserMenu) {
+          var cleanAdminText = (t.adminUserMenu || '').replace(/^[^\\wÀ-ỹ]+/, '').trim() || 'Bảng quản trị';
+          adminUserMenu.innerHTML = '<img src="/themes/giacngo/chua.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;"><span>' + cleanAdminText + '</span>';
+        }
+        var mobileAdminEl = document.getElementById('mobile-admin-btn');
+        if (mobileAdminEl) {
+          var cleanMobAdminText = (t.adminUserMenu || '').replace(/^[^\\wÀ-ỹ]+/, '').trim() || 'Bảng quản trị';
+          mobileAdminEl.innerHTML = '<img src="/themes/giacngo/chua.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0;"><span>' + cleanMobAdminText + '</span>';
+        }`
+    );
+
     return `<!DOCTYPE html>
 <html lang="vi">
 <head>

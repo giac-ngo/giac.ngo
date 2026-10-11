@@ -417,7 +417,8 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
     const fetchLogs = useCallback(async (page = 1) => {
         setIsLoadingLogs(true);
         try {
-            const data = await apiService.request(`/api/notifications/logs?page=${page}&limit=10`);
+            const spaceQuery = space?.id ? `&spaceId=${space.id}` : '';
+            const data = await apiService.request(`/api/notifications/logs?page=${page}&limit=10${spaceQuery}`);
             setLogs(data.logs || []);
             setLogsTotalPages(data.totalPages || 1);
             setLogsPage(page);
@@ -426,7 +427,7 @@ export const NotificationManagement: React.FC<NotificationManagementProps> = ({ 
         } finally {
             setIsLoadingLogs(false);
         }
-    }, []);
+    }, [space?.id]);
 
     useEffect(() => {
         if (activeTab === 'history') {

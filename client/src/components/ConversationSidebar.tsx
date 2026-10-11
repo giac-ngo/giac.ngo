@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { AIConfig, Conversation, User, SystemConfig, ViewMode, LibraryFilters, Space } from '../types';
 import { apiService } from '../services/apiService';
 import { useToast } from './ToastProvider';
-import { LanguageIcon, LogoutIcon, PencilIcon, TrashIcon, HelmetIcon, LoginIcon, SpinnerIcon } from './Icons';
+import { LanguageIcon, LogoutIcon, PencilIcon, TrashIcon, LoginIcon, SpinnerIcon } from './Icons';
 import { LibraryMenu } from './LibraryMenu';
 import UserAvatar from './UserAvatar';
 
@@ -494,7 +494,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                         </div>
                                         {hasAdminPermission && (
                                             <button onClick={onGoToAdmin} className="btn-secondary-new !px-2.5 !py-1.5 !text-xs whitespace-nowrap flex items-center gap-1.5">
-                                                <HelmetIcon className="w-4 h-4 flex-shrink-0" /> <span>{t.adminPage}</span>
+                                                <img src="/themes/giacngo/chua.png" alt="" className="w-4 h-4 object-contain flex-shrink-0" /> <span>{t.adminPage}</span>
                                             </button>
                                         )}
                                     </div>

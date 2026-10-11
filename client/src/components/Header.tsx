@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { User, SystemConfig, Space } from '../types';
-import { LoginIcon, SettingsIcon, LogoutIcon, ChevronDownIcon, FacebookIcon, InstagramIcon, MenuIcon, XIcon, UserIcon, ThreadsIcon } from '../components/Icons';
+import { LoginIcon, LogoutIcon, ChevronDownIcon, FacebookIcon, InstagramIcon, MenuIcon, XIcon, UserIcon, ThreadsIcon } from '../components/Icons';
 import { apiService } from '../services/apiService';
 import UserAvatar from './UserAvatar';
 
@@ -255,7 +255,7 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
                                         )}
                                         {hasAdminPermission && (
                                             <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/admin`} className="user-menu-item">
-                                                <SettingsIcon className="w-5 h-5" />
+                                                <img src="/themes/giacngo/chua.png" alt="" className="w-5 h-5 object-contain flex-shrink-0" />
                                                 <span>{t.adminPanel}</span>
                                             </Link>
                                         )}
@@ -315,7 +315,7 @@ export const Header: React.FC<HeaderProps> = ({ user, systemConfig, language, se
                                 {hasManagedSpace && (
                                     <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/chat`} onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link"><UserIcon className="w-5 h-5" /><span>{t.practiceSpace}</span></Link>
                                 )}
-                                {hasAdminPermission && <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/admin`} onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link"><SettingsIcon className="w-5 h-5" /><span>{t.adminPanel}</span></Link>}
+                                {hasAdminPermission && <Link to={`${userSlug === 'giac-ngo' ? '' : `/${userSlug}`}/admin`} onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link"><img src="/themes/giacngo/chua.png" alt="" className="w-5 h-5 object-contain flex-shrink-0" /><span>{t.adminPanel}</span></Link>}
                             </div>
                         </>
                     )}

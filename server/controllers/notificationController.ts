@@ -121,15 +121,15 @@ export const notificationController = {
 
             let recipients: Recipient[] = [];
             if (targetGroup === 'test') {
-                if (!isAdmin(req.user)) {
-                    return res.status(403).json({ error: 'Chỉ Global Admin mới có thể gửi email thử nghiệm (test email).' });
+                if (!spaceId && !isAdmin(req.user)) {
+                    return res.status(403).json({ error: 'Chỉ Global Admin mới có thể gửi email thử nghiệm toàn hệ thống.' });
                 }
                 if (!testEmails || !Array.isArray(testEmails) || testEmails.length === 0) {
-                    return res.status(400).json({ error: 'Vui lòng cung cấp danh sách email gửi test.' });
+                    return res.status(400).json({ error: 'Vui lòng cung cấp danh sách email người nhận.' });
                 }
-                // Giới hạn test email chỉ được gửi tối đa 5 địa chỉ và không cho người dùng lợi dụng SMTP gửi spam
-                const trimmedEmails = testEmails.map(email => String(email).trim().toLowerCase()).filter(Boolean).slice(0, 5);
-                recipients = trimmedEmails.map(email => ({ id: 0, name: 'Test User', email, spaceId: spaceId ? parseInt(spaceId, 10) : 1 }));
+                const maxRecipients = isAdmin(req.user) || spaceId ? 100 : 5;
+                const trimmedEmails = testEmails.map(email => String(email).trim().toLowerCase()).filter(Boolean).slice(0, maxRecipients);
+                recipients = trimmedEmails.map(email => ({ id: 0, name: 'Thành viên', email, spaceId: spaceId ? parseInt(spaceId, 10) : 1 }));
             } else {
                 recipients = await getRecipients(targetGroup, req.user, req);
             }

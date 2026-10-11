@@ -201,9 +201,18 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
             audio.removeEventListener('loadedmetadata', updateDuration);
             audio.removeEventListener('durationchange', updateDuration);
             audio.removeEventListener('canplay', updateDuration);
-            if (!audio.paused) audio.pause();
         };
     }, [playingTalkId, duration]);
+
+    // Pause audio only when component unmounts
+    useEffect(() => {
+        const audio = audioRef.current;
+        return () => {
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        };
+    }, []);
 
     const playingTalk = talks.find(t => t.id === playingTalkId);
 
@@ -223,6 +232,7 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
                 setIsAudioPlaying(false);
             } else {
                 audio.play().then(() => setIsAudioPlaying(true)).catch(e => {
+                    if (e?.name === 'AbortError') return;
                     console.error("Audio playback error:", e);
                     showToast(t.audioPlaybackError, "error");
                     setIsAudioPlaying(false);
@@ -237,14 +247,15 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
             } else {
                 setDuration(0);
             }
+            setPlayingTalkId(talk.id);
             audio.play().then(() => {
                 setIsAudioPlaying(true);
             }).catch(e => {
+                if (e?.name === 'AbortError') return;
                 console.error("Audio playback error:", e);
                 showToast(t.audioPlaybackError, "error");
                 setIsAudioPlaying(false);
             });
-            setPlayingTalkId(talk.id);
 
             if (!viewIncremented.has(talk.id)) {
                 try {
@@ -288,7 +299,11 @@ export const DharmaTalksView: React.FC<DharmaTalksViewProps> = ({ language, spac
     const getThumbnail = (talk: DharmaTalk) => talk.thumbnailUrl || talk.speakerAvatarUrl;
 
     const getTitle = (talk: DharmaTalk) => (language === 'en' && talk.titleEn) ? talk.titleEn : talk.title;
-    const getSubtitle = (talk: DharmaTalk) => (language === 'en' && talk.subtitleEn) ? talk.subtitleEn : talk.subtitle;
+    const getSubtitle = (talk: DharmaTalk) => {
+        const raw = (language === 'en' && talk.subtitleEn) ? talk.subtitleEn : talk.subtitle;
+        if (!raw || /^test(\s+pháp\s+thoại)?$/i.test(raw.trim())) return '';
+        return raw;
+    };
 
     // Featured talk = first dharma talk (or currently playing)
     const featuredTalk = playingTalk && (playingTalk.category || 'dharma_talk') === 'dharma_talk'

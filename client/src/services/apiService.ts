@@ -14,7 +14,7 @@ const handleResponse = async (res: Response) => {
         } catch (e) {
             errorData = { message: res.statusText };
         }
-        throw new Error(errorData.message || 'API request failed');
+        throw new Error(errorData.message || errorData.error || 'API request failed');
     }
     if (res.status === 204) return null;
     return res.json();

@@ -387,7 +387,14 @@ export const SpaceDetailPage: React.FC<SpaceDetailPageProps> = ({ user, onUserUp
                     <div className="detail-contact-card">
                         <h3>{t.contact}</h3>
                         <ul>
-                            <li><GlobeAltIcon className="w-5 h-5" /> <a href="https://plumvillage.org" target="_blank" rel="noopener noreferrer">{center.website}</a></li>
+                            {center.website && (
+                                <li>
+                                    <GlobeAltIcon className="w-5 h-5" />{' '}
+                                    <a href={center.website.startsWith('http') ? center.website : `https://${center.website}`} target="_blank" rel="noopener noreferrer">
+                                        {center.website}
+                                    </a>
+                                </li>
+                            )}
                             <li><PhoneIcon className="w-5 h-5" /> <span>{center.phoneNumber}</span></li>
                             <li><EnvelopeIcon className="w-5 h-5" /> <span>{center.email}</span></li>
                         </ul>

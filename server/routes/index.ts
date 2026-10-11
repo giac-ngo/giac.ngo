@@ -23,8 +23,12 @@ import trainingDataRoutes from './trainingDataRoutes.js';
 import userRoutes from './userRoutes.js';
 import v1Routes from './v1Routes.js';
 import { getUsdVndRate } from '../utils/exchangeRate.js';
+import { systemController } from '../controllers/systemController.js';
 
 const router = Router();
+
+// Public stats alias so both /api/public/stats and /api/system/public/stats work
+router.get('/public/stats', systemController.getPublicStats);
 
 // Public USD/VND exchange rate endpoint
 router.get('/exchange-rate', async (_req, res) => {
