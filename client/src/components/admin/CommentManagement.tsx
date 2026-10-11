@@ -1,6 +1,6 @@
 // client/src/components/admin/CommentManagement.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Comment as CommentType } from '../../types';
+import { Comment as CommentType, Space } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useToast } from '../ToastProvider';
 
@@ -62,7 +62,7 @@ const translations = {
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 type TypeFilter = 'all' | 'document'; // Extend this as new types are added
 
-export const CommentManagement: React.FC<{ language: 'vi' | 'en' }> = ({ language }) => {
+export const CommentManagement: React.FC<{ language: 'vi' | 'en'; space?: Space | null }> = ({ language, space }) => {
     const t = translations[language];
     const { showToast } = useToast();
 
@@ -74,9 +74,10 @@ export const CommentManagement: React.FC<{ language: 'vi' | 'en' }> = ({ languag
     const fetchComments = useCallback(async () => {
         setIsLoading(true);
         try {
-            const filters: { status?: string, type?: string } = {};
+            const filters: { status?: string; type?: string; spaceId?: number | string } = {};
             if (statusFilter !== 'all') filters.status = statusFilter;
             if (typeFilter !== 'all') filters.type = typeFilter;
+            if (space?.id) filters.spaceId = space.id;
             
             const data = await apiService.getComments(filters);
             setComments(data || []);
@@ -85,7 +86,7 @@ export const CommentManagement: React.FC<{ language: 'vi' | 'en' }> = ({ languag
         } finally {
             setIsLoading(false);
         }
-    }, [statusFilter, typeFilter, showToast]);
+    }, [statusFilter, typeFilter, space?.id, showToast]);
 
     useEffect(() => {
         fetchComments();

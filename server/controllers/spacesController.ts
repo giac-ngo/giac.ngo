@@ -196,6 +196,16 @@ export const spacesController = {
             if (spaceData.stripeAccountId) spaceData.stripeAccountId = String(spaceData.stripeAccountId);
 
             // Prevent non-admin from changing ownership or slug
+            const isOwner = String(existingSpace.userId) === String(req.user?.id);
+            const isGlobalAdminUser = Boolean(req.user?.isGlobalAdmin);
+
+            // Payment settings protection: Only Space Owner or Global Admin can modify payment credentials
+            const paymentFields = ['payosClientId', 'payosApiKey', 'payosChecksumKey', 'stripeAccountId', 'venmoUsername'];
+            const hasPaymentUpdate = paymentFields.some(f => spaceData[f] !== undefined);
+            if (hasPaymentUpdate && !isOwner && !isGlobalAdminUser) {
+                return res.status(403).json({ message: 'Chỉ Chủ sở hữu Không gian hoặc Admin chính mới có quyền cập nhật cấu hình thanh toán.' });
+            }
+
             if (req.user && !isAdmin(req.user as any)) {
                 delete spaceData.userId;
                 delete spaceData.slug;

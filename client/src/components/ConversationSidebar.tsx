@@ -298,7 +298,13 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                 return (
                     <div className="flex flex-col gap-4 flex-grow min-h-0">
                         <div className="px-3 pt-4">
-                            <button onClick={() => currentAiConfig && onNewConversation(currentAiConfig)} className="btn-new-chat-plus w-full">
+                            <button
+                                onClick={() => {
+                                    if (currentAiConfig) onNewConversation(currentAiConfig);
+                                    if (window.innerWidth <= 768) setIsSidebarCollapsed(true);
+                                }}
+                                className="btn-new-chat-plus w-full"
+                            >
                                 {t.newChat}
                             </button>
                         </div>
@@ -313,7 +319,13 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
                                     {conversations.map(conv => (
                                         <div key={conv.id} className={`conversation-item-wrapper ${selectedConversationId === conv.id ? 'active' : ''}`}>
-                                            <button onClick={() => onSelectConversation(conv)} className="conversation-item">
+                                            <button
+                                                onClick={() => {
+                                                    onSelectConversation(conv);
+                                                    if (window.innerWidth <= 768) setIsSidebarCollapsed(true);
+                                                }}
+                                                className="conversation-item"
+                                            >
                                                 {renamingId === conv.id ? (
                                                     <input
                                                         type="text"
@@ -354,7 +366,14 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
 
 
     return (
-        <aside className={`conversation-sidebar ${isSidebarCollapsed ? 'conversation-sidebar-collapsed' : 'w-80'} bg-background-panel flex flex-col h-full flex-shrink-0`}>
+        <>
+            {!isSidebarCollapsed && (
+                <div
+                    className="fixed inset-0 bg-black/40 z-40 md:hidden"
+                    onClick={() => setIsSidebarCollapsed(true)}
+                />
+            )}
+            <aside className={`conversation-sidebar ${isSidebarCollapsed ? 'conversation-sidebar-collapsed' : 'w-80'} bg-background-panel flex flex-col h-full flex-shrink-0`}>
             <header className="sidebar-header">
                 {!isSidebarCollapsed && (
                     <Link to="/" className="logo-link">
@@ -474,14 +493,14 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                                             </button>
                                         </div>
                                         {hasAdminPermission && (
-                                            <button onClick={onGoToAdmin} className="btn-secondary-new !px-2 !py-1 !text-[11px] whitespace-nowrap">
-                                                <HelmetIcon className="w-3 h-3" /> {t.adminPage}
+                                            <button onClick={onGoToAdmin} className="btn-secondary-new !px-2.5 !py-1.5 !text-xs whitespace-nowrap flex items-center gap-1.5">
+                                                <HelmetIcon className="w-4 h-4 flex-shrink-0" /> <span>{t.adminPage}</span>
                                             </button>
                                         )}
                                     </div>
-                                    <button onClick={onLogout} className="btn-logout-new">
-                                        <LogoutIcon className="w-4 h-4" />
-                                        {t.logout}
+                                    <button onClick={onLogout} className="btn-logout-new !text-xs flex items-center justify-center gap-1.5">
+                                        <LogoutIcon className="w-4 h-4 flex-shrink-0" />
+                                        <span>{t.logout}</span>
                                     </button>
                                 </div>
 
@@ -519,5 +538,6 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = (props) =
                 )}
             </footer>
         </aside>
+    </>
     );
 };

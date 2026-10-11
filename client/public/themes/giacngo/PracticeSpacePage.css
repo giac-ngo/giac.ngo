@@ -154,10 +154,12 @@ html[data-theme="giacngo"] .quick-action-btn,
 
 html[data-theme="giacngo"] .quick-action-btn img,
 .quick-action-btn img {
-    width: 100%;
+    width: 36px;
     max-width: 36px;
     height: 36px;
     object-fit: contain;
+    margin: 0 auto;
+    display: block;
     padding: 2px;
 }
 
@@ -708,6 +710,41 @@ html[data-theme="giacngo"] .header-icon-label {
     color: #fefce8;
 }
 
+@media (max-width: 640px) {
+    html[data-theme="giacngo"] .header-icon-label {
+        display: none !important;
+    }
+    html[data-theme="giacngo"] .header-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        padding: 0;
+        border-radius: 8px;
+    }
+    html[data-theme="giacngo"] .ai-selector-button {
+        max-width: 140px;
+        padding: 4px 6px;
+    }
+    html[data-theme="giacngo"] .ai-selector-name {
+        max-width: 80px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.875rem;
+    }
+}
+
+/* Dark mode contrast for logo and icons */
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .sidebar-header .logo,
+.practice-space-page[data-color-mode="dark"] .sidebar-header .logo {
+    filter: brightness(0) invert(0.9);
+}
+
+html[data-theme="giacngo"] .practice-space-page[data-color-mode="dark"] .quick-action-btn img[src*="4.png"],
+.practice-space-page[data-color-mode="dark"] .quick-action-btn img[src*="4.png"] {
+    filter: brightness(0) invert(0.9);
+}
+
 /* --- Chat Messages --- */
 html[data-theme="giacngo"] .chat-messages-container {
     flex-grow: 1;
@@ -746,6 +783,12 @@ html[data-theme="giacngo"] .chat-message-row.user {
 html[data-theme="giacngo"] .chat-message-row.ai {
     align-self: flex-start;
     align-items: flex-start;
+}
+
+@media (min-width: 1024px) {
+    html[data-theme="giacngo"] .chat-message-row.ai {
+        max-width: 720px;
+    }
 }
 
 html[data-theme="giacngo"] .chat-message-content {

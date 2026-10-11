@@ -171,7 +171,11 @@ app.get(['/api/exchange-rate', '/exchange-rate'], async (_req: Request, res: Res
 
 // --- Custom Domain Middleware ---
 // Known SPA view segments that React Router handles — must NOT be intercepted
-const SPA_VIEWS = new Set(['chat', 'library', 'dharmatalks', 'meditationtimer', 'admin', 'login', 'register', 'about', 'community', 'donation', 'finance', 'reset-password', 'auth']);
+const SPA_VIEWS = new Set([
+    'chat', 'library', 'dharmatalks', 'meditationtimer', 'admin', 'login', 'register',
+    'about', 'community', 'donation', 'finance', 'reset-password', 'auth',
+    'privacy', 'terms', 'contact', 'career', 'docs'
+]);
 
 app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -187,13 +191,16 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp|json|txt|map)$/.test(req.path)) {
             return next();
         }
-        // Skip SPA routes so React Router handles them (e.g. /tathata/chat, /tathata/admin)
-        const segments = req.path.split('/').filter(Boolean);
-        if (segments.length >= 2 && SPA_VIEWS.has(segments[1])) {
+        // Skip all /admin/* and /auth/* routes so React Router handles them without being intercepted
+        if (req.path === '/admin' || req.path.startsWith('/admin/') || req.path === '/auth' || req.path.startsWith('/auth/')) {
             return next();
         }
-        // Also skip top-level SPA routes (e.g. /chat, /login on custom domains)
-        if (segments.length === 1 && SPA_VIEWS.has(segments[0])) {
+        // Skip SPA routes so React Router handles them (e.g. /giac-ngo/chat, /privacy, /terms, /contact)
+        const segments = req.path.split('/').filter(Boolean);
+        if (segments.length >= 1 && SPA_VIEWS.has(segments[0])) {
+            return next();
+        }
+        if (segments.length >= 2 && SPA_VIEWS.has(segments[1])) {
             return next();
         }
         const space = await spaceModel.findByCustomDomain(host);

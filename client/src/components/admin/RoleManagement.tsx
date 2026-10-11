@@ -238,14 +238,18 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
         }
     };
 
-    const isSpaceOwner = !isGlobalAdmin && !!space && (
-        space.userId === user?.id ||
-        (space as any).user_id === user?.id ||
-        space.isOwner ||
-        (space.id ? user?.adminSpaceIds?.includes(Number(space.id)) : false)
+    const isSpaceOwner = !isGlobalAdmin && (
+        (!!space && (
+            space.userId === user?.id ||
+            (space as any).user_id === user?.id ||
+            space.isOwner ||
+            (space.id ? user?.adminSpaceIds?.includes(Number(space.id)) : false)
+        )) ||
+        ((user?.adminSpaceIds?.length || 0) > 0)
     );
     const isUserAssignedThisRole = !isGlobalAdmin && !isSpaceOwner && !!selectedRole?.id && selectedRole.id !== 'new' && (user?.roleIds?.includes(selectedRole.id as number) || false);
-    const isReadOnly = selectedRole?._readOnly === true || isUserAssignedThisRole;
+    const isRootAdminRole = selectedRole?.id === 1 || (selectedRole?.name?.trim().toLowerCase() === 'admin' && !(selectedRole as any)?.spaceId);
+    const isReadOnly = selectedRole?._readOnly === true || isUserAssignedThisRole || isRootAdminRole;
 
     const renderPermissionCheckbox = (permissionKey: PermissionKey) => {
         // Space roles cannot include global-only permissions
@@ -263,7 +267,7 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
             <label key={permissionKey} className={`flex items-center space-x-3 ${isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input
                     type="checkbox"
-                    checked={selectedRole?.permissions?.includes(permissionKey) || false}
+                    checked={isRootAdminRole || selectedRole?.permissions?.includes(permissionKey) || false}
                     onChange={() => handlePermissionChange(permissionKey)}
                     disabled={isReadOnly}
                     className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary disabled:opacity-50"
@@ -289,16 +293,19 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                                     <span className="text-xs font-semibold text-text-light uppercase tracking-wider">{t.systemRoleLabel}</span>
                                 </li>
                             )}
-                            {roles.filter((r: any) => !isGlobalAdmin ? r._readOnly : true).map(role => (
-                                <li key={role.id}>
-                                    <button onClick={() => setSelectedRole({ ...role, _readOnly: !isGlobalAdmin && !(role as any).spaceId })} className={`w-full text-left p-3 border-b border-border-color ${selectedRole?.id === role.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
-                                        <div className="flex items-center gap-2">
-                                            {!isGlobalAdmin && <span className="text-xs">🔒</span>}
-                                            <p className="font-semibold text-text-main">{role.name}</p>
-                                        </div>
-                                    </button>
-                                </li>
-                            ))}
+                            {roles.filter((r: any) => !isGlobalAdmin ? r._readOnly : true).map(role => {
+                                const isRoleRootAdmin = role.id === 1 || (role.name?.trim().toLowerCase() === 'admin' && !(role as any).spaceId);
+                                return (
+                                    <li key={role.id}>
+                                        <button onClick={() => setSelectedRole({ ...role, _readOnly: isRoleRootAdmin || (!isGlobalAdmin && !(role as any).spaceId) })} className={`w-full text-left p-3 border-b border-border-color ${selectedRole?.id === role.id ? 'bg-primary-light' : 'hover:bg-background-light'}`}>
+                                            <div className="flex items-center gap-2">
+                                                {(!isGlobalAdmin || isRoleRootAdmin) && <span className="text-xs">🔒</span>}
+                                                <p className="font-semibold text-text-main">{role.name}</p>
+                                            </div>
+                                        </button>
+                                    </li>
+                                );
+                            })}
                             {/* Space roles section */}
                             {!isGlobalAdmin && (
                                 <li className="px-3 pt-4 pb-1">
@@ -324,7 +331,13 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                         {isReadOnly && (
                             <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
                                 <span className="text-lg">🔒</span>
-                                <span>{t.readOnlyWarning}</span>
+                                <span>
+                                    {isRootAdminRole
+                                        ? (language === 'vi'
+                                            ? 'Quyền Admin tối cao mặc định có toàn bộ quyền hệ thống và được khóa để bảo vệ an toàn.'
+                                            : 'The root Admin role has full system permissions by default and is locked for safety.')
+                                        : t.readOnlyWarning}
+                                </span>
                             </div>
                         )}
                         <div>
@@ -343,8 +356,9 @@ export const RoleManagement: React.FC<{ language: 'vi' | 'en'; user?: User; onUs
                                 {permissionGroups.map((group) => {
                                     const Icon = group.icon;
                                     // For non-global-admin, filter out groups with no visible permissions
-                                    const visiblePermissions = group.permissions.filter(p => 
-                                        isGlobalAdmin || !user?.permissions || user.permissions.includes(p)
+                                    const visiblePermissions = group.permissions.filter(p =>
+                                        (isGlobalAdmin || !isGlobalOnlyPermission(p)) &&
+                                        (isGlobalAdmin || isSpaceOwner || !user?.permissions || user.permissions.includes(p))
                                     );
                                     if (visiblePermissions.length === 0) return null;
 

@@ -146,7 +146,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
   const section = params.section;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>(section || getFirstAllowedTab(user));
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.innerWidth < 768);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
@@ -371,12 +371,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       )
     );
 
+    const isOwnerRestrictedTab = (tab: AdminTab) => tab === 'payment-settings' || tab === 'space-billing' || tab === 'withdrawals';
+
     const hasPermission = (tab: AdminTab): boolean => {
       // 1. Global Admin has full platform access
       if (isGlobalAdmin) return true;
 
       // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
       if (isGlobalOnlyPermission(tab)) return false;
+
+      // 2b. Owner-only tabs (payment-settings, space-billing, withdrawals) are strictly reserved for Space Owner & Global Admin
+      if (isOwnerRestrictedTab(tab) && !isSpaceOwner) return false;
 
       // 3. Space Admin (Chủ sở hữu hoặc Admin Space phụ) có toàn quyền trong Không gian
       if (isSpaceAdminUser) return true;
@@ -441,9 +446,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
       case 'roles':
         return <RoleManagement language={language} user={user} onUserUpdate={onUserUpdate} isGlobalAdmin={!!isGlobalAdmin} space={currentSpace} />;
       case 'comments':
-        return <CommentManagement language={language} />;
+        return <CommentManagement language={language} space={currentSpace} />;
       case 'conversations':
-        return <ConversationManagement user={user} language={language} />;
+        return <ConversationManagement user={user} language={language} space={currentSpace} />;
       case 'pricing':
         return <PricingPlansAdmin language={language} space={currentSpace} />;
       case 'manual-billing':
@@ -475,6 +480,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
           ? '/admin'
           : `/${spaceSlug || currentSpace?.slug || ''}/admin`.replace('//', '/');
         navigate(`${basePath}/${tab}`);
+        if (window.innerWidth < 768) {
+          setIsSidebarCollapsed(true);
+        }
       }}
       className={`w-full flex items-center p-3 rounded-lg text-sm font-medium transition-colors ${activeTab === tab
         ? 'bg-primary-light text-primary'
@@ -508,12 +516,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
     )
   );
 
+  const isOwnerRestrictedTab = (tab: AdminTab) => tab === 'payment-settings' || tab === 'space-billing' || tab === 'withdrawals';
+
   const hasPermission = (tab: AdminTab): boolean => {
     // 1. Global Admin has full platform access
     if (isGlobalAdmin) return true;
 
     // 2. Global-only tabs (manual-billing, finetune) are strictly reserved for Global Admin
     if (isGlobalOnlyPermission(tab)) return false;
+
+    // 2b. Owner-only tabs (payment-settings, space-billing, withdrawals) are strictly reserved for Space Owner & Global Admin
+    if (isOwnerRestrictedTab(tab) && !isSpaceOwner) return false;
 
     // 3. Space Admin (Chủ sở hữu hoặc Admin Space phụ) có toàn quyền trong Không gian
     if (isSpaceAdminUser) return true;
@@ -535,8 +548,20 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
 
 
   return (
-    <div className="admin-page-container flex h-screen overflow-hidden bg-background-light" data-color-mode={colorMode}>
-      <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+    <div className="admin-page-container flex h-screen overflow-hidden bg-background-light relative" data-color-mode={colorMode}>
+      {/* Mobile Drawer Backdrop */}
+      {!isSidebarCollapsed && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarCollapsed(true)}
+        />
+      )}
+
+      <aside className={`bg-background-panel border-r border-border-color flex flex-col transition-all duration-300 z-50 ${
+        isSidebarCollapsed
+          ? 'max-md:-translate-x-full max-md:fixed max-md:inset-y-0 md:w-20'
+          : 'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:shadow-2xl md:w-64 w-64'
+      }`}>
         <div className="h-[73px] flex items-center justify-center relative border-b border-border-color px-4 flex-shrink-0">
           {!isSidebarCollapsed && (
             <Link to={adminDashboardLink} className="flex items-center max-w-[180px] overflow-hidden">
@@ -665,8 +690,26 @@ const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout, language, setLang
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden bg-background-panel">
-        {renderContent()}
+      <main className="flex-1 flex flex-col overflow-hidden bg-background-panel min-w-0">
+        {/* Mobile Top Header */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border-color bg-background-panel flex-shrink-0">
+          <button
+            onClick={() => setIsSidebarCollapsed(false)}
+            className="p-2 -ml-2 rounded-lg text-text-light hover:bg-background-light"
+            title="Open Menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="font-semibold text-sm text-text-main truncate">
+            {currentSpace?.name || 'Admin'}
+          </span>
+          <div className="w-8" />
+        </div>
+        <div className="flex-1 overflow-auto">
+          {renderContent()}
+        </div>
       </main>
 
       {systemConfig && (

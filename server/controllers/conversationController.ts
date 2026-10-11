@@ -98,23 +98,50 @@ export const conversationController = {
     async getAllConversations(req: Request, res: Response) {
         try {
             const { getUserManagedSpaceIds, isAdmin } = await import('../middleware/authMiddleware.js');
+            const targetSpaceId = req.query.spaceId ? parseInt(String(req.query.spaceId), 10) : null;
 
+            if (req.user && !isAdmin(req.user)) {
+                const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
+                if (targetSpaceId) {
+                    if (!userSpaceIds.includes(targetSpaceId)) {
+                        return res.status(403).json({ message: 'Forbidden: You do not manage this space.' });
+                    }
+                    const query = `
+                        SELECT c.*, a.name AS ai_name
+                        FROM conversations c
+                        JOIN ai_configs a ON c.ai_config_id = a.id
+                        WHERE a.space_id = $1
+                        ORDER BY c.start_time DESC
+                        LIMIT 200
+                    `;
+                    const { rows } = await pool.query(query, [targetSpaceId]);
+                    return res.json(rows.map(mapRowToCamelCase));
+                }
+
+                if (userSpaceIds.length === 0) return res.json([]);
+                const query = `
+                    SELECT c.*, a.name AS ai_name
+                    FROM conversations c
+                    JOIN ai_configs a ON c.ai_config_id = a.id
+                    WHERE (a.owner_id = $1 OR (a.space_id = ANY($2::int[])))
+                    ORDER BY c.start_time DESC
+                    LIMIT 200
+                `;
+                const { rows } = await pool.query(query, [req.user.id, userSpaceIds]);
+                return res.json(rows.map(mapRowToCamelCase));
+            }
+
+            // Global admin
             let query = `
-                SELECT c.*, a.name as ai_name 
+                SELECT c.*, a.name AS ai_name 
                 FROM conversations c
                 LEFT JOIN ai_configs a ON c.ai_config_id = a.id
             `;
             const params: any[] = [];
-
-            if (req.user && !isAdmin(req.user)) {
-                // Regular User: Only see conversations for AIs in their managed spaces or owned AIs
-                const userSpaceIds = await getUserManagedSpaceIds(req.user.id);
-                query += `
-                    WHERE (a.owner_id = $1 OR (a.space_id = ANY($2::int[])))
-                `;
-                params.push(req.user.id, userSpaceIds);
+            if (targetSpaceId) {
+                query += ' WHERE a.space_id = $1';
+                params.push(targetSpaceId);
             }
-
             query += ' ORDER BY c.start_time DESC LIMIT 200';
             const { rows } = await pool.query(query, params);
             res.json(rows.map(mapRowToCamelCase));

@@ -115,8 +115,12 @@ export const checkSelfOrPermission = (permission: string) => {
 
         const isSelf = req.params.id && String(req.user.id) === String(req.params.id);
         const hasAdminPermission = req.user.permissions && req.user.permissions.includes(permission);
+        // Space admins may manage users within their own Space. Let the controller
+        // perform the resource-specific Space permission check before changing data.
+        const isGlobalAdmin = !!req.user.isGlobalAdmin;
+        const isSpaceAdmin = Array.isArray(req.user.adminSpaceIds) && req.user.adminSpaceIds.length > 0;
 
-        if (isSelf || hasAdminPermission) {
+        if (isSelf || hasAdminPermission || isGlobalAdmin || isSpaceAdmin) {
             return next();
         }
 

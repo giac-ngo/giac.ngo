@@ -752,12 +752,16 @@ export const billingController = {
 
     async createConnectAccount(req: Request, res: Response) {
         try {
-            const stripe = getStripeClient();
-            const email = req.user?.email || ''; // Use logged-in user's email or from request body
             const { spaceId } = req.body;
             const space = await getAuthorizedConnectSpace(req, spaceId);
-            if (!space) return res.status(404).json({ message: 'Space not found.' });
+            if (!space) return res.status(403).json({ message: 'Bạn không có quyền quản lý tài khoản Stripe cho Không gian này.' });
             if (space.stripe_account_id) return res.json({ accountId: space.stripe_account_id });
+
+            if (!isStripeConfigured()) {
+                return res.status(400).json({ message: 'Stripe chưa được cấu hình trên hệ thống.' });
+            }
+            const stripe = getStripeClient();
+            const email = req.user?.email || ''; // Use logged-in user's email or from request body
 
             // Create an Express account
             const account = await stripe.accounts.create({
@@ -775,15 +779,20 @@ export const billingController = {
             res.json({ accountId: account.id });
         } catch (error: unknown) {
             console.error('Error creating Connect account:', error);
-            res.status(500).json({ message: `Failed to create Stripe Connect account: ${(error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) : String(error)) : String(error)) : String(error))}` });
+            res.status(500).json({ message: `Failed to create Stripe Connect account: ${(error instanceof Error ? error.message : String(error))}` });
         }
     },
 
     async createAccountLink(req: Request, res: Response) {
         try {
-            const stripe = getStripeClient();
             const space = await getAuthorizedConnectSpace(req, req.body.spaceId);
-            if (!space?.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+            if (!space) return res.status(403).json({ message: 'Bạn không có quyền quản lý tài khoản Stripe cho Không gian này.' });
+            if (!space.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+
+            if (!isStripeConfigured()) {
+                return res.status(400).json({ message: 'Stripe chưa được cấu hình trên hệ thống.' });
+            }
+            const stripe = getStripeClient();
             const accountId = space.stripe_account_id;
             let origin = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://giac.ngo';
             try {
@@ -810,16 +819,21 @@ export const billingController = {
 
     async createLoginLink(req: Request, res: Response) {
         try {
-            const stripe = getStripeClient();
             const space = await getAuthorizedConnectSpace(req, req.body.spaceId);
-            if (!space?.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+            if (!space) return res.status(403).json({ message: 'Bạn không có quyền quản lý tài khoản Stripe cho Không gian này.' });
+            if (!space.stripe_account_id) return res.status(404).json({ message: 'Stripe account not found.' });
+
+            if (!isStripeConfigured()) {
+                return res.status(400).json({ message: 'Stripe chưa được cấu hình trên hệ thống.' });
+            }
+            const stripe = getStripeClient();
             const accountId = space.stripe_account_id;
 
             const loginLink = await stripe.accounts.createLoginLink(accountId);
             res.json({ url: loginLink.url });
         } catch (error: unknown) {
             console.error('Error creating login link:', error);
-            res.status(500).json({ message: `Failed to create dashboard link: ${(error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)) : String(error)) : String(error)) : String(error))}` });
+            res.status(500).json({ message: `Failed to create dashboard link: ${(error instanceof Error ? error.message : String(error))}` });
         }
     },
 
@@ -850,20 +864,34 @@ export const billingController = {
 
     async getConnectAccountStatus(req: Request, res: Response) {
         try {
-            const stripe = getStripeClient();
             const space = await getAuthorizedConnectSpace(req, req.params.spaceId);
-            if (!space?.stripe_account_id) {
-                return res.status(404).json({ message: 'Stripe account not found.' });
+            if (!space) {
+                return res.status(403).json({ message: 'Bạn không có quyền xem thông tin tài khoản Stripe cho Không gian này.' });
             }
+            if (!space.stripe_account_id || !isStripeConfigured()) {
+                return res.json({
+                    chargesEnabled: false,
+                    payoutsEnabled: false,
+                    detailsSubmitted: false,
+                    configured: false,
+                });
+            }
+            const stripe = getStripeClient();
             const account = await stripe.accounts.retrieve(String(space.stripe_account_id));
             res.json({
-                chargesEnabled: account.charges_enabled,
-                payoutsEnabled: account.payouts_enabled,
-                detailsSubmitted: account.details_submitted,
+                chargesEnabled: Boolean(account.charges_enabled),
+                payoutsEnabled: Boolean(account.payouts_enabled),
+                detailsSubmitted: Boolean(account.details_submitted),
+                configured: true,
             });
         } catch (error: unknown) {
             console.error('Error fetching account status:', error);
-            res.status(500).json({ message: 'Failed to fetch account status.' });
+            res.json({
+                chargesEnabled: false,
+                payoutsEnabled: false,
+                detailsSubmitted: false,
+                configured: false,
+            });
         }
     },
 

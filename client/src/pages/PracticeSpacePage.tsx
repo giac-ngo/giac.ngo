@@ -39,7 +39,7 @@ const translations = {
     vi: {
         loadError: "Xin lỗi, không thể tải dữ liệu cần thiết. Vui lòng thử lại sau.",
         logout: "Đăng xuất",
-        inputPlaceholder: "Nhập tin nhắn của bạn...",
+        inputPlaceholder: "Nhập tin nhắn...",
         contactAdminForAccess: "Vui lòng liên hệ quản trị viên để kích hoạt AI này.",
         genericError: "Xin lỗi, đã có lỗi xảy ra.",
         toAdminPage: "Quản trị viên",
@@ -101,7 +101,7 @@ const translations = {
     en: {
         loadError: "Sorry, the necessary data could not be loaded. Please try again later.",
         logout: "Logout",
-        inputPlaceholder: "Enter your message...",
+        inputPlaceholder: "Enter message...",
         contactAdminForAccess: "Please contact an administrator to activate this AI.",
         genericError: "Sorry, an error occurred.",
         toAdminPage: "Admin",
@@ -227,11 +227,11 @@ export const PracticeSpacePage: React.FC<{
     // Owner voice config — lấy voice/style/temperature từ owner AI config
     const [ownerVoiceConfig, setOwnerVoiceConfig] = useState<{ ephemeralToken?: string; geminiVoice?: string; geminiStyle?: string; geminiTemperature?: number } | null>(null);
     useEffect(() => {
-        if (!currentAiConfig?.id) { setOwnerVoiceConfig(null); return; }
+        if (!user || !currentAiConfig?.id) { setOwnerVoiceConfig(null); return; }
         apiService.getAiVoiceKey(currentAiConfig.id)
             .then(res => setOwnerVoiceConfig(res || null))
             .catch(() => setOwnerVoiceConfig(null));
-    }, [currentAiConfig?.id]);
+    }, [user, currentAiConfig?.id]);
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -911,7 +911,12 @@ export const PracticeSpacePage: React.FC<{
                     }
 
                     if (updatedUser) {
-                        onUserUpdate(updatedUser);
+                        onUserUpdate({
+                            ...updatedUser,
+                            dailyMsgUsed: updatedUser.dailyMsgUsed !== undefined ? updatedUser.dailyMsgUsed : ((user?.dailyMsgUsed || 0) + 1)
+                        });
+                    } else if (user) {
+                        onUserUpdate({ dailyMsgUsed: (user.dailyMsgUsed || 0) + 1 });
                     }
 
                     if (finalMessage) {
@@ -1020,7 +1025,8 @@ export const PracticeSpacePage: React.FC<{
         if (!textarea) return;
         
         if (!newMessage) {
-            textarea.style.height = '24px';
+            textarea.style.height = '28px';
+            textarea.style.overflowY = 'hidden';
             return;
         }
         
@@ -1028,9 +1034,10 @@ export const PracticeSpacePage: React.FC<{
         textarea.style.height = '0px';
         const scrollHeight = textarea.scrollHeight;
         
-        // Base height is 24px, max height is 200px
-        const newHeight = Math.min(Math.max(scrollHeight, 24), 200);
+        // Base height is 28px, max height is 200px
+        const newHeight = Math.min(Math.max(scrollHeight, 28), 200);
         textarea.style.height = `${newHeight}px`;
+        textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
     }, [newMessage]);
 
     const handleToggleRecording = () => {

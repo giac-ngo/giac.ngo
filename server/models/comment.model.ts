@@ -30,16 +30,26 @@ export const commentModel = {
         };
     },
     
-    async findAll(filters: { status?: string, type?: string } = {}): Promise<Comment[]> {
-        const { status, type } = filters;
+    async findAll(filters: { status?: string, type?: string, spaceId?: number | string, spaceIds?: number[] } = {}): Promise<Comment[]> {
+        const { status, type, spaceId, spaceIds } = filters;
         let query = `
-            SELECT c.*, u.name as user_name
+            SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
             FROM comments c
             LEFT JOIN users u ON c.user_id = u.id
         `;
-        const params = [];
-        const whereClauses = [];
+        const params: any[] = [];
+        const whereClauses: string[] = [];
         let paramIndex = 1;
+
+        if (spaceId) {
+            query += ` LEFT JOIN documents d ON c.comment_type = 'document' AND CAST(c.source_id AS integer) = d.id`;
+            whereClauses.push(`(c.comment_type = 'document' AND d.space_id = $${paramIndex++})`);
+            params.push(Number(spaceId));
+        } else if (spaceIds && spaceIds.length > 0) {
+            query += ` LEFT JOIN documents d ON c.comment_type = 'document' AND CAST(c.source_id AS integer) = d.id`;
+            whereClauses.push(`(c.comment_type = 'document' AND d.space_id = ANY($${paramIndex++}::int[]))`);
+            params.push(spaceIds);
+        }
 
         if (status) {
             whereClauses.push(`c.status = $${paramIndex++}`);
@@ -54,10 +64,21 @@ export const commentModel = {
             query += ` WHERE ${whereClauses.join(' AND ')}`;
         }
         
-        query += ' ORDER BY c.created_at DESC';
+        query += ' ORDER BY c.created_at DESC LIMIT 100';
 
         const res = await pool.query(query, params);
         return res.rows.map(mapRowToCamelCase);
+    },
+
+    async getCommentSpaceId(commentId: number | string): Promise<number | null> {
+        const res = await pool.query(
+            `SELECT d.space_id
+             FROM comments c
+             LEFT JOIN documents d ON c.comment_type = 'document' AND CAST(c.source_id AS integer) = d.id
+             WHERE c.id = $1`,
+            [commentId]
+        );
+        return res.rows[0]?.space_id != null ? Number(res.rows[0].space_id) : null;
     },
 
     async updateStatus(commentId: number | string, status: string): Promise<Comment> {

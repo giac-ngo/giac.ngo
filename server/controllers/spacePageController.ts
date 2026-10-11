@@ -435,6 +435,33 @@ async function buildHtmlPage(page, space, assets) {
 })();
 </script>`;
 
+    const authBridgeScript = `<script>
+(function() {
+    function ensureUserAuth() {
+        try {
+            var token = localStorage.getItem('apiToken') || localStorage.getItem('token');
+            var rawUser = localStorage.getItem('user');
+            if (rawUser) {
+                var u = JSON.parse(rawUser);
+                if (u && !u.apiToken && token) {
+                    u.apiToken = token;
+                    localStorage.setItem('user', JSON.stringify(u));
+                }
+            }
+        } catch (e) {}
+    }
+    ensureUserAuth();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureUserAuth);
+    }
+    window.addEventListener('load', ensureUserAuth);
+})();
+</script>`;
+
+    // Ensure custom page checks user.id or localStorage.apiToken when detecting logged-in state
+    html = html.replace(/user\s*&&\s*user\.apiToken/g, 'user && (user.apiToken || user.id || localStorage.getItem("apiToken"))');
+    html = html.replace(/u\s*&&\s*u\.apiToken/g, 'u && (u.apiToken || u.id || localStorage.getItem("apiToken"))');
+
     return `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -463,6 +490,7 @@ async function buildHtmlPage(page, space, assets) {
     ${cssLinks}
 </head>
 <body>
+    ${authBridgeScript}
     ${html}
     ${jsScripts}
     ${langBridgeScript}

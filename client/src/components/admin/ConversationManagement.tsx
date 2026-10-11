@@ -10,6 +10,7 @@ const ITEMS_PER_PAGE = 10;
 interface ConversationManagementProps {
     user: User;
     language: 'vi' | 'en';
+    space?: Space | null;
 }
 
 const translations = {
@@ -112,7 +113,7 @@ type ShareModalState = {
     selectedSpaceId: number | null;
 };
 
-export const ConversationManagement: React.FC<ConversationManagementProps> = ({ user, language }) => {
+export const ConversationManagement: React.FC<ConversationManagementProps> = ({ user, language, space }) => {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [aiConfigs, setAiConfigs] = useState<AIConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -122,6 +123,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
     const [userFilter, setUserFilter] = useState<string>('');
     const [aiFilter, setAiFilter] = useState<string>('');
     const [spaceIdFilter, setSpaceIdFilter] = useState<string>(() => {
+        if (space?.id) return String(space.id);
         if (user.permissions?.includes('roles')) return ''; // Admin sees all by default
         return '';
     });
@@ -144,7 +146,7 @@ export const ConversationManagement: React.FC<ConversationManagementProps> = ({ 
             setIsLoading(true);
             try {
                 const [convos, ais, spaces] = await Promise.all([
-                    apiService.getAllConversations(),
+                    apiService.getAllConversations({ spaceId: space?.id }),
                     apiService.getManageableAiConfigs(user),
                     apiService.getMySpaces()
                 ]);

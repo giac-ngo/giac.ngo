@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SpacePage, SpacePageAsset } from '../../types';
 import { useToast } from '../ToastProvider';
 import { PlusIcon, PhotoIcon, PencilIcon, TrashIcon } from '../Icons';
+import { authedFetch } from '../../services/apiService';
 
 const API_BASE = '/api/space-pages';
 
@@ -41,19 +42,10 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const token = (() => {
-        try {
-            const u = localStorage.getItem('user');
-            return u ? JSON.parse(u)?.apiToken : null;
-        } catch { return null; }
-    })();
-
-    const authHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/${spaceId}/pages`, { headers: authHeaders });
+            const res = await authedFetch(`${API_BASE}/${spaceId}/pages`);
             const data = await res.json();
             setPages(data.pages || []);
             setAssets(data.assets || []);
@@ -105,9 +97,8 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
         try {
             if (selectedPageId) {
                 // Update
-                const res = await fetch(`${API_BASE}/${spaceId}/pages/${selectedPageId}`, {
+                const res = await authedFetch(`${API_BASE}/${spaceId}/pages/${selectedPageId}`, {
                     method: 'PUT',
-                    headers: authHeaders,
                     body: JSON.stringify(payload),
                 });
                 if (!res.ok) throw new Error((await res.json()).message);
@@ -116,9 +107,8 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
                 showToast('Đã lưu thành công!', 'success');
             } else {
                 // Create
-                const res = await fetch(`${API_BASE}/${spaceId}/pages`, {
+                const res = await authedFetch(`${API_BASE}/${spaceId}/pages`, {
                     method: 'POST',
-                    headers: authHeaders,
                     body: JSON.stringify(payload),
                 });
                 if (!res.ok) throw new Error((await res.json()).message);
@@ -137,7 +127,7 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
     const handleDeletePage = async (pageId: number) => {
         if (!window.confirm('Xoá page này? Không thể hoàn tác.')) return;
         try {
-            await fetch(`${API_BASE}/${spaceId}/pages/${pageId}`, { method: 'DELETE', headers: authHeaders });
+            await authedFetch(`${API_BASE}/${spaceId}/pages/${pageId}`, { method: 'DELETE' });
             setPages(prev => prev.filter(p => p.id !== pageId));
             showToast('Đã xoá page.', 'success');
         } catch {
@@ -151,9 +141,8 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
         const formData = new FormData();
         formData.append('file', file);
         try {
-            const res = await fetch(`${API_BASE}/${spaceId}/page-assets`, {
+            const res = await authedFetch(`${API_BASE}/${spaceId}/page-assets`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
                 body: formData,
             });
             if (!res.ok) throw new Error((await res.json()).message);
@@ -169,7 +158,7 @@ export const SpacePagesManager: React.FC<Props> = ({ spaceId, inline = false }) 
     const handleDeleteAsset = async (assetId: number) => {
         if (!window.confirm('Xoá asset này?')) return;
         try {
-            await fetch(`${API_BASE}/${spaceId}/page-assets/${assetId}`, { method: 'DELETE', headers: authHeaders });
+            await authedFetch(`${API_BASE}/${spaceId}/page-assets/${assetId}`, { method: 'DELETE' });
             setAssets(prev => prev.filter(a => a.id !== assetId));
             showToast('Đã xoá asset.', 'success');
         } catch {

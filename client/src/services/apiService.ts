@@ -37,7 +37,7 @@ const onRefreshFailed = (err: any) => {
     refreshSubscribers = [];
 };
 
-const authedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+export const authedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
     let token = localStorage.getItem('token') || localStorage.getItem('apiToken');
     if (!token) {
         try {
@@ -256,7 +256,10 @@ export const apiService = {
 
     getConversation: (id: number | string): Promise<any> => authedFetch(`/api/conversations/${id}`).then(handleResponse),
 
-    getAllConversations: (): Promise<any[]> => authedFetch('/api/conversations/all').then(handleResponse),
+    getAllConversations: (params?: { spaceId?: number | string }): Promise<any[]> => {
+        const query = params?.spaceId ? `?spaceId=${params.spaceId}` : '';
+        return authedFetch(`/api/conversations/all${query}`).then(handleResponse);
+    },
 
     createConversation: (aiId: number | string, messages: Message[], user?: any) => authedFetch('/api/conversations', {
         method: 'POST',

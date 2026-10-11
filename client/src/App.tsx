@@ -266,11 +266,19 @@ const App: React.FC = () => {
           navigate('/login?error=account_disabled', { replace: true });
           return;
         }
-        // Merge: giữ lại refreshToken từ local, cập nhật phần còn lại từ server
+        // Merge: giữ lại refreshToken & apiToken từ local, cập nhật phần còn lại từ server
         setUser(currentUser => {
           if (!currentUser) return null;
-          const merged = { ...freshUser, refreshToken: (currentUser as any).refreshToken };
+          const apiToken = (currentUser as any).apiToken || localStorage.getItem('apiToken') || localStorage.getItem('token');
+          const merged = {
+            ...freshUser,
+            refreshToken: (currentUser as any).refreshToken,
+            apiToken: apiToken,
+          };
           localStorage.setItem('user', JSON.stringify(merged));
+          if (apiToken) {
+            localStorage.setItem('apiToken', apiToken);
+          }
           return merged;
         });
       })
@@ -304,6 +312,7 @@ const App: React.FC = () => {
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('apiToken');
+    localStorage.removeItem('token');
     // Save current path to redirect back after login
     navigate('/login', { state: { from: location } });
   };

@@ -267,6 +267,19 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
         setEditingUser(prev => prev ? { ...prev, avatarUrl: url } : null);
     };
 
+    const isTargetGlobalAdmin = (u: Partial<User> | null | undefined) => {
+        return !!u?.isGlobalAdmin;
+    };
+
+    const isTargetSpaceAdmin = (u: Partial<User> | null | undefined, targetSpaceId?: number | null) => {
+        if (!u || !u.id || u.id === 'new') return false;
+        const sid = targetSpaceId ?? (space?.id ? Number(space.id) : (spaceFilter ? Number(spaceFilter) : null));
+        if (sid) {
+            return Number(space?.userId) === Number(u.id) || (u.adminSpaceIds || []).map(Number).includes(Number(sid));
+        }
+        return (u.adminSpaceIds || []).length > 0;
+    };
+
     const handleSave = async () => {
         if (!editingUser) return;
 
@@ -288,6 +301,9 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
             delete (payload as any).apiToken;
             delete (payload as any).createdAt;
             delete (payload as any).updatedAt;
+            if (isTargetGlobalAdmin(editingUser) || isTargetSpaceAdmin(editingUser, userSpaceId)) {
+                delete (payload as any).roleIds;
+            }
 
             let savedUser;
             if (payload.id === 'new') {
@@ -412,7 +428,17 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                                     </td>
                                     <td className="px-4 py-3">{u.email}</td>
 
-                                    <td className="px-4 py-3 text-sm text-gray-500">{getRoleNames(u.roleIds)}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500">
+                                        {isTargetGlobalAdmin(u) ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                                                🔒 Global Admin
+                                            </span>
+                                        ) : isTargetSpaceAdmin(u) ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">
+                                                🔒 {space?.id && Number(space.userId) === Number(u.id) ? (language === 'vi' ? 'Chủ sở hữu Space' : 'Space Owner') : 'Admin Space'}
+                                            </span>
+                                        ) : getRoleNames(u.roleIds)}
+                                    </td>
                                     <td className="px-4 py-3">{u.merits === null ? '∞' : u.merits}</td>
 
                                     {/* Status badge */}
@@ -516,8 +542,27 @@ export const UserManagement: React.FC<{ user: User, language: 'vi' | 'en', onUse
                             </div>
                             {/* Merits */}
                             <div><label className="block text-sm font-medium">{t.modal.merits}</label><input type="number" name="merits" value={editingUser.merits ?? 0} onChange={handleFormChange} className="mt-1 w-full p-2 border rounded-md bg-background-light border-border-color" /></div>
-                            {/* System roles from root admin (read-only badge) */}
-                            {(() => {
+                            {/* System roles from root admin / Space Admin (read-only badge) */}
+                            {isTargetGlobalAdmin(editingUser) ? (
+                                <div>
+                                    <label className="block text-sm font-medium">{t.modal.roles}</label>
+                                    <div className="mt-2 p-3 border rounded-md bg-yellow-50 border-yellow-200">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">
+                                            🔒 Global Admin <span className="text-xs text-yellow-700 font-normal">({language === 'vi' ? 'Toàn quyền hệ thống - Đã khóa phân quyền phụ' : 'Full System Access - Role assignment locked'})</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : isTargetSpaceAdmin(editingUser, userSpaceId) ? (
+                                <div>
+                                    <label className="block text-sm font-medium">{t.modal.roles}</label>
+                                    <div className="mt-2 p-3 border rounded-md bg-amber-50 border-amber-200">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
+                                            🔒 {space?.id && Number(space.userId) === Number(editingUser.id) ? (language === 'vi' ? 'Chủ sở hữu Space' : 'Space Owner') : 'Admin Space'}{' '}
+                                            <span className="text-xs text-amber-700 font-normal">({language === 'vi' ? 'Toàn quyền Không gian - Đã khóa phân quyền phụ' : 'Full Space Access - Role assignment locked'})</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (() => {
                                 const userSystemRoles = allSpaceRoles.filter((r: any) => r._readOnly && editingUser.roleIds?.includes(r.id as number));
                                 const hasSystemRole = userSystemRoles.length > 0;
                                 return (

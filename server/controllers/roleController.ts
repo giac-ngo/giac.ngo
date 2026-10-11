@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { roleModel } from '../models/role.model.js';
 import { isSpaceMember } from '../middleware/authMiddleware.js';
-import { can, isSpaceOwner, getUserSpacePermissions, userHasRoleId } from '../utils/policy.js';
+import { can, isSpaceAdmin, getUserSpacePermissions, userHasRoleId } from '../utils/policy.js';
 import { isGlobalOnlyPermission } from '../constants/permissions.js';
 
 export const roleController = {
@@ -62,11 +62,11 @@ export const roleController = {
                     req.body.permissions = req.body.permissions.filter((p: string) => !isGlobalOnlyPermission(p));
                 }
 
-                // If not Global Admin and not Space Owner, enforce Space Manager constraints:
+                // If not Global Admin and not Space Admin, enforce Space Manager constraints:
                 // Space Manager can only assign permissions they themselves hold in this space
                 if (req.body.spaceId) {
-                    const isOwner = await isSpaceOwner(user?.id, req.body.spaceId);
-                    if (!isOwner) {
+                    const isAdmin = await isSpaceAdmin(user?.id, req.body.spaceId);
+                    if (!isAdmin) {
                         const managerPerms = await getUserSpacePermissions(user?.id, req.body.spaceId);
                         if (req.body.permissions) {
                             req.body.permissions = req.body.permissions.filter((p: string) => managerPerms.includes(p));
@@ -108,8 +108,8 @@ export const roleController = {
 
             // Enforce constraints for Space roles
             if (!user?.isGlobalAdmin && existingRole.spaceId) {
-                const isOwner = await isSpaceOwner(user?.id, existingRole.spaceId);
-                if (!isOwner) {
+                const isAdmin = await isSpaceAdmin(user?.id, existingRole.spaceId);
+                if (!isAdmin) {
                     // Space Manager cannot edit the role they themselves are currently assigned
                     const hasRole = await userHasRoleId(user?.id, roleId);
                     if (hasRole) {
@@ -128,7 +128,7 @@ export const roleController = {
                         req.body.permissions = Array.from(new Set([...preservedOldPerms, ...submittedManagerPerms]));
                     }
                 } else {
-                    // Space Owner can assign any space permission (excluding global-only)
+                    // Space Admin can assign any space permission (excluding global-only)
                     if (req.body.permissions && Array.isArray(req.body.permissions)) {
                         req.body.permissions = req.body.permissions.filter((p: string) => !isGlobalOnlyPermission(p));
                     }
@@ -165,8 +165,8 @@ export const roleController = {
 
             // Space Manager cannot delete the role they themselves are currently assigned
             if (!user?.isGlobalAdmin && existingRole.spaceId) {
-                const isOwner = await isSpaceOwner(user?.id, existingRole.spaceId);
-                if (!isOwner) {
+                const isAdmin = await isSpaceAdmin(user?.id, existingRole.spaceId);
+                if (!isAdmin) {
                     const hasRole = await userHasRoleId(user?.id, roleId);
                     if (hasRole) {
                         return res.status(403).json({ message: 'Quản lý không được phép xóa vai trò mà chính mình đang đảm nhiệm.' });

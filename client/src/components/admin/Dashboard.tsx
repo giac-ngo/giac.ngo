@@ -141,7 +141,7 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en', spaceId?: number | str
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${spaceId ? 'lg:grid-cols-3' : 'lg:grid-cols-3 xl:grid-cols-4'} gap-6`}>
                 <StatCard
                     icon={<UserIcon className="w-6 h-6 text-blue-800" />}
                     title={t.totalUsers}
@@ -150,10 +150,9 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en', spaceId?: number | str
                     onClick={async () => {
                         setMembersModal({ open: true, members: [], loading: true });
                         try {
-                            // fetch members from the first/only topSpace if available
-                            const spaceId = stats.topSpaces[0]?.id;
-                            if (spaceId) {
-                                const res = await apiService.getSpaceMembers(spaceId);
+                            const targetSpaceId = spaceId || stats.topSpaces[0]?.id;
+                            if (targetSpaceId) {
+                                const res = await apiService.getSpaceMembers(targetSpaceId);
                                 setMembersModal({ open: true, members: res || [], loading: false });
                             } else {
                                 setMembersModal({ open: true, members: [], loading: false });
@@ -164,11 +163,10 @@ export const Dashboard: React.FC<{ language: 'vi' | 'en', spaceId?: number | str
                 <StatCard icon={<AiIcon className="w-6 h-6 text-purple-800" />} title={t.totalAIs} value={stats.totalAiConfigs} color="bg-purple-100" />
                 <StatCard icon={<ConversationIcon className="w-6 h-6 text-green-800" />} title={t.totalConversations} value={stats.totalConversations} color="bg-green-100" />
                 <StatCard icon={<UserIcon className="w-6 h-6 text-yellow-800" />} title={t.interactingUsers} value={stats.interactingUsers} color="bg-yellow-100" />
-            </div>
-            
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <StatCard icon={<BookOpenIcon className="w-6 h-6 text-cyan-800" />} title={t.totalDocuments} value={stats.totalDocuments} color="bg-cyan-100" />
-                <StatCard icon={<MapPinIcon className="w-6 h-6 text-fuchsia-800" />} title={t.totalSpaces} value={stats.totalSpaces} color="bg-fuchsia-100" />
+                {!spaceId && (
+                    <StatCard icon={<MapPinIcon className="w-6 h-6 text-fuchsia-800" />} title={t.totalSpaces} value={stats.totalSpaces} color="bg-fuchsia-100" />
+                )}
                 <StatCard icon={<SpeakerWaveIcon className="w-6 h-6 text-orange-800" />} title={t.totalDharmaTalks} value={stats.totalDharmaTalks} color="bg-orange-100" />
             </div>
 

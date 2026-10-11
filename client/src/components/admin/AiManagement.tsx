@@ -877,8 +877,13 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
 
     // --- Derived State ---
     const isOwner = selectedAi?.ownerId === user.id;
-    const isSpaceManager = !isGlobalAdmin && !!contextSpace?.id && Number(selectedAi?.spaceId) === Number(contextSpace?.id) && user.permissions?.includes('ai');
-    const canEdit = isGlobalAdmin || isOwner || isSpaceManager;
+    const isSpaceAdminUser = !isGlobalAdmin && !!contextSpace?.id && (
+        Number(contextSpace.userId) === Number(user.id) ||
+        Number((contextSpace as any).user_id) === Number(user.id) ||
+        Boolean(user.adminSpaceIds?.includes(Number(contextSpace.id)))
+    );
+    const isSpaceManager = !isGlobalAdmin && !!contextSpace?.id && Number(selectedAi?.spaceId) === Number(contextSpace?.id) && (user.permissions?.includes('ai') || isSpaceAdminUser);
+    const canEdit = isGlobalAdmin || isOwner || isSpaceManager || isSpaceAdminUser;
     
     const isFormDisabled = !canEdit;
     const isSuperAdmin = isGlobalAdmin;
@@ -903,10 +908,10 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
     const filteredAiList = useMemo(() => {
         // Non-global-admin: always filter by their space
         if (!isGlobalAdmin && contextSpace?.id) {
-            return aiList.filter(ai => ai.spaceId === contextSpace.id);
+            return aiList.filter(ai => Number(ai.spaceId) === Number(contextSpace.id));
         }
         if (!spaceIdFilter) return aiList;
-        return aiList.filter(ai => String(ai.spaceId) === spaceIdFilter);
+        return aiList.filter(ai => Number(ai.spaceId) === Number(spaceIdFilter));
     }, [aiList, spaceIdFilter, isGlobalAdmin, contextSpace?.id]);
 
     const isFormDirty = useCallback(() => {
@@ -1009,8 +1014,8 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
             try {
                 const [configs, users, spaces] = await Promise.all([
                     apiService.getManageableAiConfigs(user),
-                    apiService.getSpaceOwners(),
-                    apiService.getMySpaces(),
+                    isGlobalAdmin ? apiService.getSpaceOwners().catch(() => [user]) : Promise.resolve([user]),
+                    apiService.getMySpaces().catch(() => []),
                 ]);
 
                 setAiList(configs || []);
@@ -1021,16 +1026,24 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
                 if (!isGlobalAdmin && contextSpace?.id) {
                     setSpaceIdFilter(String(contextSpace.id));
                 } else if (!isGlobalAdmin && spaces && spaces.length > 0) {
-                    // allSpaces already scoped — use first available space
-                    if (spaces.length > 0) {
-                        setSpaceIdFilter(String(spaces[0].id));
+                    const preferredSpace = spaces.find((s: Space) =>
+                        s.isOwner ||
+                        Number(s.userId) === Number(user.id) ||
+                        user.adminSpaceIds?.includes(Number(s.id)) ||
+                        (configs || []).some((c: AIConfig) => Number(c.spaceId) === Number(s.id))
+                    ) || spaces[0];
+                    if (preferredSpace) {
+                        setSpaceIdFilter(String(preferredSpace.id));
                     }
                 }
 
                 if (configs && configs.length > 0) {
                     const urlParams = new URLSearchParams(window.location.search);
                     const aiParam = urlParams.get('ai');
-                    let targetAi = configs[0];
+                    const scopedConfigs = (!isGlobalAdmin && contextSpace?.id)
+                        ? configs.filter((c: AIConfig) => Number(c.spaceId) === Number(contextSpace.id))
+                        : configs;
+                    let targetAi = scopedConfigs[0] || configs[0];
 
                     if (aiParam) {
                         const found = configs.find(c => c.id?.toString() === aiParam);
@@ -1065,7 +1078,20 @@ export const AiManagement: React.FC<{ language: 'vi' | 'en', user: User, isGloba
             }
         };
         fetchData();
-    }, [user]);
+    }, [user, isGlobalAdmin]);
+
+    useEffect(() => {
+        if (!isGlobalAdmin && contextSpace?.id) {
+            setSpaceIdFilter(String(contextSpace.id));
+            if (aiList.length > 0 && (!selectedAi || Number(selectedAi.spaceId) !== Number(contextSpace.id))) {
+                const spaceAis = aiList.filter(ai => Number(ai.spaceId) === Number(contextSpace.id));
+                if (spaceAis.length > 0) {
+                    setSelectedAi(spaceAis[0]);
+                    setPristineAi(spaceAis[0]);
+                }
+            }
+        }
+    }, [contextSpace?.id, isGlobalAdmin, aiList]);
 
     useEffect(() => {
         const fetchTrainingDataForCurrentAI = async () => {

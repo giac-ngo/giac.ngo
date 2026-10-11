@@ -54,7 +54,7 @@ router.get('/', (req: any, res, next) => {
     next();
 }, conversationController.getConversations);
 router.get('/user/:userId', requireOwnUser, (req, _res, next) => { req.query.userId = req.params.userId; next(); }, conversationController.getConversations);
-router.get('/all', requireGlobalAdmin, conversationController.getAllConversations);
+router.get('/all', isAuthenticated, conversationController.getAllConversations);
 router.get('/:id', requireConversationAccess, async (req, res, next) => {
     try {
         const result = await pool.query('SELECT * FROM conversations WHERE id = $1', [req.params.id]);
