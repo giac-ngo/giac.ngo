@@ -204,7 +204,16 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
             return next();
         }
         const space = await spaceModel.findByCustomDomain(host);
-        if (!space) return next();
+        if (!space) {
+            if (host.startsWith('www.')) {
+                const bareHost = host.slice(4);
+                const bareSpace = await spaceModel.findByCustomDomain(bareHost);
+                if (bareSpace) {
+                    return res.redirect(301, `https://${bareHost}${req.originalUrl}`);
+                }
+            }
+            return next();
+        }
         return spacePageController.serveCustomDomainPage(req, res, space);
     } catch (err: unknown) {
         logger.error('Custom domain middleware error', err);

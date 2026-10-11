@@ -194,7 +194,7 @@ document.querySelector('.gc-contact-form').addEventListener('submit', async (e) 
                         <p class="gn-agent-desc">${(ai.description || '').substring(0, 100)}...</p>
                         <div class="gn-divider"></div>
                         <div class="gn-meta">
-                            <span class="gn-tag">${ai.modelName || 'AI Model'}</span>
+                            <span class="gn-tag">Trợ lý AI</span>
                         </div>
                         <div class="gn-price">${priceText}</div>
                         <button onclick="window.parent.postMessage({type: 'NAVIGATE', aiId: '${ai.id}'}, '*')" class="gn-btn">Khám phá Agent</button>
@@ -308,6 +308,50 @@ async function buildHtmlPage(page, space, assets) {
         }
     }
 
+    function sanitizeInternalModelTags(lang) {
+        var label = lang === 'en' ? 'AI Assistant' : 'Trợ lý AI';
+        var tags = document.querySelectorAll('.gn-tag, .agent-model, .model-badge, .card-tag, span, small');
+        tags.forEach(function(el) {
+            if (el.children.length === 0 && el.textContent) {
+                var txt = el.textContent.trim();
+                if (/^(gemini-|gpt-|claude-|grok-|llama-|qwen-)/i.test(txt)) {
+                    el.textContent = label;
+                } else if (txt === 'Trợ lý AI' && lang === 'en') {
+                    el.textContent = 'AI Assistant';
+                } else if (txt === 'AI Assistant' && lang === 'vi') {
+                    el.textContent = 'Trợ lý AI';
+                }
+            }
+        });
+    }
+
+    function syncExtraNavLang(lang) {
+        sanitizeInternalModelTags(lang);
+        var mapViToEn = {
+            'Trang chủ': 'Home',
+            'Trò chuyện': 'Chat',
+            'Thư viện': 'Library',
+            'Pháp thoại': 'Dharma Talks',
+            'Thiền': 'Meditation',
+            'Cộng đồng': 'Community',
+            'Cúng dường': 'Offering',
+            'Về chúng tôi': 'About Us',
+            'Đăng nhập': 'Login',
+            'Đăng xuất': 'Logout',
+            'Quản trị': 'Admin'
+        };
+        var mapEnToVi = {};
+        Object.keys(mapViToEn).forEach(function(k) { mapEnToVi[mapViToEn[k]] = k; });
+        var dict = lang === 'en' ? mapViToEn : mapEnToVi;
+        var navEls = document.querySelectorAll('nav a, nav button, .mobile-menu a, .mobile-menu button, .nav-links a, .nav-links button, header a, header button');
+        navEls.forEach(function(el) {
+            if (el.children.length === 0 && el.textContent) {
+                var t = el.textContent.trim();
+                if (dict[t]) el.textContent = dict[t];
+            }
+        });
+    }
+
     function persistLang(lang) {
         if (!lang) return;
         try {
@@ -321,19 +365,23 @@ async function buildHtmlPage(page, space, assets) {
     }
 
     function hookLanguage() {
+        var saved = getStoredLang();
+        syncExtraNavLang(saved);
         if (typeof window.setLang === 'function' && !window.setLang._persisted) {
             var rawSetLang = window.setLang;
             var wrapped = function(lang) {
                 persistLang(lang);
-                return rawSetLang(lang);
+                var res = rawSetLang(lang);
+                syncExtraNavLang(lang);
+                return res;
             };
             wrapped._persisted = true;
             window.setLang = wrapped;
 
             // Apply currently stored language
-            var saved = getStoredLang();
             if (saved && (saved === 'en' || saved === 'vi')) {
                 rawSetLang(saved);
+                syncExtraNavLang(saved);
             }
         }
     }
@@ -347,13 +395,14 @@ async function buildHtmlPage(page, space, assets) {
     var count = 0;
     var timer = setInterval(function() {
         count++;
+        sanitizeInternalModelTags(getStoredLang());
         if (typeof window.setLang === 'function') {
             if (!window.setLang._persisted) {
                 hookLanguage();
             }
         }
         if (count > 50) clearInterval(timer);
-    }, 100);
+    }, 150);
 
     // Re-apply language after async agents have loaded
     window.addEventListener('load', function() {
@@ -362,7 +411,11 @@ async function buildHtmlPage(page, space, assets) {
             if (saved && typeof window.setLang === 'function') {
                 window.setLang(saved);
             }
-        }, 400);
+            syncExtraNavLang(saved);
+        }, 500);
+        setTimeout(function() {
+            syncExtraNavLang(getStoredLang());
+        }, 1500);
     });
 
     window.addEventListener('message', function(ev) {
@@ -373,6 +426,7 @@ async function buildHtmlPage(page, space, assets) {
                 if (typeof window.setLang === 'function') {
                     window.setLang(lang);
                 }
+                syncExtraNavLang(lang);
             }
         }
     });
@@ -688,8 +742,8 @@ export const spacePageController = {
                 [space.id, slug]
             );
 
-            // Fallback to home page for root or if not found
-            if (!pageRes.rows[0]) {
+            // Fallback to home page only when requesting root '/'
+            if (!pageRes.rows[0] && slug === '/') {
                 pageRes = await pool.query(
                     `SELECT * FROM space_pages WHERE space_id = $1 AND page_type = 'home' AND is_published = true LIMIT 1`,
                     [space.id]
@@ -697,7 +751,7 @@ export const spacePageController = {
             }
 
             if (!pageRes.rows[0]) {
-                return res.status(404).send(`<html><body><h1>Trang không tìm thấy</h1><p>${space.name}</p></body></html>`);
+                return res.status(404).send(`<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>404 - Không tìm thấy trang</title></head><body style="font-family:sans-serif;text-align:center;padding:60px 20px;"><h1>404 — Trang không tìm thấy</h1><p>${space.name}</p><p><a href="/" style="color:#7f1d1d;">Quay về trang chủ</a></p></body></html>`);
             }
 
             const page = mapRowToCamelCase(pageRes.rows[0]);

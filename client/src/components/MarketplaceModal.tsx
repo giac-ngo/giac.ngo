@@ -8,7 +8,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const translations = {
     vi: {
-        title: "Explore AI",
+        title: "Khám phá AI",
         subtitle: "Khám phá và sở hữu các AI Agent độc đáo từ cộng đồng.",
         balance: "Số dư của bạn",
         unlimited: "Không giới hạn",
@@ -20,6 +20,7 @@ const translations = {
         buyFor: "Mua với {cost} merits",
         insufficientMerits: "Không đủ merits",
         loginToBuy: "Đăng nhập để mua",
+        loginToUse: "Đăng nhập để dùng",
         free: "Miễn phí",
         merits: 'merits',
         perRequest: '/yêu cầu',
@@ -37,6 +38,7 @@ const translations = {
         buyFor: "Buy for {cost} merits",
         insufficientMerits: "Insufficient Merits",
         loginToBuy: "Login to Buy",
+        loginToUse: "Login to Use",
         free: "Free",
         merits: 'merits',
         perRequest: '/request',
@@ -84,7 +86,7 @@ function AgentPurchaseCard({ ai, user, onPurchase, isPurchasing, language }: Age
     if (isOwned) {
         button = <button disabled className="w-full bg-green-600 text-white py-2 rounded-md cursor-not-allowed">{t.owned}</button>;
     } else if (!user) {
-        button = <Link to="/login" className="w-full block text-center bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600">{t.loginToBuy}</Link>;
+        button = <Link to="/login" className="w-full block text-center bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600">{isFreeToOwn ? t.loginToUse : t.loginToBuy}</Link>;
     } else if (isFreeToOwn) {
         // Free AI - allow user to claim it
         button = (

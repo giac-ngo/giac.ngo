@@ -61,7 +61,7 @@ const translations = {
 };
 
 const formatDuration = (seconds: number) => {
-    if (isNaN(seconds) || seconds <= 0) return '--:--';
+    if (isNaN(seconds) || seconds <= 0) return '';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = Math.floor(seconds % 60);

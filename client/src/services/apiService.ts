@@ -610,29 +610,83 @@ export const apiService = {
     },
 
     // ── Spaces ──────────────────────────────────────────────────────────────────
-    getSpaces: (): Promise<Space[]> => authedFetch('/api/spaces').then(handleResponse),
+    getSpaces: ((): (() => Promise<Space[]>) => {
+        let cachedPromise: Promise<Space[]> | null = null;
+        let cacheExpiry = 0;
+        const fn = (): Promise<Space[]> => {
+            const now = Date.now();
+            if (cachedPromise && now < cacheExpiry) {
+                return cachedPromise;
+            }
+            cacheExpiry = now + 15000;
+            cachedPromise = authedFetch('/api/spaces')
+                .then(handleResponse)
+                .catch(err => {
+                    cachedPromise = null;
+                    cacheExpiry = 0;
+                    throw err;
+                });
+            return cachedPromise;
+        };
+        (fn as any).invalidate = () => {
+            cachedPromise = null;
+            cacheExpiry = 0;
+        };
+        return fn;
+    })(),
     // Admin panel: get only spaces the current user owns or is a member of (requires auth)
     getMySpaces: (): Promise<Space[]> => authedFetch('/api/spaces/my-spaces').then(handleResponse),
     getSpace: (id: number | string): Promise<Space> => authedFetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceById: (id: number | string): Promise<Space> => authedFetch(`/api/spaces/${id}`).then(handleResponse),
     getSpaceBySlug: (slug: string): Promise<Space> => authedFetch(`/api/spaces/slug/${slug}`).then(handleResponse),
-    getSpaceByDomain: (domain: string): Promise<Space> => authedFetch(`/api/spaces/domain/${domain}`).then(handleResponse),
+    getSpaceByDomain: ((): ((domain: string) => Promise<Space>) => {
+        const domainCache = new Map<string, { promise: Promise<Space>; expiry: number }>();
+        const fn = (domain: string): Promise<Space> => {
+            const now = Date.now();
+            const entry = domainCache.get(domain);
+            if (entry && now < entry.expiry) {
+                return entry.promise;
+            }
+            const promise = authedFetch(`/api/spaces/domain/${domain}`)
+                .then(handleResponse)
+                .catch(err => {
+                    domainCache.delete(domain);
+                    throw err;
+                });
+            domainCache.set(domain, { promise, expiry: now + 15000 });
+            return promise;
+        };
+        (fn as any).invalidate = () => domainCache.clear();
+        return fn;
+    })(),
     getManagedSpaces: (userId: number): Promise<Space[]> => authedFetch(`/api/spaces/managed/${userId}`).then(handleResponse),
     getSpaceOwners: (): Promise<User[]> => authedFetch('/api/spaces/owners').then(handleResponse),
 
     createSpace: (data: any) => authedFetch('/api/spaces', {
         method: 'POST',
         body: JSON.stringify(data)
-    }).then(handleResponse),
+    }).then(res => {
+        (apiService.getSpaces as any).invalidate?.();
+        (apiService.getSpaceByDomain as any).invalidate?.();
+        return handleResponse(res);
+    }),
 
     updateSpace: (id: number | string, data: any) => authedFetch(`/api/spaces/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data)
-    }).then(handleResponse),
+    }).then(res => {
+        (apiService.getSpaces as any).invalidate?.();
+        (apiService.getSpaceByDomain as any).invalidate?.();
+        return handleResponse(res);
+    }),
 
     deleteSpace: (id: number | string) => authedFetch(`/api/spaces/${id}`, {
         method: 'DELETE'
-    }).then(handleResponse),
+    }).then(res => {
+        (apiService.getSpaces as any).invalidate?.();
+        (apiService.getSpaceByDomain as any).invalidate?.();
+        return handleResponse(res);
+    }),
 
     getSpaceTypes: (): Promise<any[]> => authedFetch('/api/space-types').then(handleResponse),
     createSpaceType: (data: any) => authedFetch('/api/space-types', { method: 'POST', body: JSON.stringify(data) }).then(handleResponse),

@@ -51,7 +51,7 @@ const translations = {
         userLimitReached: "Bạn đã hết merit. Vui lòng nạp thêm để tiếp tục.",
         purchaseNeeded: "AI này cần được mua để sử dụng.",
         pricing: "Bảng giá",
-        marketplace: "Explore AI",
+        marketplace: "Khám phá AI",
         micNotSupported: 'Trình duyệt không hỗ trợ nhận dạng giọng nói.',
         micAccessDenied: 'Quyền truy cập micro đã bị từ chối. Vui lòng cho phép trong cài đặt trình duyệt.',
         micNotFound: 'Không tìm thấy micro trên thiết bị của bạn.',
